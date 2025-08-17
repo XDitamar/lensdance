@@ -1,3 +1,4 @@
+// src/App.js
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
@@ -6,32 +7,36 @@ import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
-
-// (Optional) If you already have these, keep their imports too:
-// import GalleryPage from "./pages/GalleryPage";
-// import MePage from "./pages/MePage";
-// import LoginPage from "./pages/LoginPage";
-// import SignupPage from "./pages/SignupPage";
-// import AdminPage from "./pages/AdminPage";
-// import ChangePasswordPage from "./pages/ChangePasswordPage";
+import GalleryPage from "./pages/GalleryPage";
+import MePage from "./pages/MePage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import AdminPage from "./pages/AdminPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 
 export default function App() {
   return (
     <>
       <Header />
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/contact" element={<ContactPage />} />
+
+        {/* Auth routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/change-password" element={<ChangePasswordPage />} />
 
-        {/* Add your other routes back when those files exist */}
-        {/* <Route path="/gallery" element={<GalleryPage />} /> */}
-        {/* <Route path="/me" element={<MePage />} /> */}
-        {/* <Route path="/login" element={<LoginPage />} /> */}
-        {/* <Route path="/signup" element={<SignupPage />} /> */}
-        {/* <Route path="/admin" element={<AdminPage />} /> */}
-        {/* <Route path="/change-password" element={<ChangePasswordPage />} /> */}
+        {/* User routes */}
+        <Route path="/me" element={<MePage />} />
 
+        {/* Admin route */}
+        <Route path="/admin" element={<AdminPage />} />
+
+        {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
