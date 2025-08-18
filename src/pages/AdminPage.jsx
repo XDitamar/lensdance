@@ -143,7 +143,7 @@ export default function AdminPage() {
 
           <button
             className="auth-primary"
-            onClick={upload}
+            onClick={usspload}
             disabled={!file || busy}
           >
             {busy ? "Uploading..." : "Upload"}
