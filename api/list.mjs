@@ -1,50 +1,60 @@
 // api/list.mjs
 import { verifyAuth } from "./_firebaseAdmin.mjs";
 
-// Helper to call Bunny Storage directory listing
+/**
+ * List contents of a Bunny Storage directory
+ */
 async function listBunnyDir(prefix) {
-  // prefix example: "public/" or "id@gmail.com/"
   const base = `https://${process.env.BUNNY_STORAGE_HOST}/${process.env.BUNNY_STORAGE_ZONE}`;
-  const url = `${base}/${encodeURI(prefix)}`; // Bunny lists when you GET a directory path
+  const url = `${base}/${encodeURI(prefix)}`; // must end with slash for dirs
+
   const r = await fetch(url, {
     method: "GET",
     headers: { AccessKey: process.env.BUNNY_STORAGE_ACCESS_KEY },
   });
-
-  // Bunny returns JSON for directories; if host/zone/path is wrong you'll get HTML or 404
   const text = await r.text();
-  if (!r.ok) throw new Error(`Bunny list failed ${r.status}: ${text.slice(0,200)}`);
 
-  // Try JSON parse; if it fails, show first chars to help debug
+  if (!r.ok) {
+    throw new Error(`Bunny list failed ${r.status}: ${text.slice(0, 200)}`);
+  }
+
   let arr;
-  try { arr = JSON.parse(text); }
-  catch { throw new Error("Unexpected directory listing response from Bunny. Check host/zone/path."); }
+  try {
+    arr = JSON.parse(text);
+  } catch {
+    throw new Error(
+      "Unexpected Bunny listing response. Check your STORAGE_HOST/ZONE and make sure you request a folder (with trailing slash)."
+    );
+  }
 
-  // Keep files only (skip subfolders)
-  const files = arr.filter(item => !item.IsDirectory);
-  // Map to CDN URLs
-  return files.map(f => ({
-    name: f.ObjectName || f.Name || f.Key,
-    size: f.Length || f.Size || 0,
-    lastChanged: f.LastChanged || null,
-    url: `https://${process.env.BUNNY_CDN_HOST}/${prefix}${encodeURIComponent(f.ObjectName || f.Name || f.Key)}`
-  }));
+  return arr
+    .filter((x) => !x.IsDirectory)
+    .map((x) => {
+      const name = x.ObjectName || x.Name || x.Key;
+      return {
+        name,
+        url: `https://${process.env.BUNNY_CDN_HOST}/${prefix}${encodeURIComponent(
+          name
+        )}`,
+      };
+    });
 }
 
 export default async function handler(req, res) {
   try {
-    const folder = (req.query.folder || "").toString();
+    const folder = String(req.query.folder || "");
 
+    // Public gallery
     if (folder === "public") {
-      const items = await listBunnyDir("public/");
+      const items = await listBunnyDir("public/"); // files live in StorageZone/public/
       return res.status(200).json(items);
     }
 
+    // User's private gallery
     if (folder === "me") {
-      const decoded = await verifyAuth(req); // requires Authorization: Bearer <idToken>
-      const email = decoded.email;
-      if (!email) return res.status(401).send("Missing user email");
-      const items = await listBunnyDir(`${email}/`);
+      const user = await verifyAuth(req);
+      const safeEmail = user.email; // we assume you create folder in Bunny with exact email
+      const items = await listBunnyDir(`${safeEmail}/`);
       return res.status(200).json(items);
     }
 
