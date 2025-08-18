@@ -4,10 +4,10 @@ export default function GalleryPage() {
   const [media, setMedia] = useState([]);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_BASE}/media`)
-      .then((res) => res.json())
+    fetch("/api/list?folder=public")
+      .then((r) => r.json())
       .then(setMedia)
-      .catch(console.error);
+      .catch((e) => console.error("Public list failed:", e));
   }, []);
 
   return (
@@ -15,11 +15,11 @@ export default function GalleryPage() {
       <h1>Public Gallery</h1>
       <div className="gallery-grid">
         {media.map((m) => (
-          <div key={m.id} className="gallery-item">
-            {m.type.startsWith("video") ? (
-              <video controls src={m.url}></video>
+          <div key={m.url} className="gallery-item">
+            {/\.(mp4|webm|mov|mkv)$/i.test(m.name) ? (
+              <video controls src={m.url} />
             ) : (
-              <img src={m.url} alt="gallery" />
+              <img src={m.url} alt={m.name} />
             )}
           </div>
         ))}
