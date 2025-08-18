@@ -5,17 +5,16 @@ export default function MePage() {
   const [media, setMedia] = useState([]);
 
   useEffect(() => {
-    const fetchMedia = async () => {
+    (async () => {
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) return; // show login prompt elsewhere if you want
       const token = await user.getIdToken();
-      const res = await fetch(`${process.env.REACT_APP_API_BASE}/media?user=${user.uid}`, {
+      const r = await fetch("/api/list?folder=me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await r.json();
       setMedia(data);
-    };
-    fetchMedia();
+    })().catch(console.error);
   }, []);
 
   return (
@@ -23,11 +22,11 @@ export default function MePage() {
       <h1>My Gallery</h1>
       <div className="gallery-grid">
         {media.map((m) => (
-          <div key={m.id} className="gallery-item">
-            {m.type.startsWith("video") ? (
-              <video controls src={m.url}></video>
+          <div key={m.url} className="gallery-item">
+            {/\.(mp4|webm|mov|mkv)$/i.test(m.name) ? (
+              <video controls src={m.url} />
             ) : (
-              <img src={m.url} alt="my media" />
+              <img src={m.url} alt={m.name} />
             )}
           </div>
         ))}
