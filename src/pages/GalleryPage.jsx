@@ -1,129 +1,85 @@
-import React, { useEffect, useState, useRef } from "react";
+// api/list.mjs
+import { verifyAuth } from "./_firebaseAdmin.mjs";
 
-export default function GalleryPage() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [lastRefresh, setLastRefresh] = useState(null);
-  const [showDebug, setShowDebug] = useState(false);
-  const [raw, setRaw] = useState(null);
-  const intervalRef = useRef(null);
+/** Ensure dir prefix ends with a single trailing slash */
+function norm(prefix) {
+  if (!prefix) return "";
+  return prefix.endsWith("/") ? prefix : prefix + "/";
+}
 
-  const fetchList = async () => {
-    try {
-      setErr("");
-      setLoading(true);
-      // cache-buster so CDN or any proxy won't give us stale JSON
-      const res = await fetch(`/api/list?folder=public&_t=${Date.now()}`);
-      if (!res.ok) throw new Error(await res.text());
+/** Parse Bunny directory listing in a tolerant way */
+function parseListing(text) {
+  let data = null;
+  try { data = JSON.parse(text); } catch { /* not JSON */ }
 
-      const data = await res.json();
+  if (!data) throw new Error("Bunny listing was not JSON. Check STORAGE host/zone and that path is a directory.");
 
-      // Basic sanity: ensure it's an array of {name, url}
-      if (!Array.isArray(data)) {
-        throw new Error("Unexpected response (not array). Check /api/list logs.");
-      }
+  // Bunny usually returns an array of objects with IsDirectory/ObjectName
+  if (Array.isArray(data)) return data;
 
-      setRaw(data);
-      // Sort newest first by guessed filename/time if present; else stable sort by name
-      const normalized = data
-        .filter((x) => x && x.url)
-        .sort((a, b) => (b.lastChanged || 0) - (a.lastChanged || 0));
+  // Some responses are wrapped, e.g. { Items: [...] }
+  if (Array.isArray(data.Items)) return data.Items;
 
-      setItems(normalized);
-      setLastRefresh(new Date());
-    } catch (e) {
-      console.error("Public list failed:", e);
-      setErr(String(e.message || e));
-    } finally {
-      setLoading(false);
+  // Or lowercase keys
+  if (Array.isArray(data.items)) return data.items;
+
+  throw new Error("Unexpected Bunny listing shape.");
+}
+
+/** List a Bunny Storage directory and map to CDN URLs */
+async function listBunnyDir(prefix) {
+  const dir = norm(prefix);
+  const base = `https://${process.env.BUNNY_STORAGE_HOST}/${process.env.BUNNY_STORAGE_ZONE}`;
+  const url = `${base}/${encodeURI(dir)}`; // GET a folder path to list
+
+  const r = await fetch(url, {
+    method: "GET",
+    headers: { AccessKey: process.env.BUNNY_STORAGE_ACCESS_KEY },
+  });
+
+  const text = await r.text();
+  if (!r.ok) throw new Error(`Bunny list failed ${r.status}: ${text.slice(0,200)}`);
+
+  const items = parseListing(text);
+
+  return items
+    .filter(x => !x.IsDirectory) // keep files only
+    .map(x => {
+      const name = x.ObjectName || x.Name || x.Key || x.FileName;
+      const lastChanged = x.LastChanged || x.LastModified || null;
+      return {
+        name,
+        lastChanged,
+        url: `https://${process.env.BUNNY_CDN_HOST}/${dir}${encodeURIComponent(name)}`
+      };
+    });
+}
+
+export default async function handler(req, res) {
+  try {
+    const folder = String(req.query.folder || "");
+
+    if (folder === "public") {
+      const items = await listBunnyDir("public/");
+      return res.status(200).json(items);
     }
-  };
 
-  useEffect(() => {
-    fetchList();
+    if (folder === "me") {
+      const user = await verifyAuth(req); // needs Authorization: Bearer <idToken>
+      const email = user.email;           // folder name equals email (create this in Bunny)
+      const items = await listBunnyDir(`${email}/`);
+      return res.status(200).json(items);
+    }
 
-    // Auto-refresh every 30s so new uploads show up without reload
-    intervalRef.current = setInterval(fetchList, 30 * 1000);
-    return () => clearInterval(intervalRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Optional: list root if you pass folder=root
+    if (folder === "root") {
+      const items = await listBunnyDir("");
+      return res.status(200).json(items);
+    }
 
-  return (
-    <main className="gallery-wrap" style={{ padding: "24px" }}>
-      <h1 className="section-title" style={{ textAlign: "left" }}>Public Gallery</h1>
-
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}>
-        <button className="auth-primary" onClick={fetchList} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-        <button
-          className="auth-primary"
-          onClick={() => setShowDebug((v) => !v)}
-          style={{ background: "#6a402a" }}
-        >
-          {showDebug ? "Hide debug" : "Show debug"}
-        </button>
-        <span style={{ color: "#666", fontSize: ".9rem" }}>
-          {lastRefresh ? `Last refresh: ${lastRefresh.toLocaleTimeString()}` : "—"}
-        </span>
-        <span style={{ color: "#666", fontSize: ".9rem" }}>
-          {items.length} file{items.length === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      {err && (
-        <div className="auth-error" style={{ marginBottom: 16 }}>
-          {err}
-        </div>
-      )}
-
-      {/* Debug panel shows the raw JSON we got back */}
-      {showDebug && (
-        <pre
-          style={{
-            background: "#111",
-            color: "#aef",
-            padding: 12,
-            borderRadius: 8,
-            overflowX: "auto",
-            marginBottom: 16,
-            maxHeight: 300,
-          }}
-        >
-{JSON.stringify(raw, null, 2)}
-        </pre>
-      )}
-
-      {loading && items.length === 0 ? (
-        <p>Loading…</p>
-      ) : items.length === 0 ? (
-        <p>No files in <code>public/</code> yet.</p>
-      ) : (
-        <div className="gallery-grid">
-          {items.map((m) => (
-            <div key={m.url} className="gallery-item">
-              {/\.(mp4|webm|mov|mkv)$/i.test(m.name) ? (
-                <video
-                  controls
-                  src={`${m.url}?cb=${lastRefresh ? lastRefresh.getTime() : ""}`}
-                  style={{ width: "100%", display: "block" }}
-                />
-              ) : (
-                <img
-                  src={`${m.url}?cb=${lastRefresh ? lastRefresh.getTime() : ""}`}
-                  alt={m.name || "media"}
-                  style={{ width: "100%", display: "block" }}
-                  onError={(e) => {
-                    // helpful hint if CDN path/casing is wrong
-                    e.currentTarget.title = "Failed to load image. Check Bunny CDN URL and file path/case.";
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </main>
-  );
+    return res.status(400).send("folder must be 'public', 'me', or 'root'");
+  } catch (e) {
+    console.error("LIST ERROR:", e);
+    res.status(500).send(String(e));
+  }
 }
