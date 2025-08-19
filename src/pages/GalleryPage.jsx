@@ -12,7 +12,8 @@ export default function GalleryPage() {
       try {
         setLoading(true);
         setErr("");
-        const r = await fetch("../api/media.js");
+        // ✅ Correct API endpoint (no .js, just /api/media)
+        const r = await fetch("/api/media");
         if (!r.ok) throw new Error(await r.text());
         const data = await r.json();
         setMedia(data);
@@ -24,12 +25,12 @@ export default function GalleryPage() {
     })();
   }, []);
 
-  const images = media.filter(m => m.type === "image");
-  const videos = media.filter(m => m.type === "video");
+  const images = media.filter((m) => m.type === "image");
+  const videos = media.filter((m) => m.type === "video");
 
   return (
     <div className="container">
-      <h2 className="section-title">Gallery</h2>
+      <h2 className="section-title">Gallery (Testing build ✅)</h2>
 
       {/* Simple tabs */}
       <div style={{ display: "inline-flex", gap: 8, marginBottom: 16 }}>
@@ -54,9 +55,20 @@ export default function GalleryPage() {
 
       {!loading && !err && tab === "images" && (
         <div style={grid}>
-          {images.map(img => (
-            <a key={img.id} href={img.url} target="_blank" rel="noreferrer" style={card}>
-              <img src={img.url} alt={img.name} style={imgStyle} loading="lazy" />
+          {images.map((img) => (
+            <a
+              key={img.id}
+              href={img.url}
+              target="_blank"
+              rel="noreferrer"
+              style={card}
+            >
+              <img
+                src={img.url}
+                alt={img.name}
+                style={imgStyle}
+                loading="lazy"
+              />
             </a>
           ))}
           {images.length === 0 && <p>No photos yet.</p>}
@@ -65,7 +77,7 @@ export default function GalleryPage() {
 
       {!loading && !err && tab === "videos" && (
         <div style={grid}>
-          {videos.map(v => (
+          {videos.map((v) => (
             <div key={v.id} style={card}>
               <video
                 src={v.url}
@@ -84,9 +96,9 @@ export default function GalleryPage() {
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
   gap: 16,
-  marginTop: 12
+  marginTop: 12,
 };
 
 const card = {
@@ -94,7 +106,7 @@ const card = {
   border: "1px solid #eee",
   borderRadius: 10,
   padding: 8,
-  boxShadow: "0 4px 12px rgba(0,0,0,.06)"
+  boxShadow: "0 4px 12px rgba(0,0,0,.06)",
 };
 
 const imgStyle = {
@@ -102,5 +114,5 @@ const imgStyle = {
   height: 260,
   objectFit: "cover",
   display: "block",
-  borderRadius: 8
+  borderRadius: 8,
 };
