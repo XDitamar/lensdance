@@ -31,7 +31,7 @@ export default function GalleryPage() {
 
   return (
     <div className="container">
-      <h2 className="section-title">Gallery (Testing 1 build ✅)</h2>
+      <h2 className="section-title">Gallery (Testing 2 build ✅)</h2>
 
       {/* Tabs */}
       <div style={{ display: "inline-flex", gap: 8, marginBottom: 16 }}>
