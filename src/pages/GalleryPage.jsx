@@ -1,85 +1,106 @@
-// api/list.mjs
-import { verifyAuth } from "./_firebaseAdmin.mjs";
+// src/pages/GalleryPage.jsx
+import React, { useEffect, useState } from "react";
 
-/** Ensure dir prefix ends with a single trailing slash */
-function norm(prefix) {
-  if (!prefix) return "";
-  return prefix.endsWith("/") ? prefix : prefix + "/";
+export default function GalleryPage() {
+  const [media, setMedia] = useState([]);
+  const [tab, setTab] = useState("images");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setErr("");
+        const r = await fetch("../api/media.js");
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        setMedia(data);
+      } catch (e) {
+        setErr(e.message || "Failed to load media");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const images = media.filter(m => m.type === "image");
+  const videos = media.filter(m => m.type === "video");
+
+  return (
+    <div className="container">
+      <h2 className="section-title">Gallery</h2>
+
+      {/* Simple tabs */}
+      <div style={{ display: "inline-flex", gap: 8, marginBottom: 16 }}>
+        <button
+          className="auth-primary"
+          style={{ opacity: tab === "images" ? 1 : 0.7 }}
+          onClick={() => setTab("images")}
+        >
+          Photos ({images.length})
+        </button>
+        <button
+          className="auth-primary"
+          style={{ opacity: tab === "videos" ? 1 : 0.7 }}
+          onClick={() => setTab("videos")}
+        >
+          Videos ({videos.length})
+        </button>
+      </div>
+
+      {loading && <p>Loading…</p>}
+      {err && <div className="auth-error">{err}</div>}
+
+      {!loading && !err && tab === "images" && (
+        <div style={grid}>
+          {images.map(img => (
+            <a key={img.id} href={img.url} target="_blank" rel="noreferrer" style={card}>
+              <img src={img.url} alt={img.name} style={imgStyle} loading="lazy" />
+            </a>
+          ))}
+          {images.length === 0 && <p>No photos yet.</p>}
+        </div>
+      )}
+
+      {!loading && !err && tab === "videos" && (
+        <div style={grid}>
+          {videos.map(v => (
+            <div key={v.id} style={card}>
+              <video
+                src={v.url}
+                controls
+                preload="metadata"
+                style={{ width: "100%", display: "block", borderRadius: 8 }}
+              />
+            </div>
+          ))}
+          {videos.length === 0 && <p>No videos yet.</p>}
+        </div>
+      )}
+    </div>
+  );
 }
 
-/** Parse Bunny directory listing in a tolerant way */
-function parseListing(text) {
-  let data = null;
-  try { data = JSON.parse(text); } catch { /* not JSON */ }
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))",
+  gap: 16,
+  marginTop: 12
+};
 
-  if (!data) throw new Error("Bunny listing was not JSON. Check STORAGE host/zone and that path is a directory.");
+const card = {
+  background: "#fff",
+  border: "1px solid #eee",
+  borderRadius: 10,
+  padding: 8,
+  boxShadow: "0 4px 12px rgba(0,0,0,.06)"
+};
 
-  // Bunny usually returns an array of objects with IsDirectory/ObjectName
-  if (Array.isArray(data)) return data;
-
-  // Some responses are wrapped, e.g. { Items: [...] }
-  if (Array.isArray(data.Items)) return data.Items;
-
-  // Or lowercase keys
-  if (Array.isArray(data.items)) return data.items;
-
-  throw new Error("Unexpected Bunny listing shape.");
-}
-
-/** List a Bunny Storage directory and map to CDN URLs */
-async function listBunnyDir(prefix) {
-  const dir = norm(prefix);
-  const base = `https://${process.env.BUNNY_STORAGE_HOST}/${process.env.BUNNY_STORAGE_ZONE}`;
-  const url = `${base}/${encodeURI(dir)}`; // GET a folder path to list
-
-  const r = await fetch(url, {
-    method: "GET",
-    headers: { AccessKey: process.env.BUNNY_STORAGE_ACCESS_KEY },
-  });
-
-  const text = await r.text();
-  if (!r.ok) throw new Error(`Bunny list failed ${r.status}: ${text.slice(0,200)}`);
-
-  const items = parseListing(text);
-
-  return items
-    .filter(x => !x.IsDirectory) // keep files only
-    .map(x => {
-      const name = x.ObjectName || x.Name || x.Key || x.FileName;
-      const lastChanged = x.LastChanged || x.LastModified || null;
-      return {
-        name,
-        lastChanged,
-        url: `https://${process.env.BUNNY_CDN_HOST}/${dir}${encodeURIComponent(name)}`
-      };
-    });
-}
-
-export default async function handler(req, res) {
-  try {
-    const folder = String(req.query.folder || "");
-
-    if (folder === "public") {
-      const items = await listBunnyDir("public/");
-      return res.status(200).json(items);
-    }
-
-    if (folder === "me") {
-      const user = await verifyAuth(req); // needs Authorization: Bearer <idToken>
-      const email = user.email;           // folder name equals email (create this in Bunny)
-      const items = await listBunnyDir(`${email}/`);
-      return res.status(200).json(items);
-    }
-
-    // Optional: list root if you pass folder=root
-    if (folder === "root") {
-      const items = await listBunnyDir("");
-      return res.status(200).json(items);
-    }
-
-    return res.status(400).send("folder must be 'public', 'me', or 'root'");
-  } catch (e) {
-    console.error("LIST ERROR:", e);
-    res.status(500).send(String(e));
-  }
-}
+const imgStyle = {
+  width: "100%",
+  height: 260,
+  objectFit: "cover",
+  display: "block",
+  borderRadius: 8
+};
