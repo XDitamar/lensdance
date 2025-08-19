@@ -1,39 +1,53 @@
 // api/media.js
+import { initializeApp, applicationDefault, cert } from "firebase-admin/app";
+import { getStorage } from "firebase-admin/storage";
+
+// Ensure we initialize only once
+const app = !global._firebaseAdminApp
+  ? initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET, // e.g. "lensdance-8d29c.appspot.com"
+    })
+  : global._firebaseAdminApp;
+
+global._firebaseAdminApp = app;
+const bucket = getStorage().bucket();
+
 export default async function handler(req, res) {
   try {
-    const ZONE = process.env.BUNNY_STORAGE_ZONE;          // e.g. lensdance-images
-    const HOST = process.env.BUNNY_STORAGE_HOST || "storage.bunnycdn.com";
-    const KEY = process.env.BUNNY_STORAGE_ACCESS_KEY;
-    const CDN = process.env.BUNNY_CDN_HOST;               // e.g. lensdance.b-cdn.net
+    // list all files under "public/"
+    const [files] = await bucket.getFiles({ prefix: "public/" });
 
-    if (!ZONE || !KEY || !CDN) {
-      return res.status(500).json({ ok: false, error: "Missing Bunny env vars" });
-    }
+    const results = await Promise.all(
+      files.map(async (file) => {
+        // generate signed URL (valid 1 hour)
+        const [url] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 60 * 60 * 1000,
+        });
 
-    // list the public folder under lensdance-images
-    const path = "lensdance-images/public";
-    const url = `https://${HOST}/${encodeURIComponent(ZONE)}/${path}/`;
-
-    const r = await fetch(url, { headers: { AccessKey: KEY } });
-    if (!r.ok) throw new Error(await r.text());
-    const items = await r.json();
-
-    const results = items
-      .filter((it) => !it.IsDirectory)
-      .map((it) => ({
-        id: `${path}/${it.ObjectName}`,
-        url: `https://${CDN}/${path}/${it.ObjectName}`,   // CDN url for browser
-        type: it.ContentType?.startsWith("image")
-          ? "image"
-          : (it.ContentType?.startsWith("video") ? "video" : "other"),
-        name: it.ObjectName,
-        size: it.Length,
-        lastChanged: it.LastChanged,
-      }));
+        return {
+          id: file.name,
+          url,
+          type: file.metadata.contentType?.startsWith("image")
+            ? "image"
+            : file.metadata.contentType?.startsWith("video")
+            ? "video"
+            : "other",
+          name: file.name.split("/").pop(),
+          size: file.metadata.size,
+          updated: file.metadata.updated,
+        };
+      })
+    );
 
     res.status(200).json(results);
   } catch (e) {
     console.error("Error in /api/media:", e);
-    res.status(500).json({ ok: false, error: e.message || "List failed" });
+    res.status(500).json({ ok: false, error: e.message });
   }
 }
