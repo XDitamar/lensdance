@@ -1,5 +1,15 @@
 // src/pages/GalleryPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { storage } from "../firebase";
+import {
+  ref as storageRef,
+  listAll,
+  getDownloadURL,
+  getMetadata,
+} from "firebase/storage";
+
+const IMAGES_PATH = "images/public"; // adjust if needed
+const VIDEOS_PATH = "videos/public"; // adjust if needed
 
 export default function GalleryPage() {
   const [media, setMedia] = useState([]);
@@ -7,33 +17,88 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  const images = useMemo(() => media.filter((m) => m.type === "image"), [media]);
+  const videos = useMemo(() => media.filter((m) => m.type === "video"), [media]);
+
   useEffect(() => {
+    let cancelled = false;
+
+    async function listFolder(prefix, assumedType) {
+      const out = [];
+      const folder = storageRef(storage, prefix);
+
+      // listAll = one level; if you need deep subfolders, iterate prefixes too
+      const listing = await listAll(folder);
+
+      // items = files in the folder
+      const metas = await Promise.all(
+        listing.items.map(async (itemRef) => {
+          const [url, meta] = await Promise.all([
+            getDownloadURL(itemRef),
+            getMetadata(itemRef).catch(() => null), // metadata may fail if rules restrict
+          ]);
+
+          const contentType =
+            meta?.contentType ||
+            (assumedType === "image" ? "image/*" : assumedType === "video" ? "video/*" : "");
+          const type = contentType.startsWith("image")
+            ? "image"
+            : contentType.startsWith("video")
+            ? "video"
+            : assumedType || "other";
+
+          return {
+            id: itemRef.fullPath,
+            url,
+            type,
+            name: itemRef.name,
+            size: meta?.size ? Number(meta.size) : undefined,
+            updated: meta?.updated || meta?.timeCreated || undefined,
+          };
+        })
+      );
+
+      out.push(...metas);
+
+      // If you want to include subfolders, recurse here:
+      // for (const p of listing.prefixes) { ... }
+
+      return out;
+    }
+
     (async () => {
       try {
         setLoading(true);
         setErr("");
-        // ✅ Call your serverless API (make sure /api/media exists)
-        const r = await fetch("/api/media");
-        if (!r.ok) throw new Error(await r.text());
-        const data = await r.json();
-        console.log("Fetched media ✅", data); // debug in DevTools
-        setMedia(data);
+
+        const [imgs, vids] = await Promise.all([
+          listFolder(IMAGES_PATH, "image"),
+          listFolder(VIDEOS_PATH, "video"),
+        ]);
+
+        if (!cancelled) {
+          // newest first if timestamp exists
+          const all = [...imgs, ...vids].sort((a, b) =>
+            (b.updated || "").localeCompare(a.updated || "")
+          );
+          setMedia(all);
+        }
       } catch (e) {
-        setErr(e.message || "Failed to load media");
+        if (!cancelled) setErr(e.message || "Failed to load from Firebase Storage");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
 
-  const images = media.filter((m) => m.type === "image");
-  const videos = media.filter((m) => m.type === "video");
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="container">
-      <h2 className="section-title">Gallery (Testing 1 build ✅)</h2>
+      <h2 className="section-title">Gallery (Firebase ✅)</h2>
 
-      {/* Tabs */}
       <div style={{ display: "inline-flex", gap: 8, marginBottom: 16 }}>
         <button
           className="auth-primary"
@@ -57,19 +122,8 @@ export default function GalleryPage() {
       {!loading && !err && tab === "images" && (
         <div style={grid}>
           {images.map((img) => (
-            <a
-              key={img.id}
-              href={img.url}
-              target="_blank"
-              rel="noreferrer"
-              style={card}
-            >
-              <img
-                src={img.url}
-                alt={img.name}
-                style={imgStyle}
-                loading="lazy"
-              />
+            <a key={img.id} href={img.url} target="_blank" rel="noreferrer" style={card}>
+              <img src={img.url} alt={img.name} style={imgStyle} loading="lazy" />
             </a>
           ))}
           {images.length === 0 && <p>No photos yet.</p>}
