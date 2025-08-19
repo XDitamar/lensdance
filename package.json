@@ -27,7 +27,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject"  ,
+    "dev:server": "nodemon --watch server --ext js,mjs,cjs --exec node server/index.js",
+    "dev": "concurrently \"npm run dev:server\" \"react-scripts start\""
   },
   "eslintConfig": {
     "extends": [
@@ -48,6 +50,7 @@
     ]
   },
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "concurrently": "^9.2.0",
+    "nodemon": "^3.1.10"
   }
 }
