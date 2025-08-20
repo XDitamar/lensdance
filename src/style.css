@@ -526,9 +526,9 @@
 }
 
 .center-menu {
-    flex-grow: 1; /* Pushes other content to the sides */
-    display: flex;
-    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-right: auto;    
 }
 
 /* Logo and Title */
@@ -539,7 +539,7 @@
 .site-title {
     font-size: 1.5rem;
     font-weight: bold;
-    color: #333;
+    color: #6A402A;
     text-decoration: none;
 }
 
@@ -551,13 +551,13 @@
 
 .nav-links a {
     text-decoration: none;
-    color: #555;
+    color: #fff;
     font-weight: 500;
     transition: color 0.3s;
 }
 
 .nav-links a:hover {
-    color: #000;
+    color: #ffffff;
 }
 
 /* Hamburger and Dropdown */
