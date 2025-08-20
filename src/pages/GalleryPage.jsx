@@ -1,119 +1,115 @@
 // src/pages/GalleryPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
+import { ref, listAll, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
+import '../style.css';
 
-export default function GalleryPage() {
-  const [media, setMedia] = useState([]);
-  const [tab, setTab] = useState("images");
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+const GalleryPage = () => {
+    const [mediaUrls, setMediaUrls] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setErr("");
-        // ✅ Call your serverless API (make sure /api/media exists)
-        const r = await fetch("/api/media");
-        if (!r.ok) throw new Error(await r.text());
-        const data = await r.json();
-        console.log("Fetched media ✅", data); // debug in DevTools
-        setMedia(data);
-      } catch (e) {
-        setErr(e.message || "Failed to load media");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedMediaUrl, setSelectedMediaUrl] = useState('');
 
-  const images = media.filter((m) => m.type === "image");
-  const videos = media.filter((m) => m.type === "video");
+    useEffect(() => {
+        const fetchMedia = async () => {
+            try {
+                const folderRef = ref(storage, 'MainGallery');
+                const result = await listAll(folderRef);
 
-  return (
-    <div className="container">
-      <h2 className="section-title">Gallery (Testing 2 build ✅)</h2>
+                const urlPromises = result.items.map(imageRef => getDownloadURL(imageRef));
+                const urls = await Promise.allSettled(urlPromises);
 
-      {/* Tabs */}
-      <div style={{ display: "inline-flex", gap: 8, marginBottom: 16 }}>
-        <button
-          className="auth-primary"
-          style={{ opacity: tab === "images" ? 1 : 0.7 }}
-          onClick={() => setTab("images")}
-        >
-          Photos ({images.length})
-        </button>
-        <button
-          className="auth-primary"
-          style={{ opacity: tab === "videos" ? 1 : 0.7 }}
-          onClick={() => setTab("videos")}
-        >
-          Videos ({videos.length})
-        </button>
-      </div>
+                const fulfilledUrls = urls
+                    .filter(item => item.status === 'fulfilled')
+                    .map(item => item.value);
 
-      {loading && <p>Loading…</p>}
-      {err && <div className="auth-error">{err}</div>}
+                setMediaUrls(fulfilledUrls);
+                setLoading(false);
+            } catch (err) {
+                console.error("Error fetching media:", err);
+                setError("Failed to load media.");
+                setLoading(false);
+            }
+        };
 
-      {!loading && !err && tab === "images" && (
-        <div style={grid}>
-          {images.map((img) => (
-            <a
-              key={img.id}
-              href={img.url}
-              target="_blank"
-              rel="noreferrer"
-              style={card}
-            >
-              <img
-                src={img.url}
-                alt={img.name}
-                style={imgStyle}
-                loading="lazy"
-              />
-            </a>
-          ))}
-          {images.length === 0 && <p>No photos yet.</p>}
-        </div>
-      )}
+        fetchMedia();
+    }, []);
 
-      {!loading && !err && tab === "videos" && (
-        <div style={grid}>
-          {videos.map((v) => (
-            <div key={v.id} style={card}>
-              <video
-                src={v.url}
-                controls
-                preload="metadata"
-                style={{ width: "100%", display: "block", borderRadius: 8 }}
-              />
+    const filteredMediaUrls = mediaUrls.filter(url => {
+        const fileExtension = url.split('?')[0].split('.').pop().toLowerCase();
+        if (filter === 'images') {
+            return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileExtension);
+        }
+        if (filter === 'videos') {
+            return ['mp4', 'mov', 'avi', 'mkv'].includes(fileExtension);
+        }
+        return true;
+    });
+
+    const openModal = (url) => {
+        setSelectedMediaUrl(url);
+        setModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setSelectedMediaUrl('');
+        setModalOpen(false);
+    };
+
+    if (loading) {
+        return <div className="gallery-container loading">Loading media...</div>;
+    }
+
+    if (error) {
+        return <div className="gallery-container error">{error}</div>;
+    }
+
+    if (filteredMediaUrls.length === 0) {
+        return <div className="gallery-container no-media">No {filter === 'all' ? '' : filter} found.</div>;
+    }
+
+    return (
+        <div className="gallery-container">
+            <h1 className="gallery-title">Main Gallery</h1>
+            <div className="gallery-buttons">
+                <button onClick={() => setFilter('all')} className="filter-button">All</button>
+                <button onClick={() => setFilter('images')} className="filter-button">Images</button>
+                <button onClick={() => setFilter('videos')} className="filter-button">Videos</button>
             </div>
-          ))}
-          {videos.length === 0 && <p>No videos yet.</p>}
+            <div className="gallery-grid">
+                {filteredMediaUrls.map((url, index) => {
+                    const fileExtension = url.split('?')[0].split('.').pop().toLowerCase();
+                    const isVideo = ['mp4', 'mov', 'avi', 'mkv'].includes(fileExtension);
+                    
+                    return (
+                        <div key={index} className="gallery-item" onClick={() => openModal(url)}>
+                            {isVideo ? (
+                                <video src={url} className="gallery-item-media" />
+                            ) : (
+                                <img src={url} alt={`Gallery item ${index + 1}`} className="gallery-item-media" />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {modalOpen && (
+                <div className="media-modal">
+                    <div className="media-modal-content">
+                        <button className="modal-close-button" onClick={closeModal}>&times;</button>
+                        {selectedMediaUrl.split('?')[0].split('.').pop().toLowerCase().match(/(mp4|mov|avi|mkv)$/i) ? (
+                            <video src={selectedMediaUrl} controls className="modal-media" />
+                        ) : (
+                            <img src={selectedMediaUrl} alt="Enlarged Media" className="modal-media" />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
-}
-
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  gap: 16,
-  marginTop: 12,
+    );
 };
 
-const card = {
-  background: "#fff",
-  border: "1px solid #eee",
-  borderRadius: 10,
-  padding: 8,
-  boxShadow: "0 4px 12px rgba(0,0,0,.06)",
-};
-
-const imgStyle = {
-  width: "100%",
-  height: 260,
-  objectFit: "cover",
-  display: "block",
-  borderRadius: 8,
-};
+export default GalleryPage;
