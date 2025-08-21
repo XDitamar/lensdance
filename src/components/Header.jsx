@@ -1,96 +1,133 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import logo from './logo.png'; // Correct import for the logo
-import menu from './menu.png'; // Correct import for the menu icon
+import logo from "./logo.png";
+import menu from "./menu.png";
 
 export default function Header() {
-    const { user, logout } = useAuth();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    
-    const menuRef = useRef(null);
-    const btnRef = useRef(null);
+  const { user, logout } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-    useEffect(() => {
-        const handleOutsideClick = (e) => {
-            if (
-                menuRef.current &&
-                !menuRef.current.contains(e.target) &&
-                btnRef.current &&
-                !btnRef.current.contains(e.target)
-            ) {
-                setIsMenuOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleOutsideClick);
-        return () => document.removeEventListener("mousedown", handleOutsideClick);
-    }, []);
+  const menuRef = useRef(null);
+  const btnRef = useRef(null);
 
-    const isAdmin = !!user && user.email === "lensdance29@gmail.com";
-
-    const handleMenuItemClick = () => {
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target)
+      ) {
         setIsMenuOpen(false);
+      }
     };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
-    return (
-        <header className="navbar">
-            <div className="left-side">
-                <Link to="/" className="site-logo">
-                    <img className="logo-img" src={logo} alt="Lens Dance logo" />
-                </Link>
-                <div className="site-name">
-                    <Link to="/" className="site-title">Lens Dance</Link>
-                </div>
-            </div>
+  const isAdmin = !!user && user.email === "lensdance29@gmail.com";
 
-            <div className="center-menu">
-                <nav className="nav-links">
-                    <NavLink to="/" end>Home</NavLink>
-                    <NavLink to="/gallery">Gallery</NavLink>
-                    <NavLink to="/me">My Pics</NavLink>
-                    <NavLink to="/contact">Contact</NavLink>
-                    {isAdmin && <NavLink to="/admin">Admin</NavLink>}
-                </nav>
-            </div>
+  const handleMenuItemClick = () => {
+    setIsMenuOpen(false);
+  };
 
-            <div className="right-side">
-                {!user ? (
-                    <div className="auth-controls">
-                        <Link to="/login" className="auth-btn">Log in</Link>
-                        <Link to="/signup" className="auth-btn">Sign up</Link>
-                    </div>
-                ) : (
-                    <button className="auth-btn" onClick={logout}>Logout</button>
-                )}
-                
-                <button
-                    ref={btnRef}
-                    className="hamburger-btn"
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    aria-label="Toggle navigation menu"
-                >
-                    <img src={menu} alt="Menu" />
-                </button>
-            </div>
+  return (
+    <header className="navbar">
+      {/* Left side: logo + title */}
+      <div className="left-side">
+        <Link to="/" className="site-logo" onClick={handleMenuItemClick}>
+          <img className="logo-img" src={logo} alt="Lens Dance logo" />
+        </Link>
+        <div className="site-name">
+          <Link to="/" className="site-title" onClick={handleMenuItemClick}>
+            Lens Dance
+          </Link>
+        </div>
+      </div>
 
-            {isMenuOpen && (
-                <div ref={menuRef} className="dropdown-menu">
-                    <NavLink to="/" onClick={handleMenuItemClick}>Home</NavLink>
-                    <NavLink to="/gallery" onClick={handleMenuItemClick}>Gallery</NavLink>
-                    <NavLink to="/me" onClick={handleMenuItemClick}>My Pics</NavLink>
-                    <NavLink to="/contact" onClick={handleMenuItemClick}>Contact</NavLink>
-                    {isAdmin && <NavLink to="/admin" onClick={handleMenuItemClick}>Admin</NavLink>}
-                    <hr />
-                    {!user ? (
-                        <>
-                            <Link to="/login" onClick={handleMenuItemClick}>Log in</Link>
-                            <Link to="/signup" onClick={handleMenuItemClick}>Sign up</Link>
-                        </>
-                    ) : (
-                        <button onClick={logout}>Logout</button>
-                    )}
-                </div>
-            )}
-        </header>
-    );
+      {/* Center menu (desktop) */}
+      <div className="center-menu">
+        <nav className="nav-links">
+          <NavLink to="/" end onClick={handleMenuItemClick}>
+            Home
+          </NavLink>
+          <NavLink to="/gallery" onClick={handleMenuItemClick}>
+            Gallery
+          </NavLink>
+          <NavLink to="/me" onClick={handleMenuItemClick}>
+            Private Gallery
+          </NavLink>
+          <NavLink to="/contact" onClick={handleMenuItemClick}>
+            Contact
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" onClick={handleMenuItemClick}>
+              Admin
+            </NavLink>
+          )}
+        </nav>
+      </div>
+
+      {/* Right side: auth + hamburger (auth stays visible on mobile) */}
+      <div className="right-side">
+        {!user ? (
+          <div className="auth-controls">
+            <Link to="/login" className="auth-btn">
+              Log in
+            </Link>
+          </div>
+        ) : (
+          <button
+            className="auth-btn"
+            onClick={logout}
+            type="button"
+            aria-label="Logout"
+          >
+            Logout
+          </button>
+        )}
+
+        <button
+          ref={btnRef}
+          className="hamburger-btn"
+          onClick={() => setIsMenuOpen((v) => !v)}
+          aria-label="Toggle navigation menu"
+          aria-expanded={isMenuOpen ? "true" : "false"}
+          aria-controls="mobile-menu"
+          type="button"
+        >
+          <img src={menu} alt="Menu" />
+        </button>
+      </div>
+
+      {/* Mobile dropdown: ONLY nav links */}
+      {isMenuOpen && (
+        <div
+          ref={menuRef}
+          id="mobile-menu"
+          className="dropdown-menu"
+          role="menu"
+        >
+          <NavLink to="/" onClick={handleMenuItemClick} role="menuitem">
+            Home
+          </NavLink>
+          <NavLink to="/gallery" onClick={handleMenuItemClick} role="menuitem">
+            Gallery
+          </NavLink>
+          <NavLink to="/me" onClick={handleMenuItemClick} role="menuitem">
+            Private Gallery
+          </NavLink>
+          <NavLink to="/contact" onClick={handleMenuItemClick} role="menuitem">
+            Contact
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" onClick={handleMenuItemClick} role="menuitem">
+              Admin
+            </NavLink>
+          )}
+        </div>
+      )}
+    </header>
+  );
 }
