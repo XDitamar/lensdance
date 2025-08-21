@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import vid from "../vid/vid.mp4";
+import vid from "../vid.mp4";
 
 export default function HomePage() {
   return (
