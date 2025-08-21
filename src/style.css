@@ -512,22 +512,26 @@
 
 
 .modal-close-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 24px;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #ff0000;                 /* high contrast on dark modal */
+  font-size: 40px;             /* bigger X */
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: transform 0.2s ease, color 0.2s ease;
+  line-height: 1;
 }
-
 
 .modal-close-button:hover {
-    opacity: 1;
+  color: #ff4444;              /* red highlight on hover */
+  transform: scale(1.2);       /* pop effect */
+  opacity: 1;
 }
+
 
 
 .modal-media {
