@@ -106,6 +106,8 @@
     padding:7px 12px;
     border-radius:6px;
     transition:background .2s ease;
+    border:0;
+    cursor:pointer;
   }
   .auth-btn:hover{ background:var(--brown-500) }
   .account-icon{
@@ -232,7 +234,36 @@
     content:'✓'; position:absolute; left:0; top:0; color:var(--brown-600); font-weight:700;
   }
   .price-range-text{ font-size:1.15em; font-weight:700; color:var(--brown-700) }
-  
+  .book {
+  background: var(--brown-600);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 6px;
+  display: inline-block;
+  font-size: 0.95rem;  /* smaller text */
+  transition: background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+.book:hover {
+  background: var(--brown-500);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 12px rgba(0,0,0,0.2);
+}
+
+.book:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* container to center it */
+.book-btn-container {
+  text-align: center;
+  margin-top: 25px;
+}
+
   /* =========================================
      Contact page (Google Form embed)
   ========================================= */
@@ -574,7 +605,7 @@
 }
 
 .dropdown-menu {
-    display: none; /* Hidden by default */
+    display: none; /* Hidden by default; shown on mobile via media query */
     position: absolute;
     top: 100%;
     right: 0;
@@ -591,6 +622,36 @@
     display: flex;
 }
 
+/* ===== Auth-in-dropdown additions ===== */
+.dropdown-menu .auth-btn,
+.dropdown-menu a.auth-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  background: transparent;     /* menu-item look */
+  color: var(--brown-700);
+  border: none;
+  cursor: pointer;
+}
+
+.dropdown-menu .auth-btn:hover,
+.dropdown-menu a.auth-btn:hover {
+  background: #f6f6f6;
+}
+
+/* Optional: unify dropdown link look */
+.dropdown-menu a {
+  color: var(--brown-700);
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.dropdown-menu a:hover { background:#f6f6f6 }
+
 /* Mobile styles */
 @media (max-width: 768px) {
     .left-side {
@@ -601,15 +662,47 @@
         font-size: 1.2rem;
     }
 
-    .center-menu, .auth-controls {
-        display: none; /* Hide desktop nav on mobile */
-    }
-
+  
     .hamburger-btn {
         display: block; /* Show hamburger button on mobile */
     }
 
     .dropdown-menu {
-        display: flex;
+        display: flex;  /* The dropdown is rendered only when open in JSX */
     }
+
+    /* Hide standalone right-side auth button on mobile */
+  /* Keep only the desktop nav hidden */
+.center-menu { 
+  display: none; 
+}
+
+/* Make sure auth button area shows on mobile */
+.auth-controls { 
+  display: block !important; 
+}
+
+/* Layout: auth button next to hamburger */
+.right-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Compact the auth button on small screens (optional) */
+.auth-btn {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+}
+
+/* Keep hamburger visible */
+.hamburger-btn { 
+  display: block; 
+}
+
+/* Ensure dropdown renders as a column when open */
+.dropdown-menu { 
+  display: flex; 
+}
+
 }
