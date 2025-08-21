@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import vid from "../vid/vid.mp4";
 
 export default function HomePage() {
   return (
@@ -7,7 +8,7 @@ export default function HomePage() {
       {/* Hero */}
       <div className="hero-video-container">
         <video autoPlay loop muted playsInline className="hero-video">
-          <source src="/Video/vid.mp4" type="video/mp4" />
+          <source src={vid} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
         <div className="video-overlay" />
@@ -18,7 +19,9 @@ export default function HomePage() {
             reflects the unique beauty, power, and gentle spirit of every horse.
             Let's create stunning visual stories together.
           </p>
-          <Link to="/gallery" className="cta-button">View My Portfolio</Link>
+          <Link to="/gallery" className="cta-button">
+            View My Portfolio
+          </Link>
         </div>
       </div>
 
@@ -45,7 +48,9 @@ export default function HomePage() {
       {/* Disciplines */}
       <div className="container">
         <h2 className="section-title">My Photographic Disciplines</h2>
-        <p>Specializing in capturing the unique essence of horses across various equestrian disciplines.</p>
+        <p>
+          Specializing in capturing the unique essence of horses across various equestrian disciplines.
+        </p>
         <div className="services-grid">
           <div className="service-card">
             <h3>Western Riding</h3>
@@ -63,7 +68,14 @@ export default function HomePage() {
       </div>
 
       {/* Pricing */}
-      <div className="container" style={{ backgroundColor: "#f0ede5", borderRadius: "10px", padding: "50px 20px" }}>
+      <div
+        className="container"
+        style={{
+          backgroundColor: "#f0ede5",
+          borderRadius: "10px",
+          padding: "50px 20px",
+        }}
+      >
         <h2 className="section-title">Pricing & Packages</h2>
         <p>These are starting ranges; a custom quote is provided after consultation.</p>
 
@@ -110,8 +122,11 @@ export default function HomePage() {
             </ul>
             <p className="price-range-text">Price: Determined after consultation</p>
           </div>
+        </div> {/* end pricing-grid */}
 
-          <Link to="/contact" className="contact-cta">Book it now</Link>
+        {/* Book button outside grid */}
+        <div className="book-btn-container">
+          <Link to="/contact" className="book">Book it now</Link>
         </div>
 
         <p style={{ marginTop: 30, fontStyle: "italic", color: "#666" }}>
