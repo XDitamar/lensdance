@@ -2,9 +2,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-// Adjust to your Cloud Functions region + URL
-const API_BASE = import.meta.env.VITE_API_BASE || ""; 
-// e.g. "https://us-central1<YOUR-PROJECT-ID>.cloudfunctions.net"
+// ✅ No env vars. Use your absolute Cloud Function URL:
+const SEND_RESET_URL = "https://us-central1-<YOUR-PROJECT-ID>.cloudfunctions.net/sendResetEmail";
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState(1);
@@ -21,14 +20,15 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setErr(""); setMsg(""); setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/sendRecoveryCode`, {
+      const res = await fetch(SEND_RESET_URL, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ email: email.trim() })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send code");
-      setMsg("If an account exists for that address, a verification code was sent.");
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
+      if (!res.ok) throw new Error(data.error || "Failed to send email");
+      setMsg("If an account exists for that address, we’ve emailed a reset link.");
       setStep(2);
     } catch (e) {
       setErr(e.message);
@@ -46,12 +46,13 @@ export default function ForgotPasswordPage() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/confirmRecoveryCode`, {
+      const res = await fetch(`${SEND_RESET_URL.replace("sendResetEmail","confirmRecoveryCode")}`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ email: email.trim(), code: code.trim(), newPassword: pw })
       });
-      const data = await res.json();
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
       if (!res.ok) throw new Error(data.error || "Failed to reset password");
       setMsg("Password changed. You can sign in now.");
       setTimeout(() => navigate("/login", { replace: true, state: { email } }), 600);
@@ -86,7 +87,7 @@ export default function ForgotPasswordPage() {
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "Sending…" : "Send code"}
+              {loading ? "Sending…" : "Send reset link"}
             </button>
             <p className="auth-switch" style={{ marginTop: 12 }}>
               <Link to="/login" className="auth-link">Back to sign in</Link>
@@ -140,7 +141,7 @@ export default function ForgotPasswordPage() {
                 className="auth-link"
                 onClick={() => { setStep(1); setErr(""); setMsg(""); }}
               >
-                Resend code
+                Resend link
               </button>
               {" · "}
               <Link to="/login" className="auth-link">Back to sign in</Link>
