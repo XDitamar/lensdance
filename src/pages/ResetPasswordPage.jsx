@@ -13,6 +13,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  // Extract oobCode from the URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oob = params.get("oobCode") || "";
@@ -44,9 +45,11 @@ export default function ResetPasswordPage() {
     }
     setStatus("submitting");
     setError("");
+
     try {
       await confirmPasswordReset(auth, code, pw);
       setStatus("done");
+      // optional: navigate to login after a moment
       setTimeout(() => navigate("/login", { replace: true, state: { email } }), 800);
     } catch {
       setError("Could not reset password. The link may have expired.");

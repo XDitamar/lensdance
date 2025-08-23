@@ -1,8 +1,12 @@
-// src/pages/ForgotPasswordCodePage.jsx
+// src/pages/ForgotPasswordPage.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-export default function ForgotPasswordCodePage() {
+// Adjust to your Cloud Functions region + URL
+const API_BASE = import.meta.env.VITE_API_BASE || ""; 
+// e.g. "https://us-central1<YOUR-PROJECT-ID>.cloudfunctions.net"
+
+export default function ForgotPasswordPage() {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -15,16 +19,16 @@ export default function ForgotPasswordCodePage() {
 
   const sendCode = async (e) => {
     e.preventDefault();
-    setLoading(true); setErr(""); setMsg("");
+    setErr(""); setMsg(""); setLoading(true);
     try {
-      const res = await fetch(`/api/sendRecoveryCode`, {
+      const res = await fetch(`${API_BASE}/sendRecoveryCode`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ email: email.trim() })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "נכשל שליחת קוד.");
-      setMsg("אם קיים חשבון עבור הכתובת, נשלח קוד בן 6 ספרות.");
+      if (!res.ok) throw new Error(data.error || "Failed to send code");
+      setMsg("If an account exists for that address, a verification code was sent.");
       setStep(2);
     } catch (e) {
       setErr(e.message);
@@ -35,22 +39,22 @@ export default function ForgotPasswordCodePage() {
 
   const confirm = async (e) => {
     e.preventDefault();
-    setLoading(true); setErr(""); setMsg("");
+    setErr(""); setMsg(""); setLoading(true);
     if (pw !== pw2) {
-      setErr("הסיסמאות אינן תואמות.");
+      setErr("Passwords do not match.");
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch(`/api/confirmRecoveryCode`, {
+      const res = await fetch(`${API_BASE}/confirmRecoveryCode`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ email: email.trim(), code: code.trim(), newPassword: pw })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "נכשל איפוס סיסמה.");
-      setMsg("הסיסמה שונתה. אפשר להתחבר כעת.");
-      setTimeout(() => navigate("/login", { replace: true, state: { email } }), 800);
+      if (!res.ok) throw new Error(data.error || "Failed to reset password");
+      setMsg("Password changed. You can sign in now.");
+      setTimeout(() => navigate("/login", { replace: true, state: { email } }), 600);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -62,14 +66,14 @@ export default function ForgotPasswordCodePage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">איפוס סיסמה באמצעות קוד</p>
-          <h1 className="auth-title">שחזור סיסמה</h1>
+          <p className="auth-subtitle">Reset your password</p>
+          <h1 className="auth-title">Forgot password</h1>
         </div>
 
         {step === 1 && (
           <form onSubmit={sendCode} className="auth-form">
             <label className="auth-label">
-              אימייל של החשבון
+              Account email
               <input
                 className="auth-input"
                 type="email"
@@ -79,16 +83,13 @@ export default function ForgotPasswordCodePage() {
                 autoFocus
               />
             </label>
-
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
-
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "שולח…" : "שלח קוד בן 6 ספרות"}
+              {loading ? "Sending…" : "Send code"}
             </button>
-
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
+              <Link to="/login" className="auth-link">Back to sign in</Link>
             </p>
           </form>
         )}
@@ -96,21 +97,20 @@ export default function ForgotPasswordCodePage() {
         {step === 2 && (
           <form onSubmit={confirm} className="auth-form">
             <label className="auth-label">
-              קוד אימות
+              Verification code
               <input
                 className="auth-input"
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="6 ספרות"
+                placeholder="6-digit code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
               />
             </label>
-
             <label className="auth-label">
-              סיסמה חדשה
+              New password
               <input
                 className="auth-input"
                 type="password"
@@ -119,9 +119,8 @@ export default function ForgotPasswordCodePage() {
                 required
               />
             </label>
-
             <label className="auth-label">
-              אימות סיסמה חדשה
+              Confirm new password
               <input
                 className="auth-input"
                 type="password"
@@ -130,24 +129,21 @@ export default function ForgotPasswordCodePage() {
                 required
               />
             </label>
-
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
-
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "מעדכן…" : "שנה סיסמה"}
+              {loading ? "Updating…" : "Change password"}
             </button>
-
             <p className="auth-switch" style={{ marginTop: 12 }}>
               <button
                 type="button"
                 className="auth-link"
                 onClick={() => { setStep(1); setErr(""); setMsg(""); }}
               >
-                שלח קוד מחדש
+                Resend code
               </button>
               {" · "}
-              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
+              <Link to="/login" className="auth-link">Back to sign in</Link>
             </p>
           </form>
         )}
