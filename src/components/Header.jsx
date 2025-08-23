@@ -120,7 +120,7 @@ export default function Header() {
             {t("privateGallery")}
           </NavLink>
           <NavLink to="/contact" onClick={handleMenuItemClick} role="menuitem">
-            {t("contact")}
+            {t("book now")}
           </NavLink>
           {isAdmin && (
             <NavLink to="/admin" onClick={handleMenuItemClick} role="menuitem">
