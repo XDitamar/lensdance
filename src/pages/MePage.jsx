@@ -3,126 +3,302 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import '../style.css'; 
+import "../style.css";
+
+/** Save a Blob to disk using a temporary object URL */
+function saveBlob(blob, filename = "download") {
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+/** Build a URL that requests raw bytes + download disposition */
+function buildMediaDownloadURL(url, filename) {
+  try {
+    const u = new URL(url);
+    // Always request raw bytes
+    u.searchParams.set("alt", "media");
+    // Ask GCS/Firebase to set attachment header (many browsers honor this)
+    u.searchParams.set(
+      "response-content-disposition",
+      `attachment; filename="${filename || "download"}"`
+    );
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Force a true download without navigation.
+ * Strategy:
+ *  1) add alt=media + attachment header
+ *  2) fetch -> blob -> save
+ *  3) if fetch fails, XHR -> blob -> save (Safari/iOS fallback)
+ */
+async function forceDownload(url, filename = "download") {
+  const dlUrl = buildMediaDownloadURL(url, filename);
+
+  // Try fetch first
+  try {
+    const resp = await fetch(dlUrl, {
+      method: "GET",
+      mode: "cors",
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    saveBlob(blob, filename);
+    return;
+  } catch (e) {
+    // continue to XHR fallback
+    // console.warn("fetch download failed, trying XHR", e);
+  }
+
+  // Fallback: XHR blob (works on some Safari/iOS cases where fetch fails)
+  await new Promise((resolve, reject) => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", dlUrl, true);
+      xhr.responseType = "blob";
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          saveBlob(xhr.response, filename);
+          resolve();
+        } else {
+          reject(new Error(`XHR HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("XHR network error"));
+      xhr.send();
+    } catch (err) {
+      reject(err);
+    }
+  }).catch((err) => {
+    console.error("Download failed:", err);
+    alert("Couldn't download this file. Please try again.");
+  });
+}
 
 export default function MePage() {
-    const [mediaItems, setMediaItems] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [filter, setFilter] = useState('all');
-    const user = auth.currentUser;
+  const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
+  const [loading, setLoading] = useState(true);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
 
-    // --- Fetch Media from User's Folder ---
-    const fetchMedia = async () => {
-        if (!user) {
-            setLoading(false);
-            return;
-        }
+  // Modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
 
-        try {
-            setLoading(true);
-            setError("");
-            
-            // Sanitize the email to get the correct folder name
-            const sanitizedEmail = user.email.replace(/[.#$[\]]/g, '_');
-            const userFolderRef = ref(storage, sanitizedEmail);
-            
-            const res = await listAll(userFolderRef);
+  const user = auth.currentUser;
 
-            const mediaPromises = res.items.map(async (itemRef) => {
-                // Ignore the placeholder file
-                if (itemRef.name === '.placeholder') {
-                    return null; 
-                }
-                const url = await getDownloadURL(itemRef);
-                return {
-                    id: itemRef.fullPath,
-                    url,
-                    name: itemRef.name,
-                    type: itemRef.name.split('.').pop()
-                };
-            });
+  const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
+  const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
+  const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
+  const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-            const mediaData = await Promise.all(mediaPromises);
-            // Filter out any null values from the placeholder
-            setMediaItems(mediaData.filter(item => item !== null));
-            setLoading(false);
-        } catch (e) {
-            console.error(e);
-            setError("Failed to load your private gallery.");
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchMedia();
-    }, [user]);
-
-    const filteredMediaItems = mediaItems.filter(item => {
-        const fileExtension = item.type.toLowerCase();
-        if (filter === 'images') {
-            return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileExtension);
-        }
-        if (filter === 'videos') {
-            return ['mp4', 'mov', 'avi', 'mkv'].includes(fileExtension);
-        }
-        return true;
-    });
-
-    // --- UI Guards ---
-    if (loading) {
-        return <div className="container" style={{ textAlign: "center" }}><p>Loading your gallery...</p></div>;
-    }
-
+  // Fetch user's media
+  const fetchMedia = async () => {
     if (!user) {
-        return (
-            <main className="container" style={{ textAlign: "center" }}>
-                <h2 className="section-title">My Gallery</h2>
-                <p>You're not logged in.</p>
-                <Link className="auth-primary" to="/login">Log in to view your pics</Link>
-            </main>
-        );
+      setLoading(false);
+      return;
     }
+    try {
+      setLoading(true);
+      setError("");
 
-    if (error) {
-        return (
-            <main className="container" style={{ textAlign: "center" }}>
-                <h2 className="section-title">My Gallery</h2>
-                <p>{error}</p>
-            </main>
-        );
+      const sanitizedEmail = user.email.replace(/[.#$[\]]/g, "_");
+      const userFolderRef = ref(storage, sanitizedEmail);
+      const res = await listAll(userFolderRef);
+
+      const mediaPromises = res.items.map(async (itemRef) => {
+        if (itemRef.name === ".placeholder") return null;
+        const url = await getDownloadURL(itemRef);
+        const type = itemRef.name.split(".").pop();
+        return { id: itemRef.fullPath, url, name: itemRef.name, type };
+      });
+
+      const mediaData = await Promise.all(mediaPromises);
+      setMediaItems(mediaData.filter(Boolean));
+    } catch (e) {
+      console.error(e);
+      setError("Failed to load your private gallery.");
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
+    fetchMedia();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const filteredMediaItems = mediaItems.filter((item) => {
+    const ext = (item.type || "").toLowerCase();
+    if (filter === "images") return isImageExt(ext);
+    if (filter === "videos") return isVideoExt(ext);
+    return true;
+  });
+
+  const openModal = (item) => {
+    setSelectedItem(item);
+    setModalOpen(true);
+  };
+  const closeModal = () => {
+    setSelectedItem(null);
+    setModalOpen(false);
+  };
+
+  // Esc to close
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKeyDown = (e) => e.key === "Escape" && closeModal();
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
+
+  // ---------- UI guards ----------
+  if (loading) {
     return (
-        <main className="container">
-            <h2 className="section-title">My Gallery</h2>
-            
-            {/* Filter buttons */}
-            <div className="gallery-buttons">
-                <button onClick={() => setFilter('all')} className="filter-button">All</button>
-                <button onClick={() => setFilter('images')} className="filter-button">Images</button>
-                <button onClick={() => setFilter('videos')} className="filter-button">Videos</button>
-            </div>
-            
-            {/* Gallery Grid */}
-            <div className="gallery-grid">
-                {filteredMediaItems.length > 0 ? (
-                    filteredMediaItems.map((m) => (
-                        <div key={m.id} className="gallery-item">
-                            {m.type.match(/(mp4|mov|avi|mkv)$/i) ? (
-                                <video controls src={m.url} className="gallery-item-media" />
-                            ) : (
-                                <img src={m.url} alt="user media" className="gallery-item-media" />
-                            )}
-                            <a href={m.url} download={m.name} className="download-button" style={{ marginTop: '10px' }}>Download</a>
-                        </div>
-                    ))
-                ) : (
-                    <p style={{ marginTop: 20, color: "#666" }}>
-                        No {filter === 'all' ? '' : filter} found in your gallery.
-                    </p>
-                )}
-            </div>
-        </main>
+      <div className="container" style={{ textAlign: "center" }}>
+        <p>Loading your gallery...</p>
+      </div>
     );
+  }
+
+  if (!user) {
+    return (
+      <main className="container" style={{ textAlign: "center" }}>
+        <h2 className="section-title">My Gallery</h2>
+        <p>You're not logged in.</p>
+        <Link className="auth-primary" to="/login">
+          Log in to view your pics
+        </Link>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="container" style={{ textAlign: "center" }}>
+        <h2 className="section-title">My Gallery</h2>
+        <p>{error}</p>
+      </main>
+    );
+  }
+
+  // ---------- Page ----------
+  return (
+    <main className="container">
+      <h2 className="section-title">My Gallery</h2>
+
+      {/* Filter */}
+      <div className="gallery-buttons">
+        <button onClick={() => setFilter("all")} className="filter-button">
+          All
+        </button>
+        <button onClick={() => setFilter("images")} className="filter-button">
+          Images
+        </button>
+        <button onClick={() => setFilter("videos")} className="filter-button">
+          Videos
+        </button>
+      </div>
+
+      {/* Grid */}
+      <div className="gallery-grid">
+        {filteredMediaItems.length > 0 ? (
+          filteredMediaItems.map((m) => (
+            <div
+              key={m.id}
+              className="gallery-item"
+              onClick={() => openModal(m)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && openModal(m)}
+            >
+              {isVideoUrl(m.url) ? (
+                <video src={m.url} className="gallery-item-media" />
+              ) : (
+                <img src={m.url} alt={m.name} className="gallery-item-media" />
+              )}
+            </div>
+          ))
+        ) : (
+          <p style={{ marginTop: 20, color: "#666" }}>
+            No {filter === "all" ? "" : filter} found in your gallery.
+          </p>
+        )}
+      </div>
+
+      {/* Download All */}
+      {filteredMediaItems.length > 0 && (
+        <div style={{ marginTop: 30, textAlign: "center" }}>
+          <button
+            type="button"
+            className="download-btn"
+            disabled={downloadingAll}
+            onClick={async () => {
+              try {
+                setDownloadingAll(true);
+                for (const item of filteredMediaItems) {
+                  await forceDownload(item.url, item.name);
+                  await new Promise((r) => setTimeout(r, 150)); // gentle queueing
+                }
+              } finally {
+                setDownloadingAll(false);
+              }
+            }}
+          >
+            {downloadingAll ? "Downloading..." : "Download All"}
+          </button>
+        </div>
+      )}
+
+      {/* Modal */}
+      {modalOpen && selectedItem && (
+        <div
+          className="media-modal"
+          onClick={closeModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="media-modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {isVideoUrl(selectedItem.url) ? (
+              <video src={selectedItem.url} controls className="modal-media" />
+            ) : (
+              <img
+                src={selectedItem.url}
+                alt={selectedItem.name}
+                className="modal-media"
+              />
+            )}
+
+            {/* Actions */}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="download-btn"
+                onClick={() => forceDownload(selectedItem.url, selectedItem.name)}
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
 }
