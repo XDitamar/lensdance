@@ -45,27 +45,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Disciplines */}
-      <div className="container">
-        <h2 className="section-title">My Photographic Disciplines</h2>
-        <p>
-          Specializing in capturing the unique essence of horses across various equestrian disciplines.
-        </p>
-        <div className="services-grid">
-          <div className="service-card">
-            <h3>Western Riding</h3>
-            <p>From reining to barrel racing, I capture grit, grace, and authentic spirit.</p>
-          </div>
-          <div className="service-card">
-            <h3>Dressage</h3>
-            <p>Elegance, harmony, and intricate movements—artistry in motion.</p>
-          </div>
-          <div className="service-card">
-            <h3>Show Jumping</h3>
-            <p>Freeze the exhilarating power and agility over obstacles.</p>
-          </div>
-        </div>
-      </div>
+   
 
       {/* Pricing */}
       <div
