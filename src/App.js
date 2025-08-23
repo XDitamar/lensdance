@@ -3,7 +3,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 
-// 🆕 Add these:
+// 🆕 (these were already in your file)
 import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
 import FloatingTranslateButton from "./components/FloatingTranslateButton";
 
@@ -18,14 +18,15 @@ import SignupPage from "./pages/SignupPage";
 import AdminPage from "./pages/AdminPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 
+// 🆕 add these
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+
 export default function App() {
   return (
     <>
       <Header />
-
-      {/* 🆕 Mount once so translation works across all routes */}
       <GoogleTranslateLoader />
-      {/* 🆕 Always-visible floating translate button (not in navbar) */}
       <FloatingTranslateButton />
 
       <Routes>
@@ -40,13 +41,15 @@ export default function App() {
         <Route path="/account" element={<AccountPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
 
-        {/* User routes */}
-        <Route path="/me" element={<MePage />} />
+        {/* 🆕 Reset flow */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        {/* Admin route */}
+        {/* User / Admin */}
+        <Route path="/me" element={<MePage />} />
         <Route path="/admin" element={<AdminPage />} />
 
-        {/* Catch-all redirect */}
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
