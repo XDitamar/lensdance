@@ -842,3 +842,41 @@
     display: none !important;
   }
 }
+/* Agreement popup */
+.agreement-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.agreement-modal {
+  background: #fff;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+}
+
+.agreement-text {
+  white-space: pre-wrap;
+  font-size: 0.95rem;
+  color: #333;
+  background: #f9f9f9;
+  padding: 12px;
+  border-radius: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.agreement-actions {
+  text-align: right;
+  margin-top: 12px;
+}
