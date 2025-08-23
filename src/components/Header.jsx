@@ -1,84 +1,133 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import logo from "./logo.png";
+import menu from "./menu.png";
 
 export default function Header() {
   const { user, logout } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const menuRef = useRef(null);
   const btnRef = useRef(null);
 
   useEffect(() => {
-    const onDoc = (e) => {
-      if (!menuRef.current || !btnRef.current) return;
+    const handleOutsideClick = (e) => {
       if (
+        menuRef.current &&
         !menuRef.current.contains(e.target) &&
+        btnRef.current &&
         !btnRef.current.contains(e.target)
       ) {
-        setOpen(false);
+        setIsMenuOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   const isAdmin = !!user && user.email === "lensdance29@gmail.com";
 
+  const handleMenuItemClick = () => {
+    setIsMenuOpen(false);
+  };
+
   return (
     <header className="navbar">
-      <div className="logo-container">
-        <img className="logo" src="/pics/logo.png" alt="Lens Dance logo" />
-        <Link to="/" className="site-title">Lens Dance</Link>
+      {/* Left side: logo + title */}
+      <div className="left-side">
+        <Link to="/" className="site-logo" onClick={handleMenuItemClick}>
+          <img className="logo-img" src={logo} alt="Lens Dance logo" />
+        </Link>
+        <div className="site-name">
+          <Link to="/" className="site-title" onClick={handleMenuItemClick}>
+            Lens Dance
+          </Link>
+        </div>
       </div>
 
-      <nav className="nav-links">
-        <NavLink to="/" end>Home</NavLink>
-        <NavLink to="/gallery">Gallery</NavLink>
-        <NavLink to="/me">My Pics</NavLink>
-        <NavLink to="/contact">Contact</NavLink>
-        {isAdmin && <NavLink to="/admin">Admin</NavLink>}
-      </nav>
+      {/* Center menu (desktop) */}
+      <div className="center-menu">
+        <nav className="nav-links">
+          <NavLink to="/" end onClick={handleMenuItemClick}>
+            Home
+          </NavLink>
+          <NavLink to="/gallery" onClick={handleMenuItemClick}>
+            Gallery
+          </NavLink>
+          <NavLink to="/me" onClick={handleMenuItemClick}>
+            Private Gallery
+          </NavLink>
+          <NavLink to="/contact" onClick={handleMenuItemClick}>
+            Contact
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" onClick={handleMenuItemClick}>
+              Admin
+            </NavLink>
+          )}
+        </nav>
+      </div>
 
-      <div className="auth-controls">
+      {/* Right side: auth + hamburger (auth stays visible on mobile) */}
+      <div className="right-side">
         {!user ? (
-          <>
-            <Link to="/login" className="auth-btn">Log in</Link>
-            <Link to="/signup" className="auth-btn">Sign up</Link>
-          </>
-        ) : (
-          <div className="user-menu">
-            <button
-              ref={btnRef}
-              className="account-icon"
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Account menu"
-              title={user.email}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 12c2.761 0 5-2.686 5-6s-2.239-6-5-6-5 2.686-5 6 2.239 6 5 6zm0 2c-4.418 0-8 2.239-8 5v3h16v-3c0-2.761-3.582-5-8-5z"/>
-              </svg>
-            </button>
-
-            {open && (
-              <div ref={menuRef} className="user-dropdown">
-                <div className="user-dropdown-header">
-                  <div className="user-name">{user.displayName || user.email.split("@")[0]}</div>
-                  <div className="user-sub">{user.email}</div>
-                </div>
-                {isAdmin && (
-                  <NavLink to="/admin" className="dropdown-item" onClick={() => setOpen(false)}>
-                    Admin console
-                  </NavLink>
-                )}
-                <NavLink to="/account" className="dropdown-item" onClick={() => setOpen(false)}>
-                  Change password
-                </NavLink>
-                <button className="dropdown-item" onClick={logout}>Logout</button>
-              </div>
-            )}
+          <div className="auth-controls">
+            <Link to="/login" className="auth-btn">
+              Log in
+            </Link>
           </div>
+        ) : (
+          <button
+            className="auth-btn"
+            onClick={logout}
+            type="button"
+            aria-label="Logout"
+          >
+            Logout
+          </button>
         )}
+
+        <button
+          ref={btnRef}
+          className="hamburger-btn"
+          onClick={() => setIsMenuOpen((v) => !v)}
+          aria-label="Toggle navigation menu"
+          aria-expanded={isMenuOpen ? "true" : "false"}
+          aria-controls="mobile-menu"
+          type="button"
+        >
+          <img src={menu} alt="Menu" />
+        </button>
       </div>
+
+      {/* Mobile dropdown: ONLY nav links */}
+      {isMenuOpen && (
+        <div
+          ref={menuRef}
+          id="mobile-menu"
+          className="dropdown-menu"
+          role="menu"
+        >
+          <NavLink to="/" onClick={handleMenuItemClick} role="menuitem">
+            Home
+          </NavLink>
+          <NavLink to="/gallery" onClick={handleMenuItemClick} role="menuitem">
+            Gallery
+          </NavLink>
+          <NavLink to="/me" onClick={handleMenuItemClick} role="menuitem">
+            Private Gallery
+          </NavLink>
+          <NavLink to="/contact" onClick={handleMenuItemClick} role="menuitem">
+            Contact
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" onClick={handleMenuItemClick} role="menuitem">
+              Admin
+            </NavLink>
+          )}
+        </div>
+      )}
     </header>
   );
 }

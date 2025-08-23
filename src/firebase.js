@@ -23,7 +23,10 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+// Auth
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
 // Export the instances
 export { db, storage };
