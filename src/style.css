@@ -880,3 +880,23 @@
   text-align: right;
   margin-top: 12px;
 }
+/* Only show account dropdown on desktop; on mobile use hamburger */
+.desktop-only { display: inline-flex; }
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+}
+/* Show/Hide helpers */
+.mobile-only { display: none; }
+.desktop-only { display: inline-flex; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: inline-flex; }
+
+  /* Put Book Now + Login/Logout nicely inline with spacing */
+  .mobile-auth-inline {
+    gap: 8px;
+    align-items: center;
+    margin-left: 4px; /* small spacing after Book Now */
+  }
+}
