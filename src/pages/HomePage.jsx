@@ -20,7 +20,7 @@ export default function HomePage() {
             Let's create stunning visual stories together.
           </p>
           <Link to="/gallery" className="cta-button">
-            View My Portfolio
+            GO TO GALLERY
           </Link>
         </div>
       </div>
