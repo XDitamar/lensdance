@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import LanguageSwitcher from "./LanguageSwitcher";
 import logo from "./logo.png";
 import menu from "./menu.png";
 
@@ -70,7 +69,7 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* Right side: auth + hamburger + language */}
+      {/* Right side: auth + hamburger */}
       <div className="right-side">
         {!user ? (
           <div className="auth-controls">
@@ -89,8 +88,7 @@ export default function Header() {
           </button>
         )}
 
-        <LanguageSwitcher />
-
+        {/* hamburger for mobile */}
         <button
           ref={btnRef}
           className="hamburger-btn"
@@ -106,7 +104,12 @@ export default function Header() {
 
       {/* Mobile dropdown: ONLY nav links */}
       {isMenuOpen && (
-        <div ref={menuRef} id="mobile-menu" className="dropdown-menu" role="menu">
+        <div
+          ref={menuRef}
+          id="mobile-menu"
+          className="dropdown-menu"
+          role="menu"
+        >
           <NavLink to="/" onClick={handleMenuItemClick} role="menuitem">
             {t("home")}
           </NavLink>

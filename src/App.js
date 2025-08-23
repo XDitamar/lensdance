@@ -3,8 +3,9 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 
-// ✅ add this import
+// 🆕 Add these:
 import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
+import FloatingTranslateButton from "./components/FloatingTranslateButton";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -21,8 +22,11 @@ export default function App() {
   return (
     <>
       <Header />
-      {/* ✅ mount once so Google Translate is available site-wide */}
+
+      {/* 🆕 Mount once so translation works across all routes */}
       <GoogleTranslateLoader />
+      {/* 🆕 Always-visible floating translate button (not in navbar) */}
+      <FloatingTranslateButton />
 
       <Routes>
         {/* Public routes */}

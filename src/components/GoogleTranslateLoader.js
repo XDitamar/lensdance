@@ -1,18 +1,14 @@
 import React, { useEffect } from "react";
 
-/**
- * Loads the Google Translate Element script and initializes it into a hidden div
- * so we can programmatically switch languages via the 'googtrans' cookie.
- */
 export default function GoogleTranslateLoader() {
   useEffect(() => {
-    // expose init on window for Google's callback
+    // init callback for Google script
     window.googleTranslateElementInit = function () {
       /* global google */
       new window.google.translate.TranslateElement(
         {
           pageLanguage: "en",
-          includedLanguages: "iw,ar,ru", // Google's codes: 'iw' (Hebrew), 'ar', 'ru'
+          includedLanguages: "iw,ar,ru", // Hebrew 'iw', Arabic 'ar', Russian 'ru'
           autoDisplay: false,
           layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
         },
@@ -20,22 +16,21 @@ export default function GoogleTranslateLoader() {
       );
     };
 
-    // inject script once
+    // inject only once
     const id = "google-translate-script";
     if (!document.getElementById(id)) {
       const s = document.createElement("script");
       s.id = id;
-      s.src =
-        "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+      s.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
       s.async = true;
       document.head.appendChild(s);
     }
 
-    // keep <html dir/lang> in sync for RTL polish
+    // sync <html dir/lang> with chosen language (for RTL polish)
     const syncDir = () => {
-      const cookie = document.cookie.match(/(?:^|;\s*)googtrans=([^;]+)/);
-      const val = cookie ? decodeURIComponent(cookie[1]) : "/en/en";
-      const target = (val.split("/")[2] || "en").toLowerCase();
+      const m = document.cookie.match(/(?:^|;\s*)googtrans=([^;]+)/);
+      const raw = m ? decodeURIComponent(m[1]) : "/en/en";
+      const target = (raw.split("/")[2] || "en").toLowerCase();
       const toHe = target === "he" || target === "iw";
       const toAr = target === "ar";
       document.documentElement.setAttribute("lang", toAr ? "ar" : toHe ? "he" : "en");
@@ -47,6 +42,6 @@ export default function GoogleTranslateLoader() {
     return () => obs.disconnect();
   }, []);
 
-  // hidden container for the widget (we control language selection ourselves)
+  // hidden container for Google widget; we control selection ourselves
   return <div id="google_translate_element" style={{ display: "none" }} />;
 }
