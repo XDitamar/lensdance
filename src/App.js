@@ -3,6 +3,9 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 
+// ✅ add this import
+import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
+
 // Pages
 import HomePage from "./pages/HomePage";
 import ContactPage from "./pages/ContactPage";
@@ -18,6 +21,9 @@ export default function App() {
   return (
     <>
       <Header />
+      {/* ✅ mount once so Google Translate is available site-wide */}
+      <GoogleTranslateLoader />
+
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
