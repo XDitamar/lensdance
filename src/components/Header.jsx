@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "./LanguageSwitcher";
 import logo from "./logo.png";
 import menu from "./menu.png";
 
 export default function Header() {
+  const { t } = useTranslation("common");
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -28,20 +31,18 @@ export default function Header() {
 
   const isAdmin = !!user && user.email === "lensdance29@gmail.com";
 
-  const handleMenuItemClick = () => {
-    setIsMenuOpen(false);
-  };
+  const handleMenuItemClick = () => setIsMenuOpen(false);
 
   return (
     <header className="navbar">
       {/* Left side: logo + title */}
       <div className="left-side">
         <Link to="/" className="site-logo" onClick={handleMenuItemClick}>
-          <img className="logo-img" src={logo} alt="Lens Dance logo" />
+          <img className="logo-img" src={logo} alt={`${t("siteName")} logo`} />
         </Link>
         <div className="site-name">
           <Link to="/" className="site-title" onClick={handleMenuItemClick}>
-            Lens Dance
+            {t("siteName")}
           </Link>
         </div>
       </div>
@@ -50,31 +51,31 @@ export default function Header() {
       <div className="center-menu">
         <nav className="nav-links">
           <NavLink to="/" end onClick={handleMenuItemClick}>
-            Home
+            {t("home")}
           </NavLink>
           <NavLink to="/gallery" onClick={handleMenuItemClick}>
-            Gallery
+            {t("gallery")}
           </NavLink>
           <NavLink to="/me" onClick={handleMenuItemClick}>
-            Private Gallery
+            {t("privateGallery")}
           </NavLink>
           <NavLink to="/contact" onClick={handleMenuItemClick}>
-            Contact
+            {t("contact")}
           </NavLink>
           {isAdmin && (
             <NavLink to="/admin" onClick={handleMenuItemClick}>
-              Admin
+              {t("admin")}
             </NavLink>
           )}
         </nav>
       </div>
 
-      {/* Right side: auth + hamburger (auth stays visible on mobile) */}
+      {/* Right side: auth + hamburger + language */}
       <div className="right-side">
         {!user ? (
           <div className="auth-controls">
             <Link to="/login" className="auth-btn">
-              Log in
+              {t("login")}
             </Link>
           </div>
         ) : (
@@ -82,48 +83,45 @@ export default function Header() {
             className="auth-btn"
             onClick={logout}
             type="button"
-            aria-label="Logout"
+            aria-label={t("logout")}
           >
-            Logout
+            {t("logout")}
           </button>
         )}
+
+        <LanguageSwitcher />
 
         <button
           ref={btnRef}
           className="hamburger-btn"
           onClick={() => setIsMenuOpen((v) => !v)}
-          aria-label="Toggle navigation menu"
+          aria-label={t("menu")}
           aria-expanded={isMenuOpen ? "true" : "false"}
           aria-controls="mobile-menu"
           type="button"
         >
-          <img src={menu} alt="Menu" />
+          <img src={menu} alt={t("menu")} />
         </button>
       </div>
 
       {/* Mobile dropdown: ONLY nav links */}
       {isMenuOpen && (
-        <div
-          ref={menuRef}
-          id="mobile-menu"
-          className="dropdown-menu"
-          role="menu"
-        >
+        <div ref={menuRef} id="mobile-menu" className="dropdown-menu" role="menu">
           <NavLink to="/" onClick={handleMenuItemClick} role="menuitem">
-            Home
+            {t("home")}
           </NavLink>
           <NavLink to="/gallery" onClick={handleMenuItemClick} role="menuitem">
-            Gallery
+            {t("gallery")}
           </NavLink>
           <NavLink to="/me" onClick={handleMenuItemClick} role="menuitem">
-            Private Gallery
+            {t("privateGallery")}
           </NavLink>
           <NavLink to="/contact" onClick={handleMenuItemClick} role="menuitem">
-            Contact
+            {t("contact")}
           </NavLink>
           {isAdmin && (
             <NavLink to="/admin" onClick={handleMenuItemClick} role="menuitem">
-              Admin
+              {t("admin")}
             </NavLink>
           )}
         </div>
