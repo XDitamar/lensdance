@@ -1,8 +1,9 @@
 // src/pages/MePage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
 /** Build a URL that requests raw bytes + attachment header (native download) */
@@ -28,13 +29,15 @@ function buildAttachmentURL(url, filename) {
  * Fallback: hidden <iframe> (keeps current page, avoids popups)
  * Optional: previewFirst opens the original URL in a new tab, then starts the download.
  */
-async function nativeDownload(url, filename = "download", opts = { previewFirst: false, delayMs: 300 }) {
+async function nativeDownload(
+  url,
+  filename = "download",
+  opts = { previewFirst: false, delayMs: 300 }
+) {
   const dlUrl = buildAttachmentURL(url, filename);
 
   if (opts?.previewFirst) {
-    // Open the view URL (usually renders in a tab)...
     window.open(url, "_blank", "noopener,noreferrer");
-    // ...then kick off the real download shortly after.
     const delay = typeof opts?.delayMs === "number" ? opts.delayMs : 300;
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
   }
@@ -45,7 +48,6 @@ async function nativeDownload(url, filename = "download", opts = { previewFirst:
     a.href = dlUrl;
     a.target = "_blank";
     a.rel = "noopener";
-    // Note: download attribute is ignored cross-origin; we rely on the header instead
     a.style.position = "fixed";
     a.style.left = "-9999px";
     document.body.appendChild(a);
@@ -74,6 +76,9 @@ async function nativeDownload(url, filename = "download", opts = { previewFirst:
 }
 
 export default function MePage() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -84,16 +89,24 @@ export default function MePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  const user = auth.currentUser;
-
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
   const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // Fetch user's media
-  const fetchMedia = async () => {
-    if (!user) {
+  // --- Auth subscription: avoids "not logged in" flash after reload ---
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  // Fetch user's media (runs when user changes and authLoading is done)
+  const fetchMedia = async (u) => {
+    if (!u) {
+      setMediaItems([]);
       setLoading(false);
       return;
     }
@@ -101,7 +114,8 @@ export default function MePage() {
       setLoading(true);
       setError("");
 
-      const sanitizedEmail = user.email.replace(/[.#$[\]]/g, "_");
+      const email = u.email || "";
+      const sanitizedEmail = email.replace(/[.#$[\]]/g, "_");
       const userFolderRef = ref(storage, sanitizedEmail);
       const res = await listAll(userFolderRef);
 
@@ -123,16 +137,21 @@ export default function MePage() {
   };
 
   useEffect(() => {
-    fetchMedia();
+    if (authLoading) return; // wait until we know if there's a user
+    fetchMedia(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [authLoading, user]);
 
-  const filteredMediaItems = mediaItems.filter((item) => {
-    const ext = (item.type || "").toLowerCase();
-    if (filter === "images") return isImageExt(ext);
-    if (filter === "videos") return isVideoExt(ext);
-    return true;
-  });
+  const filteredMediaItems = useMemo(
+    () =>
+      mediaItems.filter((item) => {
+        const ext = (item.type || "").toLowerCase();
+        if (filter === "images") return isImageExt(ext);
+        if (filter === "videos") return isVideoExt(ext);
+        return true;
+      }),
+    [mediaItems, filter]
+  );
 
   const openModal = (item) => {
     setSelectedItem(item);
@@ -152,10 +171,10 @@ export default function MePage() {
   }, [modalOpen]);
 
   // ---------- UI guards ----------
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
-        <p>Loading your gallery...</p>
+        <p>{authLoading ? "Checking login..." : "Loading your gallery..."}</p>
       </div>
     );
   }
@@ -188,13 +207,22 @@ export default function MePage() {
 
       {/* Filter */}
       <div className="gallery-buttons">
-        <button onClick={() => setFilter("all")} className="filter-button">
+        <button
+          onClick={() => setFilter("all")}
+          className={`filter-button ${filter === "all" ? "active" : ""}`}
+        >
           All
         </button>
-        <button onClick={() => setFilter("images")} className="filter-button">
+        <button
+          onClick={() => setFilter("images")}
+          className={`filter-button ${filter === "images" ? "active" : ""}`}
+        >
           Images
         </button>
-        <button onClick={() => setFilter("videos")} className="filter-button">
+        <button
+          onClick={() => setFilter("videos")}
+          className={`filter-button ${filter === "videos" ? "active" : ""}`}
+        >
           Videos
         </button>
       </div>
@@ -212,7 +240,12 @@ export default function MePage() {
               onKeyDown={(e) => e.key === "Enter" && openModal(m)}
             >
               {isVideoUrl(m.url) ? (
-                <video src={m.url} className="gallery-item-media" playsInline muted />
+                <video
+                  src={m.url}
+                  className="gallery-item-media"
+                  playsInline
+                  muted
+                />
               ) : (
                 <img src={m.url} alt={m.name} className="gallery-item-media" />
               )}
@@ -236,9 +269,9 @@ export default function MePage() {
               try {
                 setDownloadingAll(true);
                 for (const item of filteredMediaItems) {
-                  // Open direct native download (no blobs, no memory)
-                  await nativeDownload(item.url, item.name, { previewFirst: false });
-                  // Gentle spacing; many browsers queue 1 download at a time
+                  await nativeDownload(item.url, item.name, {
+                    previewFirst: false,
+                  });
                   await new Promise((r) => setTimeout(r, 250));
                 }
               } finally {
@@ -279,9 +312,9 @@ export default function MePage() {
                 type="button"
                 className="download-btn"
                 onClick={() =>
-                  // If you want a preview tab first, flip previewFirst to true:
-                  // nativeDownload(selectedItem.url, selectedItem.name, { previewFirst: true, delayMs: 400 })
-                  nativeDownload(selectedItem.url, selectedItem.name, { previewFirst: false })
+                  nativeDownload(selectedItem.url, selectedItem.name, {
+                    previewFirst: false,
+                  })
                 }
               >
                 Download
