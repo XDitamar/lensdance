@@ -1,5 +1,5 @@
 // src/pages/MePage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
@@ -7,7 +7,7 @@ import "../style.css";
 
 /* ========================== Utilities ========================== */
 
-/** זיהוי iOS / iPadOS (כולל iPad במצב "Desktop") */
+/** iOS / iPadOS detection (כולל iPad במצב Desktop) */
 function isIOS() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -16,7 +16,7 @@ function isIOS() {
   return /iPad|iPhone|iPod/.test(ua) || touchMac;
 }
 
-/** בונה URL שמכריח החזרת בתים גולמיים ומבקש כותרת attachment עם שם קובץ */
+/** URL שמכריח bytes + מציע filename (מועיל לאנדרואיד/דסקטופ) */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
@@ -31,12 +31,12 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/** הורדה "טבעית" של הדפדפן בלי לטעון את הקובץ לזיכרון JS */
+/** הורדה טבעית של הדפדפן (בלי לטעון לזיכרון JS) */
 function triggerNativeDownload(dlUrl) {
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
-    a.target = "_self"; // או "_blank" אם מעדיפים
+    a.target = "_self"; // או "_blank"
     a.rel = "noopener";
     a.style.position = "fixed";
     a.style.left = "-9999px";
@@ -59,7 +59,7 @@ function triggerNativeDownload(dlUrl) {
   }
 }
 
-/** מביא Blob (עם הפרמטרים של attachment) */
+/** מביא Blob עם פרמטרי attachment */
 async function fetchAsBlob(url, filename) {
   const dlUrl = buildAttachmentURL(url, filename);
   const resp = await fetch(dlUrl, {
@@ -73,7 +73,13 @@ async function fetchAsBlob(url, filename) {
   return await resp.blob();
 }
 
-/** iOS: שיתוף קבצים דרך Web Share (משם המשתמש בוחר Save to Files / שמור תמונה) */
+/** יוצר File מ-URL (fetch → Blob → File) */
+async function fileFromUrl(url, filename) {
+  const blob = await fetchAsBlob(url, filename);
+  return new File([blob], filename, { type: blob.type || "application/octet-stream" });
+}
+
+/** iOS: שיתוף קבצים (Save to Files / Save Image) */
 async function shareFilesIOS(files, title) {
   // @ts-ignore
   if (navigator?.canShare && navigator.canShare({ files }) && navigator.share) {
@@ -88,18 +94,12 @@ async function shareFilesIOS(files, title) {
   return false;
 }
 
-/** מ-URL ל-File (fetch → Blob → File) */
-async function fileFromUrl(url, filename) {
-  const blob = await fetchAsBlob(url, filename);
-  return new File([blob], filename, { type: blob.type || "application/octet-stream" });
-}
-
-/** חלוקה למקבצים (batch) ל-iOS כדי לא לחרוג ממגבלות השיתוף */
+/** חלוקה למקבצים (batch) כדי לא לחרוג ממגבלות iOS */
 function* batchBySizeAndCount(items, { maxBytes = 45 * 1024 * 1024, maxCount = 10 } = {}) {
   let batch = [];
   let total = 0;
   for (const it of items) {
-    // אין לנו משקל מראש → הערכה שמרנית ~5MB לפריט
+    // אין לנו משקל מראש → הערכה שמרנית ~5MB
     const size = 5 * 1024 * 1024;
     const wouldExceed = batch.length >= maxCount || total + size > maxBytes;
     if (batch.length && wouldExceed) {
@@ -119,14 +119,19 @@ export default function MePage() {
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  const [savingAllMobile, setSavingAllMobile] = useState(false);
-  const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0, phase: "" });
+
+  const [savingAllIOS, setSavingAllIOS] = useState(false);
+  const [preparedBatches, setPreparedBatches] = useState([]); // Array<Array<File>>
+  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0, phase: "" });
+
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [preparedFile, setPreparedFile] = useState(null); // File מוכן לשיתוף עבור פריט בודד
+  const modalFetchAbort = useRef(null);
 
   const user = auth.currentUser;
 
@@ -178,85 +183,120 @@ export default function MePage() {
     return true;
   });
 
-  const openModal = (item) => {
+  /* ==================== Modal prep (single item, iOS) ==================== */
+  const openModal = async (item) => {
     setSelectedItem(item);
     setModalOpen(true);
+    setPreparedFile(null);
+
+    // מכינים מראש את הקובץ ל-iOS כדי שה-share יקרה מיד בלחיצה
+    if (isIOS()) {
+      try {
+        const ctrl = new AbortController();
+        modalFetchAbort.current = ctrl;
+        const blob = await fetchAsBlob(item.url, item.name);
+        if (ctrl.signal.aborted) return;
+        setPreparedFile(new File([blob], item.name, { type: blob.type || "application/octet-stream" }));
+      } catch (e) {
+        console.warn("Prefetch for modal failed:", e);
+      } finally {
+        modalFetchAbort.current = null;
+      }
+    }
   };
+
   const closeModal = () => {
     setSelectedItem(null);
     setModalOpen(false);
+    setPreparedFile(null);
+    if (modalFetchAbort.current) modalFetchAbort.current.abort();
   };
 
-  // הורדה של פריט בודד: iOS → Share; אחרים → הורדה ישירה
-  async function downloadSingle(url, filename) {
+  // שמירה של פריט בודד
+  async function saveSingle(item) {
     if (isIOS()) {
       try {
-        const file = await fileFromUrl(url, filename);
-        const ok = await shareFilesIOS([file], filename);
-        if (!ok) {
-          // fallback: נסיון הורדה טבעית (ייתכן שיופיע תצוגה מקדימה במקום הורדה בתמונות)
-          triggerNativeDownload(buildAttachmentURL(url, filename));
-        }
+        const file = preparedFile || (await fileFromUrl(item.url, item.name));
+        const ok = await shareFilesIOS([file], item.name);
+        if (!ok) triggerNativeDownload(buildAttachmentURL(item.url, item.name));
       } catch {
-        triggerNativeDownload(buildAttachmentURL(url, filename));
+        triggerNativeDownload(buildAttachmentURL(item.url, item.name));
       }
     } else {
-      triggerNativeDownload(buildAttachmentURL(url, filename));
+      triggerNativeDownload(buildAttachmentURL(item.url, item.name));
     }
   }
 
-  // שמירה של כולם (ללא ZIP): iOS במקבצים; אנדרואיד/דסקטופ הורדה ישירה לכל קובץ
-  async function saveAllMobile(items) {
+  /* ==================== iOS: prepare & share all ==================== */
+
+  // שלב 1: הכנה לשיתוף – יוצר מקבצים של Files בזיכרון
+  async function prepareAllIOS(items) {
     if (!items.length) return;
-    setSavingAllMobile(true);
-    setSaveProgress({ current: 0, total: items.length, phase: "מכין..." });
+    if (!isIOS()) return; // רלוונטי רק ל-iOS
+
+    setSavingAllIOS(true);
+    setPreparedBatches([]);
+    setPrepProgress({ current: 0, total: items.length, phase: "מכין..." });
 
     try {
-      if (isIOS()) {
-        const batches = Array.from(batchBySizeAndCount(items));
-        let done = 0;
+      const batches = Array.from(batchBySizeAndCount(items));
+      const prepared = [];
+      let done = 0;
 
-        for (let b = 0; b < batches.length; b++) {
-          setSaveProgress({ current: done, total: items.length, phase: `מכין מקבץ ${b + 1}/${batches.length}` });
-
-          const files = [];
-          for (const it of batches[b]) {
-            try {
-              const f = await fileFromUrl(it.url, it.name);
-              files.push(f);
-              done++;
-              setSaveProgress({ current: done, total: items.length, phase: `מוכן לשיתוף` });
-            } catch (err) {
-              console.warn("Skipping failed item:", it.name, err);
-            }
+      for (let b = 0; b < batches.length; b++) {
+        setPrepProgress({ current: done, total: items.length, phase: `מוריד מקבץ ${b + 1}/${batches.length}` });
+        const files = [];
+        for (const it of batches[b]) {
+          try {
+            const blob = await fetchAsBlob(it.url, it.name);
+            files.push(new File([blob], it.name, { type: blob.type || "application/octet-stream" }));
+          } catch (e) {
+            console.warn("Skipping failed item:", it.name, e);
           }
-
-          if (files.length) {
-            const ok = await shareFilesIOS(files, `Save ${files.length} item(s)`);
-            if (!ok) {
-              // אם המשתמש ביטל – עוצרים
-              break;
-            }
-          }
+          done++;
+          setPrepProgress({ current: done, total: items.length, phase: `מכין...` });
         }
-      } else {
-        // אנדרואיד/דסקטופ: הורדה נייטיבית לכל קובץ בתור
-        let count = 0;
-        for (const it of items) {
-          setSaveProgress({ current: count, total: items.length, phase: "מוריד..." });
-          triggerNativeDownload(buildAttachmentURL(it.url, it.name));
-          count++;
-          setSaveProgress({ current: count, total: items.length, phase: "מוריד..." });
-          await new Promise((r) => setTimeout(r, 200)); // ריווח קטן להורדות מרובות
-        }
+        if (files.length) prepared.push(files);
       }
+
+      setPreparedBatches(prepared);
+      setPrepProgress((p) => ({ ...p, phase: "מוכן לשיתוף" }));
+    } catch (e) {
+      console.error("Prepare all iOS failed:", e);
+      alert("הכנת הקבצים נכשלה. נסה/י לבחור פחות קבצים או קבצים קטנים יותר.");
     } finally {
-      setSavingAllMobile(false);
-      setSaveProgress({ current: 0, total: 0, phase: "" });
+      setSavingAllIOS(false);
     }
   }
 
-  // ---------- UI guards ----------
+  // שלב 2: שיתוף & שמירה – קריאה אחת ל-share לכל מקבץ
+  async function sharePreparedIOS() {
+    if (!preparedBatches.length) return;
+    for (let i = 0; i < preparedBatches.length; i++) {
+      const ok = await shareFilesIOS(preparedBatches[i], `Save ${preparedBatches[i].length} item(s)`);
+      if (!ok) break; // אם המשתמש ביטל – מפסיקים
+    }
+    // ניקוי
+    setPreparedBatches([]);
+    setPrepProgress({ current: 0, total: 0, phase: "" });
+  }
+
+  /* ==================== Android/Desktop: download each ==================== */
+  async function downloadEach(items) {
+    if (!items.length) return;
+    setDownloadingAll(true);
+    try {
+      for (const it of items) {
+        triggerNativeDownload(buildAttachmentURL(it.url, it.name));
+        await new Promise((r) => setTimeout(r, 200)); // ריווח קטן
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
+  }
+
+  /* ==================== UI ==================== */
+
   if (loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
@@ -286,22 +326,15 @@ export default function MePage() {
     );
   }
 
-  // ---------- Page ----------
   return (
     <main className="container">
       <h2 className="section-title">My Gallery</h2>
 
       {/* סינון */}
       <div className="gallery-buttons">
-        <button onClick={() => setFilter("all")} className="filter-button">
-          הכול
-        </button>
-        <button onClick={() => setFilter("images")} className="filter-button">
-          תמונות
-        </button>
-        <button onClick={() => setFilter("videos")} className="filter-button">
-          וידאו
-        </button>
+        <button onClick={() => setFilter("all")} className="filter-button">הכול</button>
+        <button onClick={() => setFilter("images")} className="filter-button">תמונות</button>
+        <button onClick={() => setFilter("videos")} className="filter-button">וידאו</button>
       </div>
 
       {/* Grid */}
@@ -334,42 +367,44 @@ export default function MePage() {
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="download-btn"
-              disabled={savingAllMobile || downloadingAll}
-              onClick={() => saveAllMobile(filteredMediaItems)}
-            >
-              {savingAllMobile
-                ? `שומר… ${saveProgress.phase} ${saveProgress.current}/${saveProgress.total}`
-                : "שמור את הכול (מובייל)"}
-            </button>
+            {isIOS() ? (
+              <>
+                <button
+                  type="button"
+                  className="download-btn"
+                  disabled={savingAllIOS || !!preparedBatches.length}
+                  onClick={() => prepareAllIOS(filteredMediaItems)}
+                >
+                  {savingAllIOS
+                    ? `מכין… ${prepProgress.phase} ${prepProgress.current}/${prepProgress.total}`
+                    : "הכן את הכול לשיתוף (iOS)"}
+                </button>
 
-            <button
-              type="button"
-              className="secondary-btn"
-              disabled={savingAllMobile || downloadingAll}
-              onClick={async () => {
-                try {
-                  setDownloadingAll(true);
-                  let i = 0;
-                  for (const item of filteredMediaItems) {
-                    triggerNativeDownload(buildAttachmentURL(item.url, item.name));
-                    i++;
-                    await new Promise((r) => setTimeout(r, 200));
-                  }
-                } finally {
-                  setDownloadingAll(false);
-                }
-              }}
-            >
-              {downloadingAll ? "מוריד…" : "הורד כל קובץ"}
-            </button>
+                <button
+                  type="button"
+                  className="download-btn"
+                  disabled={!preparedBatches.length}
+                  onClick={sharePreparedIOS}
+                >
+                  שתף ושמור (iOS)
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="download-btn"
+                disabled={downloadingAll}
+                onClick={() => downloadEach(filteredMediaItems)}
+              >
+                {downloadingAll ? "מוריד…" : "הורד כל קובץ"}
+              </button>
+            )}
           </div>
 
-          {(savingAllMobile && saveProgress.total) && (
+          {isIOS() && (savingAllIOS || preparedBatches.length > 0) && (
             <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-              {saveProgress.phase} {saveProgress.current}/{saveProgress.total}
+              {prepProgress.phase && `${prepProgress.phase} ${prepProgress.current}/${prepProgress.total}`}
+              {preparedBatches.length > 0 && " • מוכן לשיתוף"}
             </div>
           )}
         </div>
@@ -377,24 +412,12 @@ export default function MePage() {
 
       {/* Modal */}
       {modalOpen && selectedItem && (
-        <div
-          className="media-modal"
-          onClick={closeModal}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="media-modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="media-modal" onClick={closeModal} role="dialog" aria-modal="true">
+          <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
             {isVideoUrl(selectedItem.url) ? (
               <video src={selectedItem.url} controls className="modal-media" />
             ) : (
-              <img
-                src={selectedItem.url}
-                alt={selectedItem.name}
-                className="modal-media"
-              />
+              <img src={selectedItem.url} alt={selectedItem.name} className="modal-media" />
             )}
 
             {/* פעולות */}
@@ -402,12 +425,12 @@ export default function MePage() {
               <button
                 type="button"
                 className="download-btn"
-                onClick={() => downloadSingle(selectedItem.url, selectedItem.name)}
+                onClick={() => saveSingle(selectedItem)}
               >
                 שמור למכשיר
               </button>
 
-              {/* כפתור תצוגה בלשונית נפרדת (רשות) */}
+              {/* אופציונלי: תצוגה בלשונית */}
               {/* <button
                 type="button"
                 className="secondary-btn"

@@ -8,10 +8,51 @@ import {
   getDownloadURL,
   uploadBytesResumable,
   deleteObject,
+  updateMetadata,          // ⬅️ new
 } from "firebase/storage";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
+
+/* ---------------- helpers: filenames & metadata ---------------- */
+
+function guessExtFromMime(mime = "") {
+  const m = mime.toLowerCase();
+  if (m.includes("jpeg")) return "jpg";
+  if (m.includes("jpg")) return "jpg";
+  if (m.includes("png")) return "png";
+  if (m.includes("gif")) return "gif";
+  if (m.includes("webp")) return "webp";
+  if (m.includes("mp4")) return "mp4";
+  if (m.includes("quicktime")) return "mov";
+  if (m.includes("mov")) return "mov";
+  if (m.includes("mkv")) return "mkv";
+  if (m.includes("avi")) return "avi";
+  return "bin";
+}
+
+function sanitizeFilename(name, fallbackMime) {
+  // Keep extension; if none, infer from MIME
+  const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(name);
+  const ext = hasExt ? name.split(".").pop() : guessExtFromMime(fallbackMime);
+  const base = (hasExt ? name.slice(0, -(ext.length + 1)) : name)
+    .replace(/[\/\\:*?"<>|]/g, "_")  // illegal on some OSes
+    .replace(/\s+/g, "_")
+    .replace(/[\u0000-\u001F]/g, "");
+  return `${base || "file"}.${ext}`;
+}
+
+function downloadableMetadata(filename, mime) {
+  const safeName = String(filename).replace(/"/g, "");
+  return {
+    contentType: mime || "application/octet-stream",
+    cacheControl: "public, max-age=3600",
+    // 👇 this is what tells browsers "download this" later
+    contentDisposition: `attachment; filename="${safeName}"`,
+  };
+}
+
+/* ---------------------------------------------------------------- */
 
 export default function AdminPage() {
   const [userFolders, setUserFolders] = useState([]);
@@ -58,6 +99,7 @@ export default function AdminPage() {
           id: itemRef.fullPath,
           url,
           type: itemRef.name.split(".").pop(),
+          name: itemRef.name,
         };
       });
 
@@ -94,10 +136,13 @@ export default function AdminPage() {
       setProgress({});
       setUploadErrors({});
 
-      // Upload sequentially so progress updates are clear and we don't spike bandwidth/memory on mobile.
+      // Upload sequentially for clearer progress + lower memory on mobile.
       for (const f of files) {
-        const fileRef = ref(storage, `${currentFolder}/${f.name}`);
-        const task = uploadBytesResumable(fileRef, f);
+        const safeName = sanitizeFilename(f.name, f.type);
+        const fileRef = ref(storage, `${currentFolder}/${safeName}`);
+        const meta = downloadableMetadata(safeName, f.type); // 👈 persist 'attachment' + contentType
+
+        const task = uploadBytesResumable(fileRef, f, meta);
 
         await new Promise((resolve) => {
           task.on(
@@ -111,8 +156,7 @@ export default function AdminPage() {
             (err) => {
               console.error("Upload failed for", f.name, err);
               setUploadErrors((prev) => ({ ...prev, [f.name]: err.message }));
-              // continue with the rest
-              resolve();
+              resolve(); // continue with the rest
             },
             () => {
               resolve();
@@ -126,15 +170,38 @@ export default function AdminPage() {
       if (inputRef.current) inputRef.current.value = "";
       await fetchMediaInFolder(currentFolder);
 
-      // If any errors happened, surface a friendly message
-      const hadErrors = Object.keys(uploadErrors).length > 0;
-      if (hadErrors) {
+      if (Object.keys(uploadErrors).length > 0) {
         setError("Some files failed to upload. See list below.");
       }
     } catch (e) {
       console.error(e);
       setError("Upload failed.");
       alert("Upload failed: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Retro-fit: force "attachment" on existing files in this folder
+  const forceAttachmentForExisting = async () => {
+    if (!currentFolder || !mediaItems.length) return;
+    if (!window.confirm("Update all files in this folder to be downloadable?")) return;
+
+    try {
+      setBusy(true);
+      for (const it of mediaItems) {
+        const fileRef = ref(storage, it.id);
+        const safeName = sanitizeFilename(it.name || it.id.split("/").pop(), "");
+        const meta = downloadableMetadata(safeName, `image/${(it.type || "jpeg").toLowerCase()}`);
+        await updateMetadata(fileRef, meta).catch((err) => {
+          console.warn("updateMetadata failed for", it.id, err);
+        });
+      }
+      await fetchMediaInFolder(currentFolder);
+      alert("Updated metadata. New uploads will already be downloadable.");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to update existing files: " + e.message);
     } finally {
       setBusy(false);
     }
@@ -246,7 +313,6 @@ export default function AdminPage() {
                 accept="image/*,video/*"
                 multiple
                 onChange={onPickFiles}
-                // Tip: if you want the camera by default on mobile, add: capture="environment"
               />
               <button className="auth-primary" onClick={uploadAll} disabled={!files.length || busy}>
                 {busy ? "Uploading..." : files.length ? `Upload ${files.length} file${
@@ -267,6 +333,18 @@ export default function AdminPage() {
                   Clear selection
                 </button>
               )}
+
+              {/* NEW: one-click fix for older files in this folder */}
+              {mediaItems.length > 0 && (
+                <button
+                  className="filter-button"
+                  onClick={forceAttachmentForExisting}
+                  disabled={busy}
+                  title="Update existing files so browsers will download them instead of previewing"
+                >
+                  Fix existing files (force download)
+                </button>
+              )}
             </div>
 
             {!!files.length && (
@@ -278,10 +356,7 @@ export default function AdminPage() {
                   {files.map((f) => (
                     <li
                       key={f.name + f.lastModified}
-                      style={{
-                        padding: "6px 0",
-                        borderTop: "1px solid #eee",
-                      }}
+                      style={{ padding: "6px 0", borderTop: "1px solid #eee" }}
                     >
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ fontSize: ".9rem" }}>
