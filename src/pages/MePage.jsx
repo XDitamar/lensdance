@@ -10,9 +10,7 @@ import "../style.css";
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
-    // Force raw bytes (no HTML viewer)
     u.searchParams.set("alt", "media");
-    // Ask GCS/Firebase to send Content-Disposition: attachment
     u.searchParams.set(
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
@@ -23,17 +21,8 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/**
- * Trigger a native download without reading the file into JS memory.
- * Primary: invisible <a target="_blank"> to the attachment URL
- * Fallback: hidden <iframe> (keeps current page, avoids popups)
- * Optional: previewFirst opens the original URL in a new tab, then starts the download.
- */
-async function nativeDownload(
-  url,
-  filename = "download",
-  opts = { previewFirst: false, delayMs: 300 }
-) {
+/** Trigger a native download without reading the file into JS memory. */
+async function nativeDownload(url, filename = "download", opts = { previewFirst: false, delayMs: 300 }) {
   const dlUrl = buildAttachmentURL(url, filename);
 
   if (opts?.previewFirst) {
@@ -42,7 +31,6 @@ async function nativeDownload(
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
   }
 
-  // Try invisible anchor first (lets browser handle download natively)
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
@@ -54,11 +42,8 @@ async function nativeDownload(
     a.click();
     a.remove();
     return;
-  } catch {
-    // fall through
-  }
+  } catch {}
 
-  // Fallback: hidden iframe (no memory footprint, good cross-browser behavior)
   try {
     let frame = document.getElementById("hidden-download-frame");
     if (!frame) {
@@ -70,15 +55,23 @@ async function nativeDownload(
     frame.src = dlUrl;
     return;
   } catch {
-    // Last resort: navigate current tab (not ideal, but guarantees download)
     window.location.href = dlUrl;
   }
 }
 
 export default function MePage() {
+  // --- Auth state (prevents "not logged in" flash on reload) ---
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+    });
+    return unsub;
+  }, []);
 
+  // --- Gallery state ---
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -89,21 +82,18 @@ export default function MePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // Mobile guided download state
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const [guidedOpen, setGuidedOpen] = useState(false);
+  const [dlQueue, setDlQueue] = useState([]); // array of items
+  const [dlIndex, setDlIndex] = useState(0); // current index in queue
+
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
   const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // --- Auth subscription: avoids "not logged in" flash after reload ---
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthLoading(false);
-    });
-    return unsub;
-  }, []);
-
-  // Fetch user's media (runs when user changes and authLoading is done)
+  // Fetch user's media
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
@@ -137,7 +127,7 @@ export default function MePage() {
   };
 
   useEffect(() => {
-    if (authLoading) return; // wait until we know if there's a user
+    if (authLoading) return;
     fetchMedia(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
@@ -153,6 +143,7 @@ export default function MePage() {
     [mediaItems, filter]
   );
 
+  // Modal controls
   const openModal = (item) => {
     setSelectedItem(item);
     setModalOpen(true);
@@ -161,14 +152,40 @@ export default function MePage() {
     setSelectedItem(null);
     setModalOpen(false);
   };
-
-  // Esc to close
   useEffect(() => {
     if (!modalOpen) return;
     const onKeyDown = (e) => e.key === "Escape" && closeModal();
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [modalOpen]);
+
+  // Guided download controls (mobile)
+  const startGuidedDownload = async (items) => {
+    // Save the queue and start at 0
+    setDlQueue(items);
+    setDlIndex(0);
+    setGuidedOpen(true);
+
+    // Use the current tap to trigger the first download immediately
+    if (items.length > 0) {
+      await nativeDownload(items[0].url, items[0].name, { previewFirst: false });
+      setDlIndex(1);
+    }
+  };
+
+  const downloadNextInQueue = async () => {
+    const i = dlIndex;
+    if (i >= dlQueue.length) {
+      // done
+      setGuidedOpen(false);
+      setDlQueue([]);
+      setDlIndex(0);
+      return;
+    }
+    const item = dlQueue[i];
+    await nativeDownload(item.url, item.name, { previewFirst: false });
+    setDlIndex(i + 1);
+  };
 
   // ---------- UI guards ----------
   if (authLoading || loading) {
@@ -266,12 +283,18 @@ export default function MePage() {
             className="download-btn"
             disabled={downloadingAll}
             onClick={async () => {
+              if (isMobile) {
+                // Guided flow for mobile: first download now (this tap),
+                // then show "Download next" button for subsequent files.
+                await startGuidedDownload(filteredMediaItems);
+                return;
+              }
+
+              // Desktop: automatic sequential downloads
               try {
                 setDownloadingAll(true);
                 for (const item of filteredMediaItems) {
-                  await nativeDownload(item.url, item.name, {
-                    previewFirst: false,
-                  });
+                  await nativeDownload(item.url, item.name, { previewFirst: false });
                   await new Promise((r) => setTimeout(r, 250));
                 }
               } finally {
@@ -281,10 +304,58 @@ export default function MePage() {
           >
             {downloadingAll ? "Downloading..." : "Download All"}
           </button>
+          {isMobile && filteredMediaItems.length > 1 && (
+            <p style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+              On mobile, tap "Download next" to continue (one tap per file).
+            </p>
+          )}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Guided Download Modal (mobile only) */}
+      {guidedOpen && (
+        <div
+          className="media-modal"
+          onClick={() => {}}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="media-modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ textAlign: "center" }}
+          >
+            <h3 style={{ marginBottom: 8 }}>Download All</h3>
+            <p style={{ marginBottom: 16, color: "#666" }}>
+              {dlIndex >= dlQueue.length
+                ? "All files downloaded."
+                : `Downloaded ${dlIndex} of ${dlQueue.length}.`}
+            </p>
+
+            <div className="modal-actions" style={{ gap: 12, justifyContent: "center" }}>
+              {dlIndex < dlQueue.length ? (
+                <button
+                  type="button"
+                  className="download-btn"
+                  onClick={downloadNextInQueue}
+                >
+                  Download next ({dlIndex + 1}/{dlQueue.length})
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="download-btn"
+                  onClick={() => setGuidedOpen(false)}
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
       {modalOpen && selectedItem && (
         <div
           className="media-modal"
@@ -312,9 +383,7 @@ export default function MePage() {
                 type="button"
                 className="download-btn"
                 onClick={() =>
-                  nativeDownload(selectedItem.url, selectedItem.name, {
-                    previewFirst: false,
-                  })
+                  nativeDownload(selectedItem.url, selectedItem.name, { previewFirst: false })
                 }
               >
                 Download
