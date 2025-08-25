@@ -87,7 +87,7 @@ export default function Header() {
       <div className="right-side">
         {/* Mobile-only Book Now */}
         <Link to="/contact" className="book-now-mobile">
-          {t("Nook-Now")}
+          {t("Book-Now")}
         </Link>
 
         {/* Mobile-only: Login/Logout placed next to Book Now */}
