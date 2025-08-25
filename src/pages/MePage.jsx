@@ -1,26 +1,17 @@
 // src/pages/MePage.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import "../style.css";
 
-/* ========================== Utilities ========================== */
-
-/** iOS / iPadOS detection (כולל iPad במצב Desktop) */
-function isIOS() {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const touchMac = platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || touchMac;
-}
-
-/** URL שמכריח bytes + מציע filename (מועיל לאנדרואיד/דסקטופ) */
+/** Build a URL that requests raw bytes + attachment header (native download) */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
+    // Force raw bytes (no HTML viewer)
     u.searchParams.set("alt", "media");
+    // Ask GCS/Firebase to send Content-Disposition: attachment
     u.searchParams.set(
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
@@ -31,107 +22,67 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/** הורדה טבעית של הדפדפן (בלי לטעון לזיכרון JS) */
-function triggerNativeDownload(dlUrl) {
+/**
+ * Trigger a native download without reading the file into JS memory.
+ * Primary: invisible <a target="_blank"> to the attachment URL
+ * Fallback: hidden <iframe> (keeps current page, avoids popups)
+ * Optional: previewFirst opens the original URL in a new tab, then starts the download.
+ */
+async function nativeDownload(url, filename = "download", opts = { previewFirst: false, delayMs: 300 }) {
+  const dlUrl = buildAttachmentURL(url, filename);
+
+  if (opts?.previewFirst) {
+    // Open the view URL (usually renders in a tab)...
+    window.open(url, "_blank", "noopener,noreferrer");
+    // ...then kick off the real download shortly after.
+    const delay = typeof opts?.delayMs === "number" ? opts.delayMs : 300;
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+  }
+
+  // Try invisible anchor first (lets browser handle download natively)
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
-    a.target = "_self"; // או "_blank"
+    a.target = "_blank";
     a.rel = "noopener";
+    // Note: download attribute is ignored cross-origin; we rely on the header instead
     a.style.position = "fixed";
     a.style.left = "-9999px";
     document.body.appendChild(a);
     a.click();
     a.remove();
+    return;
   } catch {
-    try {
-      let frame = document.getElementById("hidden-download-frame");
-      if (!frame) {
-        frame = document.createElement("iframe");
-        frame.id = "hidden-download-frame";
-        frame.style.display = "none";
-        document.body.appendChild(frame);
-      }
-      frame.src = dlUrl;
-    } catch {
-      window.location.href = dlUrl;
+    // fall through
+  }
+
+  // Fallback: hidden iframe (no memory footprint, good cross-browser behavior)
+  try {
+    let frame = document.getElementById("hidden-download-frame");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "hidden-download-frame";
+      frame.style.display = "none";
+      document.body.appendChild(frame);
     }
+    frame.src = dlUrl;
+    return;
+  } catch {
+    // Last resort: navigate current tab (not ideal, but guarantees download)
+    window.location.href = dlUrl;
   }
 }
-
-/** מביא Blob עם פרמטרי attachment */
-async function fetchAsBlob(url, filename) {
-  const dlUrl = buildAttachmentURL(url, filename);
-  const resp = await fetch(dlUrl, {
-    method: "GET",
-    mode: "cors",
-    cache: "no-store",
-    credentials: "omit",
-    referrerPolicy: "no-referrer",
-  });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return await resp.blob();
-}
-
-/** יוצר File מ-URL (fetch → Blob → File) */
-async function fileFromUrl(url, filename) {
-  const blob = await fetchAsBlob(url, filename);
-  return new File([blob], filename, { type: blob.type || "application/octet-stream" });
-}
-
-/** iOS: שיתוף קבצים (Save to Files / Save Image) */
-async function shareFilesIOS(files, title) {
-  // @ts-ignore
-  if (navigator?.canShare && navigator.canShare({ files }) && navigator.share) {
-    try {
-      // @ts-ignore
-      await navigator.share({ files, title: title || "Save Media" });
-      return true;
-    } catch {
-      return false; // בוטל או נכשל
-    }
-  }
-  return false;
-}
-
-/** חלוקה למקבצים (batch) כדי לא לחרוג ממגבלות iOS */
-function* batchBySizeAndCount(items, { maxBytes = 45 * 1024 * 1024, maxCount = 10 } = {}) {
-  let batch = [];
-  let total = 0;
-  for (const it of items) {
-    // אין לנו משקל מראש → הערכה שמרנית ~5MB
-    const size = 5 * 1024 * 1024;
-    const wouldExceed = batch.length >= maxCount || total + size > maxBytes;
-    if (batch.length && wouldExceed) {
-      yield batch;
-      batch = [];
-      total = 0;
-    }
-    batch.push(it);
-    total += size;
-  }
-  if (batch.length) yield batch;
-}
-
-/* ========================== Component ========================== */
 
 export default function MePage() {
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
-
-  const [savingAllIOS, setSavingAllIOS] = useState(false);
-  const [preparedBatches, setPreparedBatches] = useState([]); // Array<Array<File>>
-  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0, phase: "" });
-
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [preparedFile, setPreparedFile] = useState(null); // File מוכן לשיתוף עבור פריט בודד
-  const modalFetchAbort = useRef(null);
 
   const user = auth.currentUser;
 
@@ -140,7 +91,7 @@ export default function MePage() {
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // הבאת המדיה של המשתמש
+  // Fetch user's media
   const fetchMedia = async () => {
     if (!user) {
       setLoading(false);
@@ -183,120 +134,24 @@ export default function MePage() {
     return true;
   });
 
-  /* ==================== Modal prep (single item, iOS) ==================== */
-  const openModal = async (item) => {
+  const openModal = (item) => {
     setSelectedItem(item);
     setModalOpen(true);
-    setPreparedFile(null);
-
-    // מכינים מראש את הקובץ ל-iOS כדי שה-share יקרה מיד בלחיצה
-    if (isIOS()) {
-      try {
-        const ctrl = new AbortController();
-        modalFetchAbort.current = ctrl;
-        const blob = await fetchAsBlob(item.url, item.name);
-        if (ctrl.signal.aborted) return;
-        setPreparedFile(new File([blob], item.name, { type: blob.type || "application/octet-stream" }));
-      } catch (e) {
-        console.warn("Prefetch for modal failed:", e);
-      } finally {
-        modalFetchAbort.current = null;
-      }
-    }
   };
-
   const closeModal = () => {
     setSelectedItem(null);
     setModalOpen(false);
-    setPreparedFile(null);
-    if (modalFetchAbort.current) modalFetchAbort.current.abort();
   };
 
-  // שמירה של פריט בודד
-  async function saveSingle(item) {
-    if (isIOS()) {
-      try {
-        const file = preparedFile || (await fileFromUrl(item.url, item.name));
-        const ok = await shareFilesIOS([file], item.name);
-        if (!ok) triggerNativeDownload(buildAttachmentURL(item.url, item.name));
-      } catch {
-        triggerNativeDownload(buildAttachmentURL(item.url, item.name));
-      }
-    } else {
-      triggerNativeDownload(buildAttachmentURL(item.url, item.name));
-    }
-  }
+  // Esc to close
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKeyDown = (e) => e.key === "Escape" && closeModal();
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
 
-  /* ==================== iOS: prepare & share all ==================== */
-
-  // שלב 1: הכנה לשיתוף – יוצר מקבצים של Files בזיכרון
-  async function prepareAllIOS(items) {
-    if (!items.length) return;
-    if (!isIOS()) return; // רלוונטי רק ל-iOS
-
-    setSavingAllIOS(true);
-    setPreparedBatches([]);
-    setPrepProgress({ current: 0, total: items.length, phase: "מכין..." });
-
-    try {
-      const batches = Array.from(batchBySizeAndCount(items));
-      const prepared = [];
-      let done = 0;
-
-      for (let b = 0; b < batches.length; b++) {
-        setPrepProgress({ current: done, total: items.length, phase: `מוריד מקבץ ${b + 1}/${batches.length}` });
-        const files = [];
-        for (const it of batches[b]) {
-          try {
-            const blob = await fetchAsBlob(it.url, it.name);
-            files.push(new File([blob], it.name, { type: blob.type || "application/octet-stream" }));
-          } catch (e) {
-            console.warn("Skipping failed item:", it.name, e);
-          }
-          done++;
-          setPrepProgress({ current: done, total: items.length, phase: `מכין...` });
-        }
-        if (files.length) prepared.push(files);
-      }
-
-      setPreparedBatches(prepared);
-      setPrepProgress((p) => ({ ...p, phase: "מוכן לשיתוף" }));
-    } catch (e) {
-      console.error("Prepare all iOS failed:", e);
-      alert("הכנת הקבצים נכשלה. נסה/י לבחור פחות קבצים או קבצים קטנים יותר.");
-    } finally {
-      setSavingAllIOS(false);
-    }
-  }
-
-  // שלב 2: שיתוף & שמירה – קריאה אחת ל-share לכל מקבץ
-  async function sharePreparedIOS() {
-    if (!preparedBatches.length) return;
-    for (let i = 0; i < preparedBatches.length; i++) {
-      const ok = await shareFilesIOS(preparedBatches[i], `Save ${preparedBatches[i].length} item(s)`);
-      if (!ok) break; // אם המשתמש ביטל – מפסיקים
-    }
-    // ניקוי
-    setPreparedBatches([]);
-    setPrepProgress({ current: 0, total: 0, phase: "" });
-  }
-
-  /* ==================== Android/Desktop: download each ==================== */
-  async function downloadEach(items) {
-    if (!items.length) return;
-    setDownloadingAll(true);
-    try {
-      for (const it of items) {
-        triggerNativeDownload(buildAttachmentURL(it.url, it.name));
-        await new Promise((r) => setTimeout(r, 200)); // ריווח קטן
-      }
-    } finally {
-      setDownloadingAll(false);
-    }
-  }
-
-  /* ==================== UI ==================== */
-
+  // ---------- UI guards ----------
   if (loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
@@ -326,15 +181,22 @@ export default function MePage() {
     );
   }
 
+  // ---------- Page ----------
   return (
     <main className="container">
       <h2 className="section-title">My Gallery</h2>
 
-      {/* סינון */}
+      {/* Filter */}
       <div className="gallery-buttons">
-        <button onClick={() => setFilter("all")} className="filter-button">הכול</button>
-        <button onClick={() => setFilter("images")} className="filter-button">תמונות</button>
-        <button onClick={() => setFilter("videos")} className="filter-button">וידאו</button>
+        <button onClick={() => setFilter("all")} className="filter-button">
+          All
+        </button>
+        <button onClick={() => setFilter("images")} className="filter-button">
+          Images
+        </button>
+        <button onClick={() => setFilter("videos")} className="filter-button">
+          Videos
+        </button>
       </div>
 
       {/* Grid */}
@@ -358,86 +220,72 @@ export default function MePage() {
           ))
         ) : (
           <p style={{ marginTop: 20, color: "#666" }}>
-            לא נמצאו {filter === "all" ? "" : filter === "images" ? "תמונות" : "סרטונים"} בגלריה שלך.
+            No {filter === "all" ? "" : filter} found in your gallery.
           </p>
         )}
       </div>
 
-      {/* פעולות מרובות */}
+      {/* Download All */}
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            {isIOS() ? (
-              <>
-                <button
-                  type="button"
-                  className="download-btn"
-                  disabled={savingAllIOS || !!preparedBatches.length}
-                  onClick={() => prepareAllIOS(filteredMediaItems)}
-                >
-                  {savingAllIOS
-                    ? `מכין… ${prepProgress.phase} ${prepProgress.current}/${prepProgress.total}`
-                    : "הכן את הכול לשיתוף (iOS)"}
-                </button>
-
-                <button
-                  type="button"
-                  className="download-btn"
-                  disabled={!preparedBatches.length}
-                  onClick={sharePreparedIOS}
-                >
-                  שתף ושמור (iOS)
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="download-btn"
-                disabled={downloadingAll}
-                onClick={() => downloadEach(filteredMediaItems)}
-              >
-                {downloadingAll ? "מוריד…" : "הורד כל קובץ"}
-              </button>
-            )}
-          </div>
-
-          {isIOS() && (savingAllIOS || preparedBatches.length > 0) && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-              {prepProgress.phase && `${prepProgress.phase} ${prepProgress.current}/${prepProgress.total}`}
-              {preparedBatches.length > 0 && " • מוכן לשיתוף"}
-            </div>
-          )}
+          <button
+            type="button"
+            className="download-btn"
+            disabled={downloadingAll}
+            onClick={async () => {
+              try {
+                setDownloadingAll(true);
+                for (const item of filteredMediaItems) {
+                  // Open direct native download (no blobs, no memory)
+                  await nativeDownload(item.url, item.name, { previewFirst: false });
+                  // Gentle spacing; many browsers queue 1 download at a time
+                  await new Promise((r) => setTimeout(r, 250));
+                }
+              } finally {
+                setDownloadingAll(false);
+              }
+            }}
+          >
+            {downloadingAll ? "Downloading..." : "Download All"}
+          </button>
         </div>
       )}
 
       {/* Modal */}
       {modalOpen && selectedItem && (
-        <div className="media-modal" onClick={closeModal} role="dialog" aria-modal="true">
-          <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="media-modal"
+          onClick={closeModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="media-modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isVideoUrl(selectedItem.url) ? (
               <video src={selectedItem.url} controls className="modal-media" />
             ) : (
-              <img src={selectedItem.url} alt={selectedItem.name} className="modal-media" />
+              <img
+                src={selectedItem.url}
+                alt={selectedItem.name}
+                className="modal-media"
+              />
             )}
 
-            {/* פעולות */}
+            {/* Actions */}
             <div className="modal-actions">
               <button
                 type="button"
                 className="download-btn"
-                onClick={() => saveSingle(selectedItem)}
+                onClick={() =>
+                  // If you want a preview tab first, flip previewFirst to true:
+                  // nativeDownload(selectedItem.url, selectedItem.name, { previewFirst: true, delayMs: 400 })
+                  nativeDownload(selectedItem.url, selectedItem.name, { previewFirst: false })
+                }
               >
-                שמור למכשיר
+                Download
               </button>
-
-              {/* אופציונלי: תצוגה בלשונית */}
-              {/* <button
-                type="button"
-                className="secondary-btn"
-                onClick={() => window.open(selectedItem.url, "_blank", "noopener,noreferrer")}
-              >
-                תצוגה מקדימה
-              </button> */}
             </div>
           </div>
         </div>
