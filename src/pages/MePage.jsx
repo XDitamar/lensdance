@@ -7,7 +7,7 @@ import "../style.css";
 
 /* ========================== Utilities ========================== */
 
-// iOS / iPadOS detection (includes iPadOS desktop mode)
+/** זיהוי iOS / iPadOS (כולל iPad במצב "Desktop") */
 function isIOS() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -16,11 +16,11 @@ function isIOS() {
   return /iPad|iPhone|iPod/.test(ua) || touchMac;
 }
 
-/** Add params so Firebase/GCS serves raw bytes and suggests a filename */
+/** בונה URL שמכריח החזרת בתים גולמיים ומבקש כותרת attachment עם שם קובץ */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
-    u.searchParams.set("alt", "media"); // raw bytes, no HTML viewer
+    u.searchParams.set("alt", "media");
     u.searchParams.set(
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
@@ -31,12 +31,12 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/** Trigger a native browser download (no blobs, no memory) */
+/** הורדה "טבעית" של הדפדפן בלי לטעון את הקובץ לזיכרון JS */
 function triggerNativeDownload(dlUrl) {
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
-    a.target = "_self";
+    a.target = "_self"; // או "_blank" אם מעדיפים
     a.rel = "noopener";
     a.style.position = "fixed";
     a.style.left = "-9999px";
@@ -44,7 +44,6 @@ function triggerNativeDownload(dlUrl) {
     a.click();
     a.remove();
   } catch {
-    // Fallback: hidden iframe
     try {
       let frame = document.getElementById("hidden-download-frame");
       if (!frame) {
@@ -60,72 +59,7 @@ function triggerNativeDownload(dlUrl) {
   }
 }
 
-/** iOS/iPadOS: fetch -> File -> Web Share (lets user "Save to Files") */
-async function shareFileToSystem(blob, filename = "file") {
-  try {
-    const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-    // @ts-ignore
-    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-      // @ts-ignore
-      await navigator.share({ files: [file], title: filename });
-      return true;
-    }
-  } catch {
-    // fall through
-  }
-  return false;
-}
-
-/** Save a Blob via <a download> */
-function saveBlobViaAnchor(blob, filename) {
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = filename;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
-
-/** Try File System Access API (Chrome/Edge desktop) */
-async function saveBlobViaFilePicker(blob, filename) {
-  // @ts-ignore
-  if (window.showSaveFilePicker) {
-    try {
-      // @ts-ignore
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return true;
-    } catch {
-      // user canceled or unsupported
-    }
-  }
-  return false;
-}
-
-/** Load JSZip from npm (preferred) or from global if user added CDN script */
-async function loadJSZip() {
-  try {
-    const mod = await import("jszip");
-    return mod.default || mod;
-  } catch {
-    if (typeof window !== "undefined" && window.JSZip) {
-      return window.JSZip;
-    }
-    throw new Error(
-      "JSZip not found. Run `npm i jszip` or include the CDN script in public/index.html."
-    );
-  }
-}
-
-/** Fetch a URL as Blob (with attachment params) */
+/** מביא Blob (עם הפרמטרים של attachment) */
 async function fetchAsBlob(url, filename) {
   const dlUrl = buildAttachmentURL(url, filename);
   const resp = await fetch(dlUrl, {
@@ -139,27 +73,44 @@ async function fetchAsBlob(url, filename) {
   return await resp.blob();
 }
 
-/** Simple concurrency pool for fetching many files */
-async function fetchAllWithLimit(items, limit, fetcher, onEach) {
-  let index = 0;
-  const results = new Array(items.length);
-  const worker = async () => {
-    while (true) {
-      const i = index++;
-      if (i >= items.length) break;
-      try {
-        const r = await fetcher(items[i], i);
-        results[i] = r;
-        onEach?.(i, null);
-      } catch (err) {
-        results[i] = null;
-        onEach?.(i, err);
-      }
+/** iOS: שיתוף קבצים דרך Web Share (משם המשתמש בוחר Save to Files / שמור תמונה) */
+async function shareFilesIOS(files, title) {
+  // @ts-ignore
+  if (navigator?.canShare && navigator.canShare({ files }) && navigator.share) {
+    try {
+      // @ts-ignore
+      await navigator.share({ files, title: title || "Save Media" });
+      return true;
+    } catch {
+      return false; // בוטל או נכשל
     }
-  };
-  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
-  await Promise.all(workers);
-  return results;
+  }
+  return false;
+}
+
+/** מ-URL ל-File (fetch → Blob → File) */
+async function fileFromUrl(url, filename) {
+  const blob = await fetchAsBlob(url, filename);
+  return new File([blob], filename, { type: blob.type || "application/octet-stream" });
+}
+
+/** חלוקה למקבצים (batch) ל-iOS כדי לא לחרוג ממגבלות השיתוף */
+function* batchBySizeAndCount(items, { maxBytes = 45 * 1024 * 1024, maxCount = 10 } = {}) {
+  let batch = [];
+  let total = 0;
+  for (const it of items) {
+    // אין לנו משקל מראש → הערכה שמרנית ~5MB לפריט
+    const size = 5 * 1024 * 1024;
+    const wouldExceed = batch.length >= maxCount || total + size > maxBytes;
+    if (batch.length && wouldExceed) {
+      yield batch;
+      batch = [];
+      total = 0;
+    }
+    batch.push(it);
+    total += size;
+  }
+  if (batch.length) yield batch;
 }
 
 /* ========================== Component ========================== */
@@ -168,9 +119,8 @@ export default function MePage() {
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  const [zipping, setZipping] = useState(false);
-  const [zipProgress, setZipProgress] = useState(0);
-  const [fetchedCount, setFetchedCount] = useState(0);
+  const [savingAllMobile, setSavingAllMobile] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0, phase: "" });
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -185,7 +135,7 @@ export default function MePage() {
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // Fetch user's media
+  // הבאת המדיה של המשתמש
   const fetchMedia = async () => {
     if (!user) {
       setLoading(false);
@@ -237,14 +187,14 @@ export default function MePage() {
     setModalOpen(false);
   };
 
-  // Single-item download (native / iOS share when needed)
+  // הורדה של פריט בודד: iOS → Share; אחרים → הורדה ישירה
   async function downloadSingle(url, filename) {
     if (isIOS()) {
-      // On iOS, try the share sheet for a real "Save to Files"
       try {
-        const blob = await fetchAsBlob(url, filename);
-        const usedShare = await shareFileToSystem(blob, filename);
-        if (!usedShare) {
+        const file = await fileFromUrl(url, filename);
+        const ok = await shareFilesIOS([file], filename);
+        if (!ok) {
+          // fallback: נסיון הורדה טבעית (ייתכן שיופיע תצוגה מקדימה במקום הורדה בתמונות)
           triggerNativeDownload(buildAttachmentURL(url, filename));
         }
       } catch {
@@ -255,72 +205,54 @@ export default function MePage() {
     }
   }
 
-  // Save all as a single ZIP (best UX across platforms)
-  async function saveAllAsZip(items) {
+  // שמירה של כולם (ללא ZIP): iOS במקבצים; אנדרואיד/דסקטופ הורדה ישירה לכל קובץ
+  async function saveAllMobile(items) {
     if (!items.length) return;
-
-    setZipping(true);
-    setZipProgress(0);
-    setFetchedCount(0);
+    setSavingAllMobile(true);
+    setSaveProgress({ current: 0, total: items.length, phase: "מכין..." });
 
     try {
-      const JSZip = await loadJSZip();
-      const zip = new JSZip();
-
-      // Fetch with small concurrency to avoid overwhelming the browser
-      const fetched = await fetchAllWithLimit(
-        items,
-        3, // concurrency
-        async (it) => {
-          const blob = await fetchAsBlob(it.url, it.name);
-          return { name: it.name, blob };
-        },
-        (i, err) => {
-          setFetchedCount((c) => c + 1);
-        }
-      );
-
-      // Add to zip (use STORE for media to save CPU; JPEG/MP4 don't compress well)
-      fetched.forEach((entry, idx) => {
-        if (!entry) return; // skip failed
-        zip.file(entry.name, entry.blob, {
-          binary: true,
-          compression: "STORE",
-        });
-      });
-
-      const suggestedName = `MyGallery-${new Date()
-        .toISOString()
-        .replace(/[:.]/g, "")
-        .replace("T", "_")
-        .slice(0, 15)}.zip`;
-
-      const zipBlob = await zip.generateAsync(
-        { type: "blob", streamFiles: true, compression: "STORE" },
-        (meta) => setZipProgress(Math.round(meta.percent))
-      );
-
-      // Prefer native file picker on desktop
-      const usedFS = await saveBlobViaFilePicker(zipBlob, suggestedName);
-      if (usedFS) return;
-
-      // iOS/iPadOS: Share sheet (Save to Files)
       if (isIOS()) {
-        const usedShare = await shareFileToSystem(zipBlob, suggestedName);
-        if (usedShare) return;
-      }
+        const batches = Array.from(batchBySizeAndCount(items));
+        let done = 0;
 
-      // Fallback: <a download>
-      saveBlobViaAnchor(zipBlob, suggestedName);
-    } catch (err) {
-      console.error("ZIP error:", err);
-      alert(
-        "Couldn't create the ZIP. If your gallery is very large, try downloading items in smaller batches."
-      );
+        for (let b = 0; b < batches.length; b++) {
+          setSaveProgress({ current: done, total: items.length, phase: `מכין מקבץ ${b + 1}/${batches.length}` });
+
+          const files = [];
+          for (const it of batches[b]) {
+            try {
+              const f = await fileFromUrl(it.url, it.name);
+              files.push(f);
+              done++;
+              setSaveProgress({ current: done, total: items.length, phase: `מוכן לשיתוף` });
+            } catch (err) {
+              console.warn("Skipping failed item:", it.name, err);
+            }
+          }
+
+          if (files.length) {
+            const ok = await shareFilesIOS(files, `Save ${files.length} item(s)`);
+            if (!ok) {
+              // אם המשתמש ביטל – עוצרים
+              break;
+            }
+          }
+        }
+      } else {
+        // אנדרואיד/דסקטופ: הורדה נייטיבית לכל קובץ בתור
+        let count = 0;
+        for (const it of items) {
+          setSaveProgress({ current: count, total: items.length, phase: "מוריד..." });
+          triggerNativeDownload(buildAttachmentURL(it.url, it.name));
+          count++;
+          setSaveProgress({ current: count, total: items.length, phase: "מוריד..." });
+          await new Promise((r) => setTimeout(r, 200)); // ריווח קטן להורדות מרובות
+        }
+      }
     } finally {
-      setZipping(false);
-      setZipProgress(0);
-      setFetchedCount(0);
+      setSavingAllMobile(false);
+      setSaveProgress({ current: 0, total: 0, phase: "" });
     }
   }
 
@@ -359,16 +291,16 @@ export default function MePage() {
     <main className="container">
       <h2 className="section-title">My Gallery</h2>
 
-      {/* Filter */}
+      {/* סינון */}
       <div className="gallery-buttons">
         <button onClick={() => setFilter("all")} className="filter-button">
-          All
+          הכול
         </button>
         <button onClick={() => setFilter("images")} className="filter-button">
-          Images
+          תמונות
         </button>
         <button onClick={() => setFilter("videos")} className="filter-button">
-          Videos
+          וידאו
         </button>
       </div>
 
@@ -393,51 +325,51 @@ export default function MePage() {
           ))
         ) : (
           <p style={{ marginTop: 20, color: "#666" }}>
-            No {filter === "all" ? "" : filter} found in your gallery.
+            לא נמצאו {filter === "all" ? "" : filter === "images" ? "תמונות" : "סרטונים"} בגלריה שלך.
           </p>
         )}
       </div>
 
-      {/* Bulk actions */}
+      {/* פעולות מרובות */}
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <button
               type="button"
               className="download-btn"
-              disabled={downloadingAll || zipping}
+              disabled={savingAllMobile || downloadingAll}
+              onClick={() => saveAllMobile(filteredMediaItems)}
+            >
+              {savingAllMobile
+                ? `שומר… ${saveProgress.phase} ${saveProgress.current}/${saveProgress.total}`
+                : "שמור את הכול (מובייל)"}
+            </button>
+
+            <button
+              type="button"
+              className="secondary-btn"
+              disabled={savingAllMobile || downloadingAll}
               onClick={async () => {
-                // Native per-file downloads (desktop auto-save; iOS shows viewer for images)
                 try {
                   setDownloadingAll(true);
+                  let i = 0;
                   for (const item of filteredMediaItems) {
-                    await downloadSingle(item.url, item.name);
-                    await new Promise((r) => setTimeout(r, 200)); // spacing
+                    triggerNativeDownload(buildAttachmentURL(item.url, item.name));
+                    i++;
+                    await new Promise((r) => setTimeout(r, 200));
                   }
                 } finally {
                   setDownloadingAll(false);
                 }
               }}
             >
-              {downloadingAll ? "Downloading…" : "Download Each"}
-            </button>
-
-            <button
-              type="button"
-              className="download-btn"
-              disabled={zipping || downloadingAll}
-              onClick={() => saveAllAsZip(filteredMediaItems)}
-            >
-              {zipping ? `Preparing ZIP… ${zipProgress}%` : "Save All as ZIP"}
+              {downloadingAll ? "מוריד…" : "הורד כל קובץ"}
             </button>
           </div>
 
-          {(zipping || fetchedCount > 0) && (
+          {(savingAllMobile && saveProgress.total) && (
             <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-              {zipping ? `Zipping: ${zipProgress}%` : null}
-              {fetchedCount > 0 && !zipping
-                ? `Fetched ${fetchedCount}/${filteredMediaItems.length}`
-                : null}
+              {saveProgress.phase} {saveProgress.current}/{saveProgress.total}
             </div>
           )}
         </div>
@@ -465,15 +397,24 @@ export default function MePage() {
               />
             )}
 
-            {/* Actions */}
+            {/* פעולות */}
             <div className="modal-actions">
               <button
                 type="button"
                 className="download-btn"
                 onClick={() => downloadSingle(selectedItem.url, selectedItem.name)}
               >
-                Download
+                שמור למכשיר
               </button>
+
+              {/* כפתור תצוגה בלשונית נפרדת (רשות) */}
+              {/* <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => window.open(selectedItem.url, "_blank", "noopener,noreferrer")}
+              >
+                תצוגה מקדימה
+              </button> */}
             </div>
           </div>
         </div>
