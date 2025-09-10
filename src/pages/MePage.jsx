@@ -1,87 +1,101 @@
 // src/pages/MePage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
-import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { ref, listAll, getDownloadURL, getBlob } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
-/** Build a URL that requests raw bytes + attachment header (native download) */
-function buildAttachmentURL(url, filename) {
-  try {
-    const u = new URL(url);
-    // Force raw bytes (no HTML viewer)
-    u.searchParams.set("alt", "media");
-    // Ask GCS/Firebase to send Content-Disposition: attachment
-    u.searchParams.set(
-      "response-content-disposition",
-      `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
-    );
-    return u.toString();
-  } catch {
-    return url;
-  }
+/* ========================== Helpers ========================== */
+
+// Detect iOS / iPadOS (incl. iPad in desktop mode)
+function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const touchMac = platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return /iPad|iPhone|iPod/.test(ua) || touchMac;
 }
 
-/**
- * Trigger a native download without reading the file into JS memory.
- * Primary: invisible <a target="_blank"> to the attachment URL
- * Fallback: hidden <iframe> (keeps current page, avoids popups)
- * Optional: previewFirst opens the original URL in a new tab, then starts the download.
- */
-async function nativeDownload(
-  url,
-  filename = "download",
-  opts = { previewFirst: false, delayMs: 300 }
-) {
-  const dlUrl = buildAttachmentURL(url, filename);
+// Feature-detect directory picker (Android/desktop Chrome/Edge)
+function canPickDirectory() {
+  return typeof window !== "undefined" && "showDirectoryPicker" in window;
+}
 
-  if (opts?.previewFirst) {
-    window.open(url, "_blank", "noopener,noreferrer");
-    const delay = typeof opts?.delayMs === "number" ? opts.delayMs : 300;
-    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
-  }
-
-  // Try invisible anchor first (lets browser handle download natively)
-  try {
-    const a = document.createElement("a");
-    a.href = dlUrl;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.style.position = "fixed";
-    a.style.left = "-9999px";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    return;
-  } catch {
-    // fall through
-  }
-
-  // Fallback: hidden iframe (no memory footprint, good cross-browser behavior)
-  try {
-    let frame = document.getElementById("hidden-download-frame");
-    if (!frame) {
-      frame = document.createElement("iframe");
-      frame.id = "hidden-download-frame";
-      frame.style.display = "none";
-      document.body.appendChild(frame);
+// Web Share (iOS): lets the user “Save to Files / Save Image”
+async function shareFilesIOS(files, title) {
+  // @ts-ignore
+  if (navigator?.canShare && navigator.canShare({ files }) && navigator.share) {
+    try {
+      // @ts-ignore
+      await navigator.share({ files, title: title || "Save media" });
+      return true;
+    } catch {
+      return false; // user canceled
     }
-    frame.src = dlUrl;
-    return;
-  } catch {
-    // Last resort: navigate current tab (not ideal, but guarantees download)
-    window.location.href = dlUrl;
+  }
+  return false;
+}
+
+// Create a File from Blob
+function fileFromBlob(blob, filename) {
+  return new File([blob], filename, { type: blob.type || "application/octet-stream" });
+}
+
+// Batch helper for iOS share limits
+function* batchBySizeAndCount(items, { maxBytes = 45 * 1024 * 1024, maxCount = 10 } = {}) {
+  let batch = [];
+  let total = 0;
+  for (const it of items) {
+    const approx = 5 * 1024 * 1024; // conservative per-item estimate
+    const wouldExceed = batch.length >= maxCount || total + approx > maxBytes;
+    if (batch.length && wouldExceed) {
+      yield batch;
+      batch = [];
+      total = 0;
+    }
+    batch.push(it);
+    total += approx;
+  }
+  if (batch.length) yield batch;
+}
+
+// Unique name inside a chosen directory (adds " (1)" if exists)
+async function getUniqueFileHandle(dirHandle, name) {
+  const dot = name.lastIndexOf(".");
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  let candidate = name;
+  let n = 1;
+
+  while (true) {
+    try {
+      // Try to get existing (if it exists, we need a new name)
+      await dirHandle.getFileHandle(candidate, { create: false });
+      // Exists → try next
+      candidate = `${base} (${n++})${ext}`;
+    } catch {
+      // Not found → create this one
+      return await dirHandle.getFileHandle(candidate, { create: true });
+    }
   }
 }
+
+/* ========================== Component ========================== */
 
 export default function MePage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
+  const [mediaItems, setMediaItems] = useState([]); // [{id(fullPath), url, name, type}]
   const [loading, setLoading] = useState(true);
-  const [downloadingAll, setDownloadingAll] = useState(false);
+
+  const [savingAllToFolder, setSavingAllToFolder] = useState(false);
+  const [folderProgress, setFolderProgress] = useState({ current: 0, total: 0, name: "" });
+
+  const [savingAllIOS, setSavingAllIOS] = useState(false);
+  const [iosProgress, setIosProgress] = useState({ current: 0, total: 0, phase: "" });
+
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -89,12 +103,18 @@ export default function MePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
   const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // --- Auth subscription: avoids "not logged in" flash after reload ---
+  // Auth subscription
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -103,7 +123,7 @@ export default function MePage() {
     return unsub;
   }, []);
 
-  // Fetch user's media (runs when user changes and authLoading is done)
+  // Load user's media
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
@@ -121,23 +141,23 @@ export default function MePage() {
 
       const mediaPromises = res.items.map(async (itemRef) => {
         if (itemRef.name === ".placeholder") return null;
-        const url = await getDownloadURL(itemRef);
+        const url = await getDownloadURL(itemRef); // for preview
         const type = itemRef.name.split(".").pop();
         return { id: itemRef.fullPath, url, name: itemRef.name, type };
       });
 
       const mediaData = await Promise.all(mediaPromises);
-      setMediaItems(mediaData.filter(Boolean));
+      if (isMounted.current) setMediaItems(mediaData.filter(Boolean));
     } catch (e) {
       console.error(e);
       setError("Failed to load your private gallery.");
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (authLoading) return; // wait until we know if there's a user
+    if (authLoading) return;
     fetchMedia(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
@@ -162,15 +182,98 @@ export default function MePage() {
     setModalOpen(false);
   };
 
-  // Esc to close
-  useEffect(() => {
-    if (!modalOpen) return;
-    const onKeyDown = (e) => e.key === "Escape" && closeModal();
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [modalOpen]);
+  /* ---------- NEW: Save ALL to a chosen folder (Android/Desktop) ---------- */
+  const saveAllToFolder = async () => {
+    if (!filteredMediaItems.length) return;
+    if (!canPickDirectory()) {
+      alert("Your browser doesn't support choosing a folder. On iOS use the Share button; otherwise update Chrome/Edge.");
+      return;
+    }
 
-  // ---------- UI guards ----------
+    try {
+      setSavingAllToFolder(true);
+      setFolderProgress({ current: 0, total: filteredMediaItems.length, name: "" });
+
+      // Ask the user to pick a folder (one user gesture)
+      // @ts-ignore
+      const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+
+      let done = 0;
+      for (const it of filteredMediaItems) {
+        setFolderProgress({ current: done, total: filteredMediaItems.length, name: it.name });
+
+        // Get bytes from Firebase without CORS issues
+        const blob = await getBlob(ref(storage, it.id));
+
+        // Create unique file (avoid overwrite) and write
+        const fh = await getUniqueFileHandle(dirHandle, it.name);
+        const writable = await fh.createWritable();
+        await writable.write(blob);
+        await writable.close();
+
+        done++;
+        setFolderProgress({ current: done, total: filteredMediaItems.length, name: it.name });
+
+        // small yield so UI stays responsive on big batches
+        if (done % 5 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+
+      alert("All files saved to the chosen folder.");
+    } catch (e) {
+      console.error("Save to folder failed:", e);
+      alert("Couldn't save all files. Make sure you chose a writable folder and try again.");
+    } finally {
+      if (isMounted.current) {
+        setSavingAllToFolder(false);
+        setFolderProgress({ current: 0, total: 0, name: "" });
+      }
+    }
+  };
+
+  /* ---------- iOS: Share & Save ALL in batches ---------- */
+  const shareAllIOS = async () => {
+    if (!filteredMediaItems.length) return;
+
+    try {
+      setSavingAllIOS(true);
+      setIosProgress({ current: 0, total: filteredMediaItems.length, phase: "Preparing…" });
+
+      const batches = Array.from(batchBySizeAndCount(filteredMediaItems));
+      let done = 0;
+
+      for (let b = 0; b < batches.length; b++) {
+        setIosProgress({ current: done, total: filteredMediaItems.length, phase: `Downloading batch ${b + 1}/${batches.length}` });
+
+        const files = [];
+        for (const it of batches[b]) {
+          try {
+            const blob = await getBlob(ref(storage, it.id));
+            files.push(fileFromBlob(blob, it.name));
+          } catch (e) {
+            console.warn("Skip:", it.name, e);
+          }
+          done++;
+          setIosProgress({ current: done, total: filteredMediaItems.length, phase: "Preparing…" });
+        }
+
+        if (files.length) {
+          const ok = await shareFilesIOS(files, `Save ${files.length} item(s)`);
+          if (!ok) break; // user canceled
+        }
+      }
+    } catch (e) {
+      console.error("iOS share failed:", e);
+      alert("Couldn't share all files. Try fewer files or smaller videos.");
+    } finally {
+      if (isMounted.current) {
+        setSavingAllIOS(false);
+        setIosProgress({ current: 0, total: 0, phase: "" });
+      }
+    }
+  };
+
+  /* ========================== UI ========================== */
+
   if (authLoading || loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
@@ -200,7 +303,6 @@ export default function MePage() {
     );
   }
 
-  // ---------- Page ----------
   return (
     <main className="container">
       <h2 className="section-title">My Gallery</h2>
@@ -240,12 +342,7 @@ export default function MePage() {
               onKeyDown={(e) => e.key === "Enter" && openModal(m)}
             >
               {isVideoUrl(m.url) ? (
-                <video
-                  src={m.url}
-                  className="gallery-item-media"
-                  playsInline
-                  muted
-                />
+                <video src={m.url} className="gallery-item-media" playsInline muted />
               ) : (
                 <img src={m.url} alt={m.name} className="gallery-item-media" />
               )}
@@ -258,67 +355,84 @@ export default function MePage() {
         )}
       </div>
 
-      {/* Download All */}
+      {/* Bulk actions */}
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
-          <button
-            type="button"
-            className="download-btn"
-            disabled={downloadingAll}
-            onClick={async () => {
-              try {
-                setDownloadingAll(true);
-                for (const item of filteredMediaItems) {
-                  await nativeDownload(item.url, item.name, {
-                    previewFirst: false,
-                  });
-                  await new Promise((r) => setTimeout(r, 250));
-                }
-              } finally {
-                setDownloadingAll(false);
-              }
-            }}
-          >
-            {downloadingAll ? "Downloading..." : "Download All"}
-          </button>
+          {/* Android/Desktop path: real files to a chosen folder */}
+          {canPickDirectory() && !isIOS() && (
+            <button
+              type="button"
+              className="download-btn"
+              disabled={savingAllToFolder}
+              onClick={saveAllToFolder}
+              title="Choose a folder and save every file into it"
+            >
+              {savingAllToFolder
+                ? `Saving… ${folderProgress.current}/${folderProgress.total}${folderProgress.name ? " (" + folderProgress.name + ")" : ""}`
+                : "Save All to Folder"}
+            </button>
+          )}
+
+          {/* iOS path: share in batches */}
+          {isIOS() && (
+            <button
+              type="button"
+              className="download-btn"
+              disabled={savingAllIOS}
+              onClick={shareAllIOS}
+              title="Share all files in batches, then Save to Files/Photos"
+            >
+              {savingAllIOS
+                ? `${iosProgress.phase} ${iosProgress.current}/${iosProgress.total}`
+                : "Share & Save All (iOS)"}
+            </button>
+          )}
+
+          {/* Fallback notice if neither path shown */}
+          {!canPickDirectory() && !isIOS() && (
+            <p style={{ marginTop: 10, color: "#666" }}>
+              Your browser can’t save to a folder. Update Chrome/Edge, or use “Share & Save” on iOS.
+            </p>
+          )}
         </div>
       )}
 
       {/* Modal */}
       {modalOpen && selectedItem && (
-        <div
-          className="media-modal"
-          onClick={closeModal}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="media-modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="media-modal" onClick={closeModal} role="dialog" aria-modal="true">
+          <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
             {isVideoUrl(selectedItem.url) ? (
               <video src={selectedItem.url} controls className="modal-media" />
             ) : (
-              <img
-                src={selectedItem.url}
-                alt={selectedItem.name}
-                className="modal-media"
-              />
+              <img src={selectedItem.url} alt={selectedItem.name} className="modal-media" />
             )}
 
-            {/* Actions */}
+            {/* Single-item actions (optional: add a per-file save here if you want) */}
             <div className="modal-actions">
-              <button
-                type="button"
-                className="download-btn"
-                onClick={() =>
-                  nativeDownload(selectedItem.url, selectedItem.name, {
-                    previewFirst: false,
-                  })
-                }
-              >
-                Downloada
-              </button>
+              {/* Example of a per-file save to folder if supported */}
+              {canPickDirectory() && !isIOS() && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={async () => {
+                    try {
+                      // @ts-ignore
+                      const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+                      const blob = await getBlob(ref(storage, selectedItem.id));
+                      const fh = await getUniqueFileHandle(dirHandle, selectedItem.name);
+                      const writable = await fh.createWritable();
+                      await writable.write(blob);
+                      await writable.close();
+                      alert("Saved to the chosen folder.");
+                    } catch (e) {
+                      console.error(e);
+                      alert("Couldn't save to the folder.");
+                    }
+                  }}
+                >
+                  Save to Folder
+                </button>
+              )}
             </div>
           </div>
         </div>
