@@ -317,7 +317,7 @@ export default function MePage() {
                   })
                 }
               >
-                Downloads
+                Download
               </button>
             </div>
           </div>
