@@ -17,8 +17,6 @@ function buildAttachmentURL(url, filename) {
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
     );
-    // Hint a binary type to nudge browsers away from previewing
-    u.searchParams.set("response-content-type", "application/octet-stream");
     return u.toString();
   } catch {
     return url;
@@ -26,86 +24,22 @@ function buildAttachmentURL(url, filename) {
 }
 
 /**
- * Trigger a native download. Prefers iframe for large videos, Blob for images.
- * Fallbacks: anchor[download] → navigate current tab.
+ * Trigger a native download without reading the file into JS memory.
+ * Primary: invisible <a target="_blank"> to the attachment URL
+ * Fallback: hidden <iframe> (keeps current page, avoids popups)
  */
 async function nativeDownload(
   url,
-  filename = "download",
-  opts = { prefer: "auto" } // "auto" | "iframe" | "anchor" | "blob"
+  filename = "download"
 ) {
   const dlUrl = buildAttachmentURL(url, filename);
 
-  // Helper: blob download (reads into memory; good for images/docs)
-  const blobDownload = async () => {
-    const res = await fetch(dlUrl, { credentials: "omit" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.setAttribute("download", filename || "download");
-      a.style.position = "fixed";
-      a.style.left = "-9999px";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  };
-
-  if (opts?.prefer === "blob") return blobDownload();
-
-  if (!opts || opts.prefer === "auto") {
-    const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
-    const isVideo = /(mp4|mov|avi|mkv|webm)$/i.test(ext);
-    if (isVideo) {
-      // Hidden iframe is friendlier for large media
-      try {
-        let frame = document.getElementById("hidden-download-frame");
-        if (!frame) {
-          frame = document.createElement("iframe");
-          frame.id = "hidden-download-frame";
-          frame.style.display = "none";
-          document.body.appendChild(frame);
-        }
-        frame.src = dlUrl;
-        return;
-      } catch {
-        // fall through to anchor
-      }
-    } else {
-      // Prefer Blob for images so they save instead of opening a new tab
-      try {
-        return await blobDownload();
-      } catch {
-        // fall through to anchor
-      }
-    }
-  }
-
-  if (opts?.prefer === "iframe") {
-    try {
-      let frame = document.getElementById("hidden-download-frame");
-      if (!frame) {
-        frame = document.createElement("iframe");
-        frame.id = "hidden-download-frame";
-        frame.style.display = "none";
-        document.body.appendChild(frame);
-      }
-      frame.src = dlUrl;
-      return;
-    } catch {
-      // ignore and fall through
-    }
-  }
-
+  // Try invisible anchor first (lets browser handle download natively)
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
-    a.setAttribute("download", filename || "download");
+    a.download = filename; // Added download attribute for better compatibility
+    a.target = "_blank";
     a.rel = "noopener";
     a.style.position = "fixed";
     a.style.left = "-9999px";
@@ -114,8 +48,34 @@ async function nativeDownload(
     a.remove();
     return;
   } catch {
-    window.location.href = dlUrl; // last resort
+    // fall through
   }
+
+  // Fallback: hidden iframe (no memory footprint, good cross-browser behavior)
+  try {
+    let frame = document.getElementById("hidden-download-frame");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "hidden-download-frame";
+      frame.style.display = "none";
+      document.body.appendChild(frame);
+    }
+    frame.src = dlUrl;
+    return;
+  } catch {
+    // Last resort: navigate current tab (not ideal, but guarantees download)
+    window.location.href = dlUrl;
+  }
+}
+
+// Function to generate a video thumbnail
+function generateVideoThumbnail(videoElement) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = videoElement.videoWidth;
+  canvas.height = videoElement.videoHeight;
+  context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg');
 }
 
 export default function MePage() {
@@ -124,7 +84,7 @@ export default function MePage() {
 
   const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
-  const [installingAll, setInstallingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -132,9 +92,12 @@ export default function MePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // Store video posters in state
+  const [videoPosters, setVideoPosters] = useState({});
+
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
-  const isVideoExt = (ext) => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
-  const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
+  const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
+  const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
   // --- Auth subscription: avoids "not logged in" flash after reload ---
@@ -195,6 +158,19 @@ export default function MePage() {
       }),
     [mediaItems, filter]
   );
+
+  const handleVideoLoaded = (event, videoId) => {
+    const videoElement = event.target;
+    // Delay slightly to ensure a frame is available
+    setTimeout(() => {
+      try {
+        const thumbnail = generateVideoThumbnail(videoElement);
+        setVideoPosters(prev => ({ ...prev, [videoId]: thumbnail }));
+      } catch (e) {
+        console.error("Failed to generate video thumbnail:", e);
+      }
+    }, 100);
+  };
 
   const openModal = (item) => {
     setSelectedItem(item);
@@ -288,6 +264,8 @@ export default function MePage() {
                   className="gallery-item-media"
                   playsInline
                   muted
+                  poster={videoPosters[m.id]}
+                  onLoadedData={(e) => handleVideoLoaded(e, m.id)}
                 />
               ) : (
                 <img src={m.url} alt={m.name} className="gallery-item-media" />
@@ -301,27 +279,28 @@ export default function MePage() {
         )}
       </div>
 
-      {/* Install All (downloads all types: images + videos) */}
+      {/* Download All */}
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
           <button
             type="button"
             className="download-btn"
-            disabled={installingAll}
+            disabled={downloadingAll}
             onClick={async () => {
-              setInstallingAll(true);
               try {
+                setDownloadingAll(true);
                 for (const item of filteredMediaItems) {
-                  await nativeDownload(item.url, item.name, { prefer: "auto" });
-                  // small delay so browsers don't collapse multiple downloads
-                  await new Promise((r) => setTimeout(r, 400));
+                  console.log("Attempting to download:", item.name);
+                  // Use nativeDownload which has been updated to use the download attribute
+                  await nativeDownload(item.url, item.name);
+                  await new Promise((r) => setTimeout(r, 250));
                 }
               } finally {
-                setInstallingAll(false);
+                setDownloadingAll(false);
               }
             }}
           >
-            {installingAll ? "Installing..." : "Install All"}
+            {downloadingAll ? "Downloading..." : "Download All"}
           </button>
         </div>
       )}
@@ -354,12 +333,10 @@ export default function MePage() {
                 type="button"
                 className="download-btn"
                 onClick={() =>
-                  nativeDownload(selectedItem.url, selectedItem.name, {
-                    prefer: "auto",
-                  })
+                  nativeDownload(selectedItem.url, selectedItem.name)
                 }
               >
-                Install
+                Download
               </button>
             </div>
           </div>
