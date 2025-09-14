@@ -2,15 +2,18 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
-import { ref, listAll, getDownloadURL, getBlob } from "firebase/storage";
+import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
+import JSZip from "jszip";
 import "../style.css";
 
-/** Build a URL that requests raw bytes + attachment header (native download for single files) */
+/** Build a URL that requests raw bytes + attachment header (native download) */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
+    // Force raw bytes (no HTML viewer)
     u.searchParams.set("alt", "media");
+    // Ask GCS/Firebase to send Content-Disposition: attachment
     u.searchParams.set(
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
@@ -21,124 +24,83 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/** Trigger a native download without loading into JS memory (good for single files) */
-async function nativeDownload(url, filename = "download") {
+/**
+ * Trigger a native download without reading the file into JS memory.
+ * Primary: invisible <a target="_blank"> to the attachment URL
+ * Fallback: hidden <iframe> (keeps current page, avoids popups)
+ * Optional: previewFirst opens the original URL in a new tab, then starts the download.
+ */
+async function nativeDownload(
+  url,
+  filename = "download",
+  opts = { previewFirst: false, delayMs: 300 }
+) {
   const dlUrl = buildAttachmentURL(url, filename);
+
+  if (opts?.previewFirst) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    const delay = typeof opts?.delayMs === "number" ? opts.delayMs : 300;
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+  }
+
+  // Try invisible anchor first (lets browser handle download natively)
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
-    a.target = "_self"; // single download per click works best with _self on mobile
+    a.target = "_blank";
     a.rel = "noopener";
     a.style.position = "fixed";
     a.style.left = "-9999px";
     document.body.appendChild(a);
     a.click();
     a.remove();
+    return;
   } catch {
-    try {
-      let frame = document.getElementById("hidden-download-frame");
-      if (!frame) {
-        frame = document.createElement("iframe");
-        frame.id = "hidden-download-frame";
-        frame.style.display = "none";
-        document.body.appendChild(frame);
-      }
-      frame.src = dlUrl;
-    } catch {
-      window.location.href = dlUrl;
-    }
+    // fall through
   }
-}
 
-/** Detect iOS/iPadOS (incl. iPad desktop mode) */
-function isIOS() {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const touchMac = platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || touchMac;
-}
-
-/** Save a Blob via <a download> */
-function saveBlobViaAnchor(blob, filename = "download") {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
-/** Try modern File System Access API (desktop Chrome/Edge) */
-async function saveBlobViaFilePicker(blob, filename) {
-  // @ts-ignore
-  if (window.showSaveFilePicker) {
-    try {
-      // @ts-ignore
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: "Archive", accept: { "application/zip": [".zip"] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return true;
-    } catch { /* user cancelled */ }
-  }
-  return false;
-}
-
-/** Deduplicate filenames inside the zip: foo.jpg, foo (1).jpg, ... */
-function withUniqueZipNames(items) {
-  const used = new Set();
-  return items.map((it) => {
-    const name = it.name || "file";
-    const dot = name.lastIndexOf(".");
-    const base = dot > 0 ? name.slice(0, dot) : name;
-    const ext = dot > 0 ? name.slice(dot) : "";
-    let candidate = name;
-    let i = 1;
-    while (used.has(candidate)) {
-      candidate = `${base} (${i++})${ext}`;
+  // Fallback: hidden iframe (no memory footprint, good cross-browser behavior)
+  try {
+    let frame = document.getElementById("hidden-download-frame");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "hidden-download-frame";
+      frame.style.display = "none";
+      document.body.appendChild(frame);
     }
-    used.add(candidate);
-    return { ...it, zipName: candidate };
-  });
+    frame.src = dlUrl;
+    return;
+  } catch {
+    // Last resort: navigate current tab (not ideal, but guarantees download)
+    window.location.href = dlUrl;
+  }
 }
 
 export default function MePage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [mediaItems, setMediaItems] = useState([]); // [{id(fullPath),url,name,type}]
+  const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
   const [loading, setLoading] = useState(true);
-
-  const [downloadingAll, setDownloadingAll] = useState(false); // per-file path
-  const [zipping, setZipping] = useState(false);               // zip path
-  const [zipProgress, setZipProgress] = useState({ filesDone: 0, filesTotal: 0, percent: 0 });
-
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
+
+  // ZIP states
+  const [zipping, setZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState({ done: 0, total: 0, label: "" });
+  const abortRef = useRef(null);
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-
-  const isMounted = useRef(true);
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
 
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
   const isVideoExt = (ext) => /(mp4|mov|avi|mkv)$/i.test(ext || "");
   const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // Auth subscription
+  // --- Auth subscription: avoids "not logged in" flash after reload ---
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -147,7 +109,7 @@ export default function MePage() {
     return unsub;
   }, []);
 
-  // Load user's media
+  // Fetch user's media (runs when user changes and authLoading is done)
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
@@ -171,17 +133,17 @@ export default function MePage() {
       });
 
       const mediaData = await Promise.all(mediaPromises);
-      if (isMounted.current) setMediaItems(mediaData.filter(Boolean));
+      setMediaItems(mediaData.filter(Boolean));
     } catch (e) {
       console.error(e);
       setError("Failed to load your private gallery.");
     } finally {
-      if (isMounted.current) setLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) return; // wait until we know if there's a user
     fetchMedia(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
@@ -206,58 +168,80 @@ export default function MePage() {
     setModalOpen(false);
   };
 
-  /** Download all as one ZIP (recommended for mobile) */
-  const downloadAllAsZip = async () => {
-    if (!filteredMediaItems.length) return;
+  // --- ZIP ALL (single .zip for mobile-friendly one-tap download) ---
+  async function zipAndDownload(items, zipName = "my-gallery.zip") {
+    if (!items?.length) return;
+
+    setZipping(true);
+    setZipProgress({ done: 0, total: items.length, label: "Preparing..." });
+
+    // Create an AbortController to allow cancellation mid-way
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const toSafeName = (name) =>
+      (name || "file").replace(/[\/\\:*?"<>|]+/g, "_");
 
     try {
-      setZipping(true);
-      setZipProgress({ filesDone: 0, filesTotal: filteredMediaItems.length, percent: 0 });
-
-      // Lazy-load JSZip only when needed
-      const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
+      let i = 0;
 
-      // Using STORE (no compression) = faster & safer on mobile for JPEG/MP4
-      const items = withUniqueZipNames(filteredMediaItems);
+      for (const item of items) {
+        if (controller.signal.aborted) throw new Error("aborted");
 
-      let done = 0;
-      for (const it of items) {
-        // Get bytes via Firebase SDK to avoid CORS issues
-        const blob = await getBlob(ref(storage, it.id));
-        zip.file(it.zipName, blob, { binary: true });
+        const fileLabel = item.name || `file_${i + 1}`;
+        setZipProgress((p) => ({ ...p, label: `Fetching ${fileLabel}...` }));
 
-        done++;
-        setZipProgress((p) => ({ ...p, filesDone: done }));
-        // yield to UI a bit on big batches
-        if (done % 5 === 0) await new Promise((r) => setTimeout(r, 0));
+        // Fetch raw bytes (no preview HTML) and preserve filename
+        const url = buildAttachmentURL(item.url, fileLabel);
+        const resp = await fetch(url, { mode: "cors", signal: controller.signal });
+        if (!resp.ok) throw new Error(`Failed to fetch ${fileLabel}: ${resp.status}`);
+
+        const buf = await resp.arrayBuffer();
+        // Keep original name; ensure safe chars
+        zip.file(toSafeName(fileLabel), buf);
+
+        i += 1;
+        setZipProgress({ done: i, total: items.length, label: `Added ${fileLabel}` });
       }
 
-      const zipBlob = await zip.generateAsync(
-        { type: "blob", compression: "STORE", streamFiles: true },
-        (meta) => {
-          setZipProgress((p) => ({ ...p, percent: Math.round(meta.percent) }));
-        }
-      );
+      setZipProgress((p) => ({ ...p, label: "Compressing..." }));
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 
-      const zipNameBase =
-        (user?.email ? user.email.split("@")[0] : "gallery") +
-        "-" +
-        new Date().toISOString().slice(0, 10);
-
-      // Try modern Save-As (desktop), fallback to <a download>
-      const usedPicker = await saveBlobViaFilePicker(zipBlob, `${zipNameBase}.zip`);
-      if (!usedPicker) saveBlobViaAnchor(zipBlob, `${zipNameBase}.zip`);
-    } catch (e) {
-      console.error("ZIP failed:", e);
-      alert("Couldn't build ZIP. Try fewer files or smaller videos.");
+      // Trigger single download (works on iOS/Android)
+      const a = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      if (String(err?.message).toLowerCase().includes("aborted")) {
+        // user cancelled — no toast needed
+      } else {
+        console.error(err);
+        alert("Failed to create ZIP. Try again or use the regular Download All.");
+      }
     } finally {
-      if (isMounted.current) {
-        setZipping(false);
-        setZipProgress({ filesDone: 0, filesTotal: 0, percent: 0 });
-      }
+      setZipping(false);
+      setZipProgress({ done: 0, total: 0, label: "" });
+      abortRef.current = null;
     }
-  };
+  }
+
+  function cancelZip() {
+    abortRef.current?.abort();
+  }
+
+  // Esc to close modal
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKeyDown = (e) => e.key === "Escape" && closeModal();
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
 
   // ---------- UI guards ----------
   if (authLoading || loading) {
@@ -347,50 +331,57 @@ export default function MePage() {
         )}
       </div>
 
-      {/* Bulk actions */}
+      {/* Actions */}
       {filteredMediaItems.length > 0 && (
-        <div style={{ marginTop: 30, textAlign: "center" }}>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            {/* Recommended for mobile: one file download */}
-            <button
-              type="button"
-              className="download-btn"
-              disabled={zipping}
-              onClick={downloadAllAsZip}
-              title="Build a single ZIP with all files (best on mobile)"
-            >
-              {zipping
-                ? `Preparing ZIP… ${zipProgress.filesDone}/${zipProgress.filesTotal} (${zipProgress.percent}%)`
-                : "Download All (ZIP)"}
-            </button>
+        <div style={{ marginTop: 30, textAlign: "center", display: "grid", gap: 12 }}>
+          {/* One-tap mobile-friendly ZIP */}
+          <button
+            type="button"
+            className="download-btn"
+            disabled={zipping}
+            onClick={() => zipAndDownload(filteredMediaItems, "my-gallery.zip")}
+          >
+            {zipping
+              ? `Zipping ${zipProgress.done}/${zipProgress.total}${
+                  zipProgress.label ? ` — ${zipProgress.label}` : ""
+                }`
+              : "Download All as ZIP"}
+          </button>
 
-            {/* Optional: per-file downloads (works best on desktop/Android) */}
-            <button
-              type="button"
-              className="secondary-btn"
-              disabled={downloadingAll || zipping}
-              onClick={async () => {
-                try {
-                  setDownloadingAll(true);
-                  // Note: many mobile browsers allow only one download per click.
-                  for (const item of filteredMediaItems) {
-                    await nativeDownload(item.url, item.name);
-                    await new Promise((r) => setTimeout(r, 300));
-                  }
-                } finally {
-                  setDownloadingAll(false);
-                }
-              }}
-            >
-              {downloadingAll ? "Downloading…" : "Download Each"}
-            </button>
-          </div>
-
+          {/* Optional: cancel while zipping */}
           {zipping && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-              Large albums can take a bit — keep this tab open.
-            </div>
+            <button
+              type="button"
+              className="filter-button active"
+              onClick={cancelZip}
+              style={{ maxWidth: 220, margin: "0 auto" }}
+            >
+              Cancel
+            </button>
           )}
+
+          {/* Your original multi-file downloader (kept for desktop) */}
+          <button
+            type="button"
+            className="download-btn"
+            disabled={downloadingAll || zipping}
+            onClick={async () => {
+              try {
+                setDownloadingAll(true);
+                for (const item of filteredMediaItems) {
+                  await nativeDownload(item.url, item.name, {
+                    previewFirst: false,
+                  });
+                  // Tiny delay helps mobile browsers queue downloads
+                  await new Promise((r) => setTimeout(r, 250));
+                }
+              } finally {
+                setDownloadingAll(false);
+              }
+            }}
+          >
+            {downloadingAll ? "Downloading..." : "Download All (multiple files)"}
+          </button>
         </div>
       )}
 
@@ -421,7 +412,11 @@ export default function MePage() {
               <button
                 type="button"
                 className="download-btn"
-                onClick={() => nativeDownload(selectedItem.url, selectedItem.name)}
+                onClick={() =>
+                  nativeDownload(selectedItem.url, selectedItem.name, {
+                    previewFirst: false,
+                  })
+                }
               >
                 Download
               </button>
