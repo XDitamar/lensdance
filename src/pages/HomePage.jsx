@@ -61,7 +61,7 @@ export default function HomePage() {
 
         <div className="pricing-grid">
           <div className="price-card">
-            <h3>Photos per Round/Class</h3>
+            <h3>Photos per Entry</h3>
             <ul>
               <li>60 NIS per person (includes 10 NIS deposit)</li>
               <li>30 NIS for additional horse in the same round</li>
