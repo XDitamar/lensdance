@@ -1,23 +1,20 @@
 // src/pages/MePage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
-/** Build a URL that requests raw bytes + attachment header (native download) */
+// Reusable download functions (unchanged)
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
-    // Force raw bytes (no HTML viewer)
     u.searchParams.set("alt", "media");
-    // Ask GCS/Firebase to send Content-Disposition: attachment
     u.searchParams.set(
       "response-content-disposition",
       `attachment; filename="${(filename || "download").replace(/"/g, "")}"`
     );
-    // Hint a binary type to nudge browsers away from previewing
     u.searchParams.set("response-content-type", "application/octet-stream");
     return u.toString();
   } catch {
@@ -25,18 +22,8 @@ function buildAttachmentURL(url, filename) {
   }
 }
 
-/**
- * Trigger a native download. Prefers iframe for large videos, Blob for images.
- * Fallbacks: anchor[download] → navigate current tab.
- */
-async function nativeDownload(
-  url,
-  filename = "download",
-  opts = { prefer: "auto" } // "auto" | "iframe" | "anchor" | "blob"
-) {
+async function nativeDownload(url, filename = "download", opts = { prefer: "auto" }) {
   const dlUrl = buildAttachmentURL(url, filename);
-
-  // Helper: blob download (reads into memory; good for images/docs)
   const blobDownload = async () => {
     const res = await fetch(dlUrl, { credentials: "omit" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -62,7 +49,6 @@ async function nativeDownload(
     const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
     const isVideo = /(mp4|mov|avi|mkv|webm)$/i.test(ext);
     if (isVideo) {
-      // Hidden iframe is friendlier for large media
       try {
         let frame = document.getElementById("hidden-download-frame");
         if (!frame) {
@@ -73,16 +59,11 @@ async function nativeDownload(
         }
         frame.src = dlUrl;
         return;
-      } catch {
-        // fall through to anchor
-      }
+      } catch {}
     } else {
-      // Prefer Blob for images so they save instead of opening a new tab
       try {
         return await blobDownload();
-      } catch {
-        // fall through to anchor
-      }
+      } catch {}
     }
   }
 
@@ -97,9 +78,7 @@ async function nativeDownload(
       }
       frame.src = dlUrl;
       return;
-    } catch {
-      // ignore and fall through
-    }
+    } catch {}
   }
 
   try {
@@ -114,48 +93,90 @@ async function nativeDownload(
     a.remove();
     return;
   } catch {
-    window.location.href = dlUrl; // last resort
+    window.location.href = dlUrl;
   }
 }
+
+// Lazy Media Component
+const LazyMedia = React.memo(({ url, alt, isVideo, posterUrl, onClick }) => {
+  const [inView, setInView] = useState(false);
+  const mediaRef = useRef();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px",
+        threshold: 0,
+      }
+    );
+
+    if (mediaRef.current) {
+      observer.observe(mediaRef.current);
+    }
+
+    return () => {
+      if (mediaRef.current) {
+        observer.unobserve(mediaRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      ref={mediaRef}
+      className="gallery-item-media-container"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick()}
+    >
+      {inView ? (
+        isVideo ? (
+          <video
+            src={url}
+            className="gallery-item-media"
+            playsInline
+            muted
+            preload="metadata"
+            // Use the poster attribute to display an image while the video loads
+            poster={posterUrl} 
+          />
+        ) : (
+          <img src={url} alt={alt} className="gallery-item-media" loading="lazy" />
+        )
+      ) : (
+        // Placeholder for items not in view
+        <div className="placeholder" />
+      )}
+    </div>
+  );
+});
 
 export default function MePage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  const [mediaItems, setMediaItems] = useState([]); // [{id,url,name,type}]
+  const [mediaItems, setMediaItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [installingAll, setInstallingAll] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
 
-  // Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
   const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
   const isVideoExt = (ext) => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
-  const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
+  const isImageExt = (ext) =>
+    /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
   const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-  // Video MIME helper for <link rel="preload">
-  const mimeFromExt = (ext) => {
-    switch ((ext || "").toLowerCase()) {
-      case "mp4":
-        return "video/mp4";
-      case "webm":
-        return "video/webm";
-      case "mov":
-        return "video/quicktime";
-      case "avi":
-        return "video/x-msvideo";
-      case "mkv":
-        return "video/x-matroska";
-      default:
-        return "video/mp4";
-    }
-  };
-
-  // --- Auth subscription: avoids "not logged in" flash after reload ---
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -164,7 +185,6 @@ export default function MePage() {
     return unsub;
   }, []);
 
-  // Fetch user's media (runs when user changes and authLoading is done)
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
@@ -174,7 +194,6 @@ export default function MePage() {
     try {
       setLoading(true);
       setError("");
-
       const email = u.email || "";
       const sanitizedEmail = email.replace(/[.#$[\]]/g, "_");
       const userFolderRef = ref(storage, sanitizedEmail);
@@ -184,7 +203,14 @@ export default function MePage() {
         if (itemRef.name === ".placeholder") return null;
         const url = await getDownloadURL(itemRef);
         const type = itemRef.name.split(".").pop();
-        return { id: itemRef.fullPath, url, name: itemRef.name, type };
+        const isVideo = isVideoUrl(url);
+
+        // This is a crucial assumption: we'll assume a poster image exists
+        // with the same name but a .jpg extension. You must implement this logic
+        // on your backend/upload process.
+        const posterUrl = isVideo ? url.replace(/\.[^/.]+$/, ".jpg") : null;
+
+        return { id: itemRef.fullPath, url, name: itemRef.name, type, posterUrl, isVideo };
       });
 
       const mediaData = await Promise.all(mediaPromises);
@@ -198,45 +224,9 @@ export default function MePage() {
   };
 
   useEffect(() => {
-    if (authLoading) return; // wait until we know if there's a user
+    if (authLoading) return;
     fetchMedia(user);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
-
-  // Preload: preconnect + preload first few videos' metadata to avoid white flash
-  useEffect(() => {
-    // One-time preconnect
-    const preconnectHref = "https://firebasestorage.googleapis.com";
-    if (!document.querySelector(`link[rel="preconnect"][href="${preconnectHref}"]`)) {
-      const pc = document.createElement("link");
-      pc.rel = "preconnect";
-      pc.href = preconnectHref;
-      pc.crossOrigin = "anonymous";
-      document.head.appendChild(pc);
-    }
-
-    // Preload up to N videos
-    const MAX_PRELOAD = 8;
-    const links = [];
-    const toPreload = mediaItems
-      .filter((m) => isVideoExt((m.type || "").toLowerCase()))
-      .slice(0, MAX_PRELOAD);
-
-    toPreload.forEach((m) => {
-      const ext = (m.type || "").toLowerCase();
-      const l = document.createElement("link");
-      l.rel = "preload";
-      l.as = "video";
-      l.href = m.url;
-      l.type = mimeFromExt(ext);
-      document.head.appendChild(l);
-      links.push(l);
-    });
-
-    return () => {
-      links.forEach((l) => l.remove());
-    };
-  }, [mediaItems]);
 
   const filteredMediaItems = useMemo(
     () =>
@@ -258,7 +248,6 @@ export default function MePage() {
     setModalOpen(false);
   };
 
-  // Esc to close
   useEffect(() => {
     if (!modalOpen) return;
     const onKeyDown = (e) => e.key === "Escape" && closeModal();
@@ -266,7 +255,6 @@ export default function MePage() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [modalOpen]);
 
-  // ---------- UI guards ----------
   if (authLoading || loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
@@ -296,12 +284,9 @@ export default function MePage() {
     );
   }
 
-  // ---------- Page ----------
   return (
     <main className="container">
       <h2 className="section-title">My Gallery</h2>
-
-      {/* Filter */}
       <div className="gallery-buttons">
         <button
           onClick={() => setFilter("all")}
@@ -322,32 +307,17 @@ export default function MePage() {
           Videos
         </button>
       </div>
-
-      {/* Grid */}
       <div className="gallery-grid">
         {filteredMediaItems.length > 0 ? (
           filteredMediaItems.map((m) => (
-            <div
+            <LazyMedia
               key={m.id}
-              className="gallery-item"
+              url={m.url}
+              alt={m.name}
+              isVideo={m.isVideo}
+              posterUrl={m.posterUrl}
               onClick={() => openModal(m)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && openModal(m)}
-            >
-              {isVideoUrl(m.url) ? (
-                <video
-                  src={m.url}
-                  className="gallery-item-media"
-                  playsInline
-                  muted
-                  preload="metadata"
-                  onLoadedData={(e) => e.currentTarget.classList.add("loaded")}
-                />
-              ) : (
-                <img src={m.url} alt={m.name} className="gallery-item-media" />
-              )}
-            </div>
+            />
           ))
         ) : (
           <p style={{ marginTop: 20, color: "#666" }}>
@@ -355,8 +325,6 @@ export default function MePage() {
           </p>
         )}
       </div>
-
-      {/* Install All (downloads all types: images + videos) */}
       {filteredMediaItems.length > 0 && (
         <div style={{ marginTop: 30, textAlign: "center" }}>
           <button
@@ -367,8 +335,9 @@ export default function MePage() {
               setInstallingAll(true);
               try {
                 for (const item of filteredMediaItems) {
-                  await nativeDownload(item.url, item.name, { prefer: "auto" });
-                  // small delay so browsers don't collapse multiple downloads
+                  await nativeDownload(item.url, item.name, {
+                    prefer: "auto",
+                  });
                   await new Promise((r) => setTimeout(r, 400));
                 }
               } finally {
@@ -380,8 +349,6 @@ export default function MePage() {
           </button>
         </div>
       )}
-
-      {/* Modal */}
       {modalOpen && selectedItem && (
         <div
           className="media-modal"
@@ -398,6 +365,7 @@ export default function MePage() {
                 src={selectedItem.url}
                 controls
                 className="modal-media"
+                poster={selectedItem.posterUrl}
                 preload="metadata"
               />
             ) : (
@@ -407,8 +375,6 @@ export default function MePage() {
                 className="modal-media"
               />
             )}
-
-            {/* Actions */}
             <div className="modal-actions">
               <button
                 type="button"
