@@ -86,8 +86,8 @@ export default function ContactPage() {
 
   return (
     <div className="container">
-      <h2 className="section-title">Sign Up for the next competition</h2>
-      <p>We'd love to hear from you! Fill out the form below ✨</p>
+      <h2 className="section-title">הרשמה לתחרות הבאה</h2>
+      <p>נשמח לשמוע מכם! מלאו את הטופס שלהלן ✨</p>
 
       <div className="google-form-embed" style={{ maxWidth: 700, margin: "0 auto" }}>
         <iframe

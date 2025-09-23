@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
     setCode(oob);
 
     if (!oob) {
-      setError("Invalid password reset link.");
+      setError("קישור לא חוקי לאיפוס סיסמה.");
       setStatus("error");
       return;
     }
@@ -31,7 +31,7 @@ export default function ResetPasswordPage() {
         setEmail(restoredEmail);
         setStatus("ready");
       } catch {
-        setError("This reset link is invalid or expired.");
+        setError("קישור האיפוס לא תקף או שפג תוקפו.");
         setStatus("error");
       }
     })();
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (pw !== pw2) {
-      setError("Passwords do not match.");
+      setError("הסיסמאות אינן תואמות.");
       return;
     }
     setStatus("submitting");
@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
       // optional: navigate to login after a moment
       setTimeout(() => navigate("/login", { replace: true, state: { email } }), 800);
     } catch {
-      setError("Could not reset password. The link may have expired.");
+      setError("לא ניתן לאפס את הסיסמה. ייתכן שהקישור פג תוקף.");
       setStatus("error");
     }
   };
@@ -61,20 +61,20 @@ export default function ResetPasswordPage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">Choose a new password</p>
-          <h1 className="auth-title">Reset password</h1>
+          <p className="auth-subtitle">בחר סיסמה חדשה</p>
+          <h1 className="auth-title">איפוס סיסמה</h1>
         </div>
 
-        {status === "verifying" && <div>Verifying link…</div>}
+        {status === "verifying" && <div>מאמת קישור…</div>}
 
         {status === "ready" && (
           <form onSubmit={onSubmit} className="auth-form">
             <div className="auth-hint" style={{ marginBottom: 8 }}>
-              Resetting password for <strong>{email}</strong>
+              מאפס סיסמה עבור <strong>{email}</strong>
             </div>
 
             <label className="auth-label">
-              New password
+              סיסמה חדשה
               <input
                 className="auth-input"
                 type="password"
@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
             </label>
 
             <label className="auth-label">
-              Confirm new password
+              אשר סיסמה חדשה
               <input
                 className="auth-input"
                 type="password"
@@ -98,20 +98,20 @@ export default function ResetPasswordPage() {
             {error && <div className="auth-error">{error}</div>}
 
             <button className="auth-primary" type="submit" disabled={status === "submitting"}>
-              {status === "submitting" ? "Updating…" : "Set new password"}
+              {status === "submitting" ? "מעדכן…" : "קבע סיסמה חדשה"}
             </button>
 
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">Back to sign in</Link>
+              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
             </p>
           </form>
         )}
 
         {status === "done" && (
           <div className="auth-success">
-            <p>Password updated. You can sign in now.</p>
+            <p>הסיסמה עודכנה. כעת תוכל להתחבר.</p>
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">Go to sign in</Link>
+              <Link to="/login" className="auth-link">עבור להתחברות</Link>
             </p>
           </div>
         )}
@@ -120,7 +120,7 @@ export default function ResetPasswordPage() {
           <div>
             <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>
             <p className="auth-switch">
-              <Link to="/forgot-password" className="auth-link">Request a new reset link</Link>
+              <Link to="/forgot-password" className="auth-link">בקש קישור איפוס חדש</Link>
             </p>
           </div>
         )}

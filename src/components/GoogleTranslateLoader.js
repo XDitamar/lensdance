@@ -7,8 +7,8 @@ export default function GoogleTranslateLoader() {
       /* global google */
       new window.google.translate.TranslateElement(
         {
-          pageLanguage: "en",
-          includedLanguages: "iw,ar,ru", // Hebrew 'iw', Arabic 'ar', Russian 'ru'
+          pageLanguage: "iw",
+          includedLanguages: "en,ar,ru", // Hebrew 'iw', Arabic 'ar', Russian 'ru'
           autoDisplay: false,
           layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
         },

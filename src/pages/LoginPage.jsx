@@ -27,13 +27,13 @@ export default function LoginPage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">Please enter your details</p>
-          <h1 className="auth-title">Welcome back</h1>
+          <p className="auth-subtitle">אנא הזן את פרטיך</p>
+          <h1 className="auth-title">ברוך שובך</h1>
         </div>
 
         <form onSubmit={doLogin} className="auth-form">
           <label className="auth-label">
-            Email address
+            כתובת אימייל
             <input
               className="auth-input"
               type="email"
@@ -44,7 +44,7 @@ export default function LoginPage() {
           </label>
 
           <label className="auth-label">
-            Password
+            סיסמה
             <div className="pw-wrap">
               <input
                 className="auth-input"
@@ -57,7 +57,7 @@ export default function LoginPage() {
                 type="button"
                 className="eye-btn"
                 onClick={() => setShowPw((s) => !s)}
-                aria-label={showPw ? "Hide password" : "Show password"}
+                aria-label={showPw ? "הסתר סיסמה" : "הצג סיסמה"}
               >
                 {showPw ? <FaEyeSlash /> : <FaEye />}
               </button>
@@ -66,19 +66,19 @@ export default function LoginPage() {
 
           {error && <div className="auth-error">{error}</div>}
 
-          <button className="auth-primary" type="submit">Sign in</button>
+          <button className="auth-primary" type="submit">התחברות</button>
         </form>
 
-        {/* NEW: Forgot password link */}
+        {/* קישור חדש: שחזור סיסמה */}
         <p className="auth-switch" style={{ marginTop: 12 }}>
           <Link to="/forgot-password" state={{ email }} className="auth-link">
-            Forgot your password?
+            שכחת את הסיסמה?
           </Link>
         </p>
 
         <p className="auth-switch">
-          Don’t have an account?{" "}
-          <Link to="/signup" className="auth-link">Sign up</Link>
+          אין לך חשבון?{" "}
+          <Link to="/signup" className="auth-link">הירשם</Link>
         </p>
       </div>
     </main>

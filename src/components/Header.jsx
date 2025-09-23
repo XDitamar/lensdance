@@ -49,7 +49,8 @@ export default function Header() {
   const displayName = user?.displayName || user?.email || "";
 
   return (
-    <header className="navbar">
+    // lock the container to LTR so layout never flips
+    <header className="navbar" dir="ltr">
       {/* Left side: logo + title */}
       <div className="left-side">
         <Link to="/" className="site-logo" onClick={handleMenuItemClick}>
@@ -66,15 +67,18 @@ export default function Header() {
       <div className="center-menu">
         <nav className="nav-links">
           <NavLink to="/" end onClick={handleMenuItemClick}>
-            {t("home")}
+            {t("דף בית")}
           </NavLink>
           <NavLink to="/gallery" onClick={handleMenuItemClick}>
-            {t("gallery")}
+            {t("גלריה")}
           </NavLink>
           <NavLink to="/me" onClick={handleMenuItemClick}>
-            {t("privateGallery")}
+            {t("גלריה פרטית")}
           </NavLink>
-          {/* Book Now intentionally NOT here (desktop shouldn’t show it) */}
+          <NavLink to="/contact" onClick={handleMenuItemClick}>
+            {t("הזמן עכשיו")}
+          </NavLink>
+
           {isAdmin && (
             <NavLink to="/admin" onClick={handleMenuItemClick}>
               {t("admin")}
@@ -87,18 +91,18 @@ export default function Header() {
       <div className="right-side">
         {/* Mobile-only Book Now */}
         <Link to="/contact" className="book-now-mobile">
-          {t("Book-Now")}
+          {t("הזמן עכשיו")}
         </Link>
 
         {/* Mobile-only: Login/Logout placed next to Book Now */}
         <div className="mobile-only mobile-auth-inline">
           {!user ? (
             <Link to="/login" className="auth-btn">
-              {t("login")}
+              {t("התחברות")}
             </Link>
           ) : (
             <button className="auth-btn" onClick={logout} type="button">
-              {t("logout")}
+              {t("התנתק")}
             </button>
           )}
         </div>
@@ -107,7 +111,7 @@ export default function Header() {
         {!user ? (
           <div className="auth-controls desktop-only">
             <Link to="/login" className="auth-btn">
-              {t("login")}
+              {t("התחברות")}
             </Link>
           </div>
         ) : (
@@ -149,22 +153,20 @@ export default function Header() {
                     role="menuitem"
                     onClick={() => setIsUserMenuOpen(false)}
                   >
-                    {t("changePassword") || "Change Password"}
+                    {t("שנה סיסמא") || "שהנ סיסמא"}
                   </Link>
-
-                 
                 </div>
               )}
             </div>
 
-            {/* (Optional) Keep a separate desktop logout. Remove if you want it ONLY in dropdown. */}
+            {/* Optional extra desktop logout */}
             <button
               className="auth-btn desktop-only"
               onClick={logout}
               type="button"
-              aria-label={t("logout")}
+              aria-label={t("התנתק")}
             >
-              {t("logout")}
+              {t("התנתק")}
             </button>
           </>
         )}
@@ -183,7 +185,7 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Mobile dropdown (no login/logout here now to avoid duplication) */}
+      {/* Mobile dropdown */}
       {isMenuOpen && (
         <div
           ref={menuRef}
@@ -205,20 +207,20 @@ export default function Header() {
           )}
 
           <NavLink to="/" onClick={handleMenuItemClick} role="menuitem">
-            {t("home")}
+            {t("דף בית")}
           </NavLink>
           <NavLink to="/gallery" onClick={handleMenuItemClick} role="menuitem">
-            {t("gallery")}
+            {t("גלריה")}
           </NavLink>
           <NavLink to="/me" onClick={handleMenuItemClick} role="menuitem">
-            {t("privateGallery")}
+            {t("גלריה אישית")}
           </NavLink>
           <NavLink
             to="/change-password"
             onClick={handleMenuItemClick}
             role="menuitem"
           >
-            {t("change-password")}
+            {t("שנה סיסמא")}
           </NavLink>
 
           {isAdmin && (

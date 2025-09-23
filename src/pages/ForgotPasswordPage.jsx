@@ -27,8 +27,8 @@ export default function ForgotPasswordPage() {
       });
       const ct = (res.headers.get("content-type") || "").toLowerCase();
       const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
-      if (!res.ok) throw new Error(data.error || "Failed to send email");
-      setMsg("If an account exists for that address, we’ve emailed a reset link.");
+      if (!res.ok) throw new Error(data.error || "שליחת האימייל נכשלה");
+      setMsg("אם קיים חשבון עבור כתובת זו, שלחנו אליך קישור לאיפוס סיסמה.");
       setStep(2);
     } catch (e) {
       setErr(e.message);
@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setErr(""); setMsg(""); setLoading(true);
     if (pw !== pw2) {
-      setErr("Passwords do not match.");
+      setErr("הסיסמאות אינן תואמות.");
       setLoading(false);
       return;
     }
@@ -53,8 +53,8 @@ export default function ForgotPasswordPage() {
       });
       const ct = (res.headers.get("content-type") || "").toLowerCase();
       const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
-      if (!res.ok) throw new Error(data.error || "Failed to reset password");
-      setMsg("Password changed. You can sign in now.");
+      if (!res.ok) throw new Error(data.error || "נכשל איפוס הסיסמה");
+      setMsg("הסיסמה שונתה. כעת ניתן להתחבר.");
       setTimeout(() => navigate("/login", { replace: true, state: { email } }), 600);
     } catch (e) {
       setErr(e.message);
@@ -67,14 +67,14 @@ export default function ForgotPasswordPage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">Reset your password</p>
-          <h1 className="auth-title">Forgot password</h1>
+          <p className="auth-subtitle">אפס את הסיסמה שלך</p>
+          <h1 className="auth-title">שכחת סיסמה</h1>
         </div>
 
         {step === 1 && (
           <form onSubmit={sendCode} className="auth-form">
             <label className="auth-label">
-              Account email
+              אימייל חשבון
               <input
                 className="auth-input"
                 type="email"
@@ -87,10 +87,10 @@ export default function ForgotPasswordPage() {
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "Sending…" : "Send reset link"}
+              {loading ? "שולח…" : "שלח קישור לאיפוס"}
             </button>
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">Back to sign in</Link>
+              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
             </p>
           </form>
         )}
@@ -98,20 +98,20 @@ export default function ForgotPasswordPage() {
         {step === 2 && (
           <form onSubmit={confirm} className="auth-form">
             <label className="auth-label">
-              Verification code
+              קוד אימות
               <input
                 className="auth-input"
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="6-digit code"
+                placeholder="קוד בן 6 ספרות"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
               />
             </label>
             <label className="auth-label">
-              New password
+              סיסמה חדשה
               <input
                 className="auth-input"
                 type="password"
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
               />
             </label>
             <label className="auth-label">
-              Confirm new password
+              אשר סיסמה חדשה
               <input
                 className="auth-input"
                 type="password"
@@ -133,7 +133,7 @@ export default function ForgotPasswordPage() {
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "Updating…" : "Change password"}
+              {loading ? "מעדכן…" : "שנה סיסמה"}
             </button>
             <p className="auth-switch" style={{ marginTop: 12 }}>
               <button
@@ -141,10 +141,10 @@ export default function ForgotPasswordPage() {
                 className="auth-link"
                 onClick={() => { setStep(1); setErr(""); setMsg(""); }}
               >
-                Resend link
+                שלח קישור מחדש
               </button>
               {" · "}
-              <Link to="/login" className="auth-link">Back to sign in</Link>
+              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
             </p>
           </form>
         )}

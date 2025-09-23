@@ -9,43 +9,40 @@ export default function HomePage() {
       <div className="hero-video-container">
         <video autoPlay loop muted playsInline className="hero-video">
           <source src={vid} type="video/mp4" />
-          Your browser does not support the video tag.
+          הדפדפן שלך לא תומך בתגית הווידאו.
         </video>
         <div className="video-overlay" />
         <div className="hero-content">
-          <h1>Capture the Spirit of Equines</h1>
+          <h1>לכוד את רוח הסוסים</h1>
           <p>
-            At Lens Dance, I don't just take pictures; I craft timeless art that
-            reflects the unique beauty, power, and gentle spirit of every horse.
-            Let's create stunning visual stories together.
+            ב־Lens Dance אני לא רק מצלמת; אני יוצרת אמנות נצחית שמבטאת את היופי,
+            העוצמה והרוך הייחודי של כל סוס. בוא ניצור יחד סיפורים ויזואליים מרהיבים.
           </p>
           <Link to="/gallery" className="cta-button">
-            GO TO GALLERY
+            מעבר לגלריה
           </Link>
         </div>
       </div>
 
       {/* Featured */}
       <div className="container">
-        <h2 className="section-title">A Glimpse Into My Work</h2>
+        <h2 className="section-title">portafolio</h2>
         <p>
-          Dive into a selection of my recent favorites and discover the moments
-          I've had the privilege to freeze in time. Each image tells a unique story.
+          צלול אל מבחר מהאהובים האחרונים שלי וגלו את הרגעים שזכיתי להקפיא בזמן.
+          כל תמונה מספרת סיפור ייחודי.
         </p>
         <div className="featured-images-grid">
           <div className="featured-image-item">
-            <img src="/pics/pic1.png" alt="Show jumping — featured 1" />
+            <img src="/pics/pic1.png" alt="קפיצות ראווה — תמונה מוצגת 1" />
           </div>
           <div className="featured-image-item">
-            <img src="/pics/pic2.png" alt="Show jumping — featured 2" />
+            <img src="/pics/pic2.png" alt="קפיצות ראווה — תמונה מוצגת 2" />
           </div>
           <div className="featured-image-item">
-            <img src="/pics/pic3.png" alt="Show jumping — featured 3" />
+            <img src="/pics/pic3.png" alt="קפיצות ראווה — תמונה מוצגת 3" />
           </div>
         </div>
       </div>
-
-   
 
       {/* Pricing */}
       <div
@@ -56,62 +53,62 @@ export default function HomePage() {
           padding: "50px 20px",
         }}
       >
-        <h2 className="section-title">Pricing & Packages</h2>
-        <p>These are starting ranges; a custom quote is provided after consultation.</p>
+        <h2 className="section-title">מחירים וחבילות</h2>
+        <p>אלו טווחי פתיחה; הצעת מחיר מותאמת תינתן לאחר ייעוץ אישי.</p>
 
         <div className="pricing-grid">
           <div className="price-card">
-            <h3>Photos per Entry</h3>
+            <h3>תמונות לפי כניסה</h3>
             <ul>
-              <li>60 NIS per person (includes 10 NIS deposit)</li>
-              <li>30 NIS for additional horse in the same round</li>
-              <li>High-resolution digital photos</li>
-              <li>Secure online delivery</li>
+              <li>60 ₪ לאדם (כולל מקדמה של 10 ₪)</li>
+              <li>30 ₪ עבור סוס נוסף באותו מקצה</li>
+              <li>תמונות דיגיטליות באיכות גבוהה</li>
+              <li>מסירה מאובטחת אונליין</li>
             </ul>
-            <p className="price-range-text">Starting from: 60 NIS</p>
+            <p className="price-range-text">החל מ־60 ₪</p>
           </div>
 
           <div className="price-card">
-            <h3>Photos by Selection</h3>
+            <h3>תמונות לפי בחירה</h3>
             <ul>
-              <li>Drive access to all basic-edited photos (with logo)</li>
-              <li>6 NIS per final edited photo</li>
-              <li>First 2 photos included in deposit</li>
-              <li>Only pay for the photos you love!</li>
+              <li>גישה לכל התמונות עם עריכה בסיסית (כולל לוגו)</li>
+              <li>6 ₪ לכל תמונה סופית ערוכה</li>
+              <li>2 התמונות הראשונות כלולות במקדמה</li>
+              <li>משלמים רק על התמונות שאהבתם!</li>
             </ul>
-            <p className="price-range-text">Starting from: 6 NIS per photo</p>
+            <p className="price-range-text">החל מ־6 ₪ לתמונה</p>
           </div>
 
           <div className="price-card">
-            <h3>Video Package</h3>
+            <h3>חבילת וידאו</h3>
             <ul>
-              <li>Drive access to all raw video clips</li>
-              <li>Custom-edited Instagram Reel</li>
-              <li>150 NIS total (includes 40 NIS deposit)</li>
+              <li>גישה לכל קליפי הווידאו הגולמיים</li>
+              <li>ריל מותאם אישית לאינסטגרם</li>
+              <li>150 ₪ סה״כ (כולל מקדמה של 40 ₪)</li>
             </ul>
-            <p className="price-range-text">Total Price: 150 NIS</p>
+            <p className="price-range-text">מחיר כולל: 150 ₪</p>
           </div>
 
           <div className="price-card">
-            <h3>Custom Package</h3>
+            <h3>חבילה מותאמת אישית</h3>
             <ul>
-              <li>Personalized consultation</li>
-              <li>You choose the number of final images</li>
-              <li>Ideal for events or special projects</li>
-              <li>Flexible price after consultation</li>
+              <li>ייעוץ אישי</li>
+              <li>אתם בוחרים את מספר התמונות הסופיות</li>
+              <li>מושלם לאירועים או פרויקטים מיוחדים</li>
+              <li>מחיר גמיש לאחר ייעוץ</li>
             </ul>
-            <p className="price-range-text">Price: Determined after consultation</p>
+            <p className="price-range-text">המחיר ייקבע לאחר ייעוץ</p>
           </div>
         </div> {/* end pricing-grid */}
 
         {/* Book button outside grid */}
         <div className="book-btn-container">
-          <Link to="/contact" className="book">Book it now</Link>
+          <Link to="/contact" className="book">הזמן עכשיו</Link>
         </div>
 
         <p style={{ marginTop: 30, fontStyle: "italic", color: "#666" }}>
           <br />
-          Payment accepted via Bit, cash, or PayBox. Deposit refunds are available for issues on our end.
+          תשלום מתקבל בביט, מזומן או PayBox. החזר מקדמה אפשרי במקרה של בעיות מצידנו.
         </p>
       </div>
     </>

@@ -14,7 +14,9 @@ let __videosPrimed = false;
 function isLikelyIOS() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
-  const isiOSDevice = /iP(hone|od|ad)/.test(ua) || (/Mac/.test(ua) && typeof window !== "undefined" && "ontouchend" in window);
+  const isiOSDevice =
+    /iP(hone|od|ad)/.test(ua) ||
+    (/Mac/.test(ua) && typeof window !== "undefined" && "ontouchend" in window);
   return isiOSDevice;
 }
 
@@ -164,7 +166,9 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
           setInView(true);
           observer.disconnect();
           if (videoRef.current && isLikelyIOS()) {
-            try { videoRef.current.load(); } catch {}
+            try {
+              videoRef.current.load();
+            } catch {}
           }
         }
       },
@@ -250,7 +254,7 @@ export default function MePage() {
       setMediaItems(mediaData);
     } catch (e) {
       console.error(e);
-      setError("Failed to load your private gallery.");
+      setError("טעינת הגלריה הפרטית נכשלה.");
     } finally {
       setLoading(false);
     }
@@ -291,7 +295,7 @@ export default function MePage() {
   if (authLoading || loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
-        <p>{authLoading ? "Checking login..." : "Loading your gallery..."}</p>
+        <p>{authLoading ? "בודק התחברות..." : "טוען את הגלריה שלך..."}</p>
       </div>
     );
   }
@@ -299,10 +303,10 @@ export default function MePage() {
   if (!user) {
     return (
       <main className="container" style={{ textAlign: "center" }}>
-        <h2 className="section-title">My Gallery</h2>
-        <p>You're not logged in.</p>
+        <h2 className="section-title">הגלריה שלי</h2>
+        <p>אינך מחובר.</p>
         <Link className="auth-primary" to="/login">
-          Log in to view your pics
+          התחבר כדי לצפות בתמונות שלך
         </Link>
       </main>
     );
@@ -311,7 +315,7 @@ export default function MePage() {
   if (error) {
     return (
       <main className="container" style={{ textAlign: "center" }}>
-        <h2 className="section-title">My Gallery</h2>
+        <h2 className="section-title">הגלריה שלי</h2>
         <p>{error}</p>
       </main>
     );
@@ -319,7 +323,7 @@ export default function MePage() {
 
   return (
     <main className="container">
-      <h2 className="section-title">My Gallery</h2>
+      <h2 className="section-title">הגלריה שלי</h2>
 
       {/* Filter */}
       <div className="gallery-buttons">
@@ -327,19 +331,19 @@ export default function MePage() {
           onClick={() => setFilter("all")}
           className={`filter-button ${filter === "all" ? "active" : ""}`}
         >
-          All
+          הכל
         </button>
         <button
           onClick={() => setFilter("images")}
           className={`filter-button ${filter === "images" ? "active" : ""}`}
         >
-          Images
+          תמונות
         </button>
         <button
           onClick={() => setFilter("videos")}
           className={`filter-button ${filter === "videos" ? "active" : ""}`}
         >
-          Videos
+          סרטונים
         </button>
       </div>
 
@@ -356,8 +360,12 @@ export default function MePage() {
             />
           ))
         ) : (
-          <p style={{ marginTop: 20, color: "\#666" }}>
-            No {filter === "all" ? "" : filter} found in your gallery.
+          <p style={{ marginTop: 20, color: "#666" }}>
+            {filter === "all"
+              ? "לא נמצאו פריטים בגלריה שלך."
+              : filter === "images"
+              ? "לא נמצאו תמונות בגלריה שלך."
+              : "לא נמצאו סרטונים בגלריה שלך."}
           </p>
         )}
       </div>
@@ -381,7 +389,7 @@ export default function MePage() {
               }
             }}
           >
-            {installingAll ? "Installing..." : "Install All"}
+            {installingAll ? "מוריד..." : "הורד הכל"}
           </button>
         </div>
       )}
@@ -404,16 +412,23 @@ export default function MePage() {
                 src={selectedItem.url}
                 alt={selectedItem.name}
                 className="modal-media"
-                style={{ background: "#111", maxHeight: "80vh", width: "100%", objectFit: "contain" }}
+                style={{
+                  background: "#111",
+                  maxHeight: "80vh",
+                  width: "100%",
+                  objectFit: "contain",
+                }}
               />
             )}
             <div className="modal-actions">
               <button
                 type="button"
                 className="download-btn"
-                onClick={() => nativeDownload(selectedItem.url, selectedItem.name, { prefer: "auto" })}
+                onClick={() =>
+                  nativeDownload(selectedItem.url, selectedItem.name, { prefer: "auto" })
+                }
               >
-                Install
+                הורד
               </button>
             </div>
           </div>
