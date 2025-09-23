@@ -3,7 +3,6 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import '../style.css';
-
 // Reusable component for lazy loading
 const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
     const [inView, setInView] = useState(false);
