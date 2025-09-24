@@ -900,3 +900,84 @@
     margin-left: 4px; /* small spacing after Book Now */
   }
 }
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* always 2 cols */
+  gap: 8px;                 /* tighter gaps */
+  grid-auto-flow: dense;
+  max-width: 700px;         /* ↓ shrink gallery width */
+  margin: 0 auto;           /* center on page */
+}
+
+/* Card container */
+.tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #eee;
+}
+
+/* Diagonal / wide: full row */
+.tile.wide {
+  grid-column: 1 / -1;
+  aspect-ratio: 18 / 9;      /* slimmer than 16/9 → smaller look */
+}
+
+/* Vertical / half: one column each */
+.tile.half {
+  grid-column: span 1;
+  aspect-ratio: 3 / 4;       /* narrower, smaller portraits */
+}
+
+/* Media inside */
+.tile-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* Placeholder */
+.placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 60px;         /* smaller placeholder */
+  background: #ddd;
+  border-radius: 10px;
+}
+
+/* Desktop tweak: even smaller on big screens */
+@media (min-width: 1280px) {
+  .gallery-grid {
+    max-width: 400px;       /* shrink gallery further */
+    gap: 6px;
+  }
+
+  .tile.wide {
+    aspect-ratio: 20 / 9;   /* slimmer landscape */
+  }
+
+  .tile.half {
+    aspect-ratio: 2.8 / 4;  /* slimmer portrait */
+  }
+}
+
+/* Hover polish */
+.gallery-grid .tile { transition: transform .18s ease, box-shadow .18s ease; }
+.gallery-grid .tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+.pagination-row,
+.download-row {
+  display: flex;
+  justify-content: center; /* center horizontally */
+  align-items: center;
+  margin: 8px 0;
+}
+
+.pagination {
+  display: inline-flex;     /* keep numbers in one line */
+  gap: 8px;
+}

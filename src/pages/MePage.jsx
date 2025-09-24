@@ -6,11 +6,10 @@ import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
-// ---------------------------------------------------------
-// iOS video priming: make mobile preload/paint like desktop
-// ---------------------------------------------------------
+/* ---------------------------------------------
+   iOS video priming
+---------------------------------------------- */
 let __videosPrimed = false;
-
 function isLikelyIOS() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -19,7 +18,6 @@ function isLikelyIOS() {
     (/Mac/.test(ua) && typeof window !== "undefined" && "ontouchend" in window);
   return isiOSDevice;
 }
-
 function primeIOSVideosOnce() {
   if (__videosPrimed || !isLikelyIOS()) return;
   __videosPrimed = true;
@@ -37,7 +35,6 @@ function primeIOSVideosOnce() {
     } catch {}
   });
 }
-
 if (typeof window !== "undefined") {
   const handler = () => {
     primeIOSVideosOnce();
@@ -50,9 +47,9 @@ if (typeof window !== "undefined") {
   window.addEventListener("click", handler, true);
 }
 
-// ---------------------------------------------------------
-// Downloads (unchanged)
-// ---------------------------------------------------------
+/* ---------------------------------------------
+   Downloads
+---------------------------------------------- */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
@@ -67,7 +64,6 @@ function buildAttachmentURL(url, filename) {
     return url;
   }
 }
-
 async function nativeDownload(url, filename = "download", opts = { prefer: "auto" }) {
   const dlUrl = buildAttachmentURL(url, filename);
   const blobDownload = async () => {
@@ -88,9 +84,7 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
       URL.revokeObjectURL(objectUrl);
     }
   };
-
   if (opts?.prefer === "blob") return blobDownload();
-
   if (!opts || opts.prefer === "auto") {
     const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
     const isVideo = /(mp4|mov|avi|mkv|webm)$/i.test(ext);
@@ -112,7 +106,6 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
       } catch {}
     }
   }
-
   if (opts?.prefer === "iframe") {
     try {
       let frame = document.getElementById("hidden-download-frame");
@@ -126,7 +119,6 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
       return;
     } catch {}
   }
-
   try {
     const a = document.createElement("a");
     a.href = dlUrl;
@@ -143,18 +135,55 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
   }
 }
 
-// ---------------------------------------------------------
-// Media utils
-// ---------------------------------------------------------
+/* ---------------------------------------------
+   Media utils
+---------------------------------------------- */
 const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
 const isVideoExt = (ext) => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
 const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
 const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
-// ---------------------------------------------------------
-// LazyMedia with iOS priming-aware preload
-// ---------------------------------------------------------
-const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
+/* ---------------------------------------------
+   Orientation inference
+---------------------------------------------- */
+function getImageSize(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 });
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = url;
+  });
+}
+function getVideoSize(url) {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.muted = true;
+    v.playsInline = true;
+    const done = () =>
+      resolve({
+        width: v.videoWidth || 0,
+        height: v.videoHeight || 0,
+      });
+    v.onloadedmetadata = done;
+    v.onerror = done;
+    v.src = url;
+  });
+}
+async function inferVariantForUrl(url, isVideo) {
+  try {
+    const { width, height } = isVideo ? await getVideoSize(url) : await getImageSize(url);
+    if (!width || !height) return "wide";
+    return width >= height ? "wide" : "half";
+  } catch {
+    return "wide";
+  }
+}
+
+/* ---------------------------------------------
+   LazyMedia
+---------------------------------------------- */
+const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) => {
   const [inView, setInView] = useState(false);
   const mediaRef = useRef(null);
   const videoRef = useRef(null);
@@ -181,7 +210,7 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
   return (
     <div
       ref={mediaRef}
-      className="gallery-item-media-container"
+      className={`tile ${variant}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -192,15 +221,14 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
           <video
             ref={videoRef}
             src={url}
-            className="gallery-item-media"
+            className="tile-media"
             playsInline
             muted
             preload={isLikelyIOS() ? "auto" : "metadata"}
             data-prime="1"
-            style={{ background: "#000", objectFit: "cover" }}
           />
         ) : (
-          <img src={url} alt={alt} className="gallery-item-media" loading="lazy" />
+          <img src={url} alt={alt} className="tile-media" loading="lazy" />
         )
       ) : (
         <div className="placeholder" />
@@ -209,6 +237,9 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick }) => {
   );
 });
 
+/* ---------------------------------------------
+   Page
+---------------------------------------------- */
 export default function MePage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -220,6 +251,9 @@ export default function MePage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
@@ -243,14 +277,16 @@ export default function MePage() {
       const userFolderRef = ref(storage, sanitizedEmail);
       const res = await listAll(userFolderRef);
 
-      const mediaPromises = res.items.map(async (itemRef) => {
+      const baseItemsPromises = res.items.map(async (itemRef) => {
         if (itemRef.name === ".placeholder") return null;
         const url = await getDownloadURL(itemRef);
         const type = itemRef.name.split(".").pop();
-        return { id: itemRef.fullPath, url, name: itemRef.name, type };
+        const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(url);
+        const variant = await inferVariantForUrl(url, isVid);
+        return { id: itemRef.fullPath, url, name: itemRef.name, type, isVideo: isVid, variant };
       });
 
-      const mediaData = (await Promise.all(mediaPromises)).filter(Boolean);
+      const mediaData = (await Promise.all(baseItemsPromises)).filter(Boolean);
       setMediaItems(mediaData);
     } catch (e) {
       console.error(e);
@@ -275,6 +311,31 @@ export default function MePage() {
       }),
     [mediaItems, filter]
   );
+
+  // pattern: wide → half+half → wide …
+  const patternedItems = useMemo(() => {
+    let out = [];
+    let i = 0;
+    while (i < filteredMediaItems.length) {
+      if (i % 3 === 0) {
+        out.push({ ...filteredMediaItems[i], variant: "wide" });
+        i++;
+      } else {
+        out.push({ ...filteredMediaItems[i], variant: "half" });
+        if (i + 1 < filteredMediaItems.length) {
+          out.push({ ...filteredMediaItems[i + 1], variant: "half" });
+        }
+        i += 2;
+      }
+    }
+    return out;
+  }, [filteredMediaItems]);
+
+  const totalPages = Math.ceil(patternedItems.length / itemsPerPage);
+  const pageItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return patternedItems.slice(start, start + itemsPerPage);
+  }, [patternedItems, currentPage]);
 
   const openModal = (item) => {
     setSelectedItem(item);
@@ -347,50 +408,76 @@ export default function MePage() {
         </button>
       </div>
 
-      {/* Grid */}
-      <div className="gallery-grid">
-        {filteredMediaItems.length > 0 ? (
-          filteredMediaItems.map((m) => (
+      {/* Gallery */}
+      <div className="gallery-grid collage">
+        {pageItems.length > 0 ? (
+          pageItems.map((m) => (
             <LazyMedia
               key={m.id}
               url={m.url}
               alt={m.name}
-              isVideo={isVideoUrl(m.url)}
+              isVideo={m.isVideo ?? isVideoUrl(m.url)}
+              variant={m.variant || "half"}
               onClick={() => openModal(m)}
             />
           ))
         ) : (
-          <p style={{ marginTop: 20, color: "#666" }}>
-            {filter === "all"
-              ? "לא נמצאו פריטים בגלריה שלך."
-              : filter === "images"
-              ? "לא נמצאו תמונות בגלריה שלך."
-              : "לא נמצאו סרטונים בגלריה שלך."}
-          </p>
+          <p style={{ marginTop: 20, color: "#666" }}>לא נמצאו פריטים בעמוד זה.</p>
         )}
       </div>
 
-      {/* Install All */}
-      {filteredMediaItems.length > 0 && (
-        <div style={{ marginTop: 30, textAlign: "center" }}>
-          <button
-            type="button"
-            className="download-btn"
-            disabled={installingAll}
-            onClick={async () => {
-              setInstallingAll(true);
-              try {
-                for (const item of filteredMediaItems) {
-                  await nativeDownload(item.url, item.name, { prefer: "auto" });
-                  await new Promise((r) => setTimeout(r, 400));
-                }
-              } finally {
-                setInstallingAll(false);
-              }
-            }}
-          >
-            {installingAll ? "מוריד..." : "הורד הכל"}
-          </button>
+      {/* Controls: pagination above, download all below */}
+      {(totalPages > 1 || patternedItems.length > 0) && (
+        <div style={{ marginTop: 14 }}>
+          {totalPages > 1 && (
+            <div className="pagination-row">
+              <div className="pagination" style={{ direction: "ltr" }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+                  <button
+                    key={num}
+                    className={`page-btn ${currentPage === num ? "active" : ""}`}
+                    onClick={() => setCurrentPage(num)}
+                    aria-current={currentPage === num ? "page" : undefined}
+                    style={{
+                      background: currentPage === num ? "#6A402A" : "#eee",
+                      color: currentPage === num ? "#fff" : "#111",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      minWidth: 36,
+                      fontWeight: currentPage === num ? 700 : 500,
+                    }}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {patternedItems.length > 0 && (
+            <div className="download-row">
+              <button
+                type="button"
+                className="download-btn"
+                disabled={installingAll}
+                onClick={async () => {
+                  setInstallingAll(true);
+                  try {
+                    for (const item of patternedItems) {
+                      await nativeDownload(item.url, item.name, { prefer: "auto" });
+                      await new Promise((r) => setTimeout(r, 350));
+                    }
+                  } finally {
+                    setInstallingAll(false);
+                  }
+                }}
+              >
+                {installingAll ? "מוריד..." : "הורד הכל"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
