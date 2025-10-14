@@ -13,8 +13,8 @@ const STATIC_IMAGE_COUNT = 24;                 // how many images (1.jpeg ... N.
 const STATIC_IMAGE_EXT   = "jpeg";             // "jpeg" | "jpg" | "png" | "webp" etc.
 // Per-extension counts for videos (set each as needed)
 const STATIC_VIDEO_COUNTS = {
-  mp4: 1,                                      // will include /gallery/1.mp4 ... /gallery/<count>.mp4
-  mov: 1,                                      // will include /gallery/1.mov ... /gallery/<count>.mov
+  mp4: 0,                                      // will include /gallery/1.mp4 ... /gallery/<count>.mp4
+  mov: 0,                                      // will include /gallery/1.mov ... /gallery/<count>.mov
 };
 
 // Grid page size
