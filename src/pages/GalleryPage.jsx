@@ -4,19 +4,36 @@ import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import "../style.css";
 
+/* ---------- config ---------- */
+// Set to false if you want to temporarily disable Firebase (for local testing)
+const USE_FIREBASE = true;
+
+// Static media under public/gallery: 1.jpeg...N.jpeg and 1.<ext>...M.<ext>
+const STATIC_IMAGE_COUNT = 24;                 // how many images (1.jpeg ... N.jpeg)
+const STATIC_IMAGE_EXT   = "jpeg";             // "jpeg" | "jpg" | "png" | "webp" etc.
+// Per-extension counts for videos (set each as needed)
+const STATIC_VIDEO_COUNTS = {
+  mp4: 1,                                      // will include /gallery/1.mp4 ... /gallery/<count>.mp4
+  mov: 1,                                      // will include /gallery/1.mov ... /gallery/<count>.mov
+};
+
+// Grid page size
+const ITEMS_PER_PAGE = 6;
+
 /* ---------- helpers ---------- */
 const extFromName = (name = "") => (name.split(".").pop() || "").toLowerCase();
 const isImageExt = (e = "") =>
-  ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif"].includes(e);
-const isVideoExt = (e = "") => ["mp4", "mov", "avi", "mkv", "webm"].includes(e);
+  ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif"].includes((e || "").toLowerCase());
+const isVideoExt = (e = "") => ["mp4", "mov", "avi", "mkv", "webm"].includes((e || "").toLowerCase());
 
 // pattern: [wide, half, half] repeating
 const applyPattern = (items) =>
   items.map((it, i) => ({ ...it, variant: i % 3 === 0 ? "wide" : "half" }));
 
-/* ---------- Lazy tile (uses originals, but loads gently) ---------- */
+/* ---------- Lazy tile (loads only when in view) ---------- */
 const LazyMedia = React.memo(function LazyMedia({ url, alt, isVideo, variant, onClick }) {
   const [inView, setInView] = useState(false);
+  const [videoSrc, setVideoSrc] = useState("");
   const mediaRef = useRef(null);
 
   useEffect(() => {
@@ -33,6 +50,12 @@ const LazyMedia = React.memo(function LazyMedia({ url, alt, isVideo, variant, on
     return () => obs.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (inView && isVideo) {
+      setVideoSrc(url); // set only when visible to keep it light
+    }
+  }, [inView, isVideo, url]);
+
   return (
     <div
       ref={mediaRef}
@@ -44,7 +67,14 @@ const LazyMedia = React.memo(function LazyMedia({ url, alt, isVideo, variant, on
     >
       {inView ? (
         isVideo ? (
-          <video className="tile-media" preload="none" playsInline muted />
+          <video
+            className="tile-media"
+            src={videoSrc}
+            preload="metadata"
+            playsInline
+            muted
+            controls={false}
+          />
         ) : (
           <img
             src={url}
@@ -64,8 +94,9 @@ const LazyMedia = React.memo(function LazyMedia({ url, alt, isVideo, variant, on
 
 /* ---------- Page ---------- */
 export default function GalleryPage() {
-  // master list of refs (names/paths only)
-  const [allRefs, setAllRefs] = useState([]); // [{fullPath, name, ext}]
+  // master list of items (names/paths only)
+  // unified shape: { name, fullPath, ext, source: "firebase" | "static" }
+  const [allRefs, setAllRefs] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [error, setError] = useState("");
 
@@ -76,35 +107,97 @@ export default function GalleryPage() {
   const [selectedIsVideo, setSelectedIsVideo] = useState(false);
 
   // pagination
-  const itemsPerPage = 6;
   const [currentPage, setCurrentPage] = useState(1);
 
   // URL cache so we don’t refetch download URLs
-  const urlCache = useRef(new Map()); // fullPath -> downloadURL
+  // key: fullPath, value: resolved URL
+  const urlCache = useRef(new Map());
 
-  // preconnect to Storage
+  // preconnect to Storage & origin
   useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "preconnect";
-    link.href = "https://firebasestorage.googleapis.com";
-    link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-    return () => document.head.removeChild(link);
+    const link1 = document.createElement("link");
+    link1.rel = "preconnect";
+    link1.href = "https://firebasestorage.googleapis.com";
+    link1.crossOrigin = "anonymous";
+    document.head.appendChild(link1);
+
+    const link2 = document.createElement("link");
+    link2.rel = "preconnect";
+    link2.href = window.location.origin;
+    link2.crossOrigin = "anonymous";
+    document.head.appendChild(link2);
+
+    return () => {
+      document.head.removeChild(link1);
+      document.head.removeChild(link2);
+    };
   }, []);
 
-  // 1) List refs once (lightweight)
+  // Build static refs from /public/gallery
+  const buildStaticRefs = useCallback(() => {
+    const staticImageRefs = Array.from({ length: STATIC_IMAGE_COUNT }, (_, i) => {
+      const id = i + 1;
+      const name = `${id}.${STATIC_IMAGE_EXT}`;
+      const url = `/gallery/${name}`; // public/...
+      const fullPath = url; // we use URL as key
+      // prime cache immediately so we never "resolve" this later
+      urlCache.current.set(fullPath, url);
+      return { name, fullPath, ext: STATIC_IMAGE_EXT, source: "static" };
+    });
+
+    // Build videos for each extension according to counts
+    const staticVideoRefs = Object.entries(STATIC_VIDEO_COUNTS).flatMap(([ext, count]) =>
+      Array.from({ length: count }, (_, i) => {
+        const id = i + 1;
+        const name = `${id}.${ext}`;
+        const url = `/gallery/${name}`;
+        const fullPath = url;
+        urlCache.current.set(fullPath, url);
+        return { name, fullPath, ext, source: "static" };
+      })
+    );
+
+    // Order choice: images first then videos (change if you prefer interleaving)
+    return [...staticImageRefs, ...staticVideoRefs];
+  }, []);
+
+  // 1) List refs once (Firebase + Static)
   useEffect(() => {
     const run = async () => {
       try {
         setLoadingList(true);
-        const folderRef = ref(storage, "MainGallery");
-        const res = await listAll(folderRef);
-        const refs = res.items.map((r) => ({
-          name: r.name,
-          fullPath: r.fullPath,
-          ext: extFromName(r.name),
-        }));
-        setAllRefs(refs);
+
+        const staticRefs = buildStaticRefs();
+
+        let firebaseRefs = [];
+        if (USE_FIREBASE) {
+          try {
+            const folderRef = ref(storage, "MainGallery");
+            const res = await listAll(folderRef);
+            firebaseRefs = res.items.map((r) => ({
+              name: r.name,
+              fullPath: r.fullPath,
+              ext: extFromName(r.name),
+              source: "firebase",
+            }));
+          } catch (fe) {
+            console.warn("Firebase listing failed (continuing with static):", fe);
+          }
+        }
+
+        // Merge
+        const merged = [...staticRefs, ...firebaseRefs];
+
+        // Optional: de-dup by name+source (keep first occurrence — usually static first)
+        const seen = new Set();
+        const deduped = merged.filter((it) => {
+          const key = `${it.name}|${it.source}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        setAllRefs(deduped);
       } catch (e) {
         console.error(e);
         setError("אירעה שגיאה בטעינת המדיה.");
@@ -113,7 +206,7 @@ export default function GalleryPage() {
       }
     };
     run();
-  }, []);
+  }, [buildStaticRefs]);
 
   // 2) Filter at ref-level
   const filteredRefs = useMemo(() => {
@@ -130,10 +223,10 @@ export default function GalleryPage() {
   useEffect(() => setCurrentPage(1), [filter, filteredRefs.length]);
 
   // 3) Page refs only
-  const totalPages = Math.ceil(filteredRefs.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredRefs.length / ITEMS_PER_PAGE) || 1;
   const pageRefs = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredRefs.slice(start, start + itemsPerPage);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredRefs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredRefs, currentPage]);
 
   // 4) Resolve download URLs only for current page
@@ -145,8 +238,22 @@ export default function GalleryPage() {
     const run = async () => {
       try {
         setLoadingPage(true);
+
         const urls = await Promise.all(
           pageRefs.map(async (r) => {
+            // Static: already have the URL in cache (primed when building)
+            if (r.source === "static") {
+              const u = urlCache.current.get(r.fullPath) || r.fullPath;
+              urlCache.current.set(r.fullPath, u);
+              return {
+                name: r.name,
+                fullPath: r.fullPath,
+                url: u,
+                isVideo: isVideoExt(r.ext),
+              };
+            }
+
+            // Firebase: resolve via getDownloadURL (with cache)
             if (urlCache.current.has(r.fullPath)) {
               return {
                 name: r.name,
@@ -160,6 +267,7 @@ export default function GalleryPage() {
             return { name: r.name, fullPath: r.fullPath, url: u, isVideo: isVideoExt(r.ext) };
           })
         );
+
         if (!cancelled) setPageItems(urls);
       } catch (e) {
         console.error(e);
@@ -177,37 +285,53 @@ export default function GalleryPage() {
   // 5) Prefetch NEXT page originals (instant pagination)
   useEffect(() => {
     if (currentPage >= totalPages) return;
-    const start = currentPage * itemsPerPage;
-    const nextRefs = filteredRefs.slice(start, start + itemsPerPage);
+    const start = currentPage * ITEMS_PER_PAGE;
+    const nextRefs = filteredRefs.slice(start, start + ITEMS_PER_PAGE);
 
     const idle = (cb) =>
       (window.requestIdleCallback
         ? window.requestIdleCallback(cb, { timeout: 1200 })
         : setTimeout(cb, 300));
 
-    const cancel = idle(async () => {
+    const token = idle(async () => {
       for (const r of nextRefs) {
         if (urlCache.current.has(r.fullPath)) continue;
+
         try {
-          const u = await getDownloadURL(ref(storage, r.fullPath));
-          urlCache.current.set(r.fullPath, u);
-          // Light-touch the image to push into HTTP cache (skip videos—too heavy)
-          if (isImageExt(r.ext)) {
-            const img = new Image();
-            img.decoding = "async";
-            img.loading = "eager";
-            img.referrerPolicy = "no-referrer";
-            img.src = u;
+          if (r.source === "static") {
+            // just prime cache with its own URL
+            urlCache.current.set(r.fullPath, r.fullPath);
+            // touch images to warm HTTP cache
+            if (isImageExt(r.ext)) {
+              const img = new Image();
+              img.decoding = "async";
+              img.loading = "eager";
+              img.referrerPolicy = "no-referrer";
+              img.src = r.fullPath;
+            }
+          } else {
+            // firebase
+            const u = await getDownloadURL(ref(storage, r.fullPath));
+            urlCache.current.set(r.fullPath, u);
+            if (isImageExt(r.ext)) {
+              const img = new Image();
+              img.decoding = "async";
+              img.loading = "eager";
+              img.referrerPolicy = "no-referrer";
+              img.src = u;
+            }
           }
-        } catch {}
+        } catch {
+          // ignore
+        }
       }
     });
 
     return () => {
-      if (window.cancelIdleCallback && typeof cancel === "number") {
-        window.cancelIdleCallback(cancel);
+      if (window.cancelIdleCallback && typeof token === "number") {
+        window.cancelIdleCallback(token);
       } else {
-        clearTimeout(cancel);
+        clearTimeout(token);
       }
     };
   }, [currentPage, totalPages, filteredRefs]);
@@ -234,6 +358,16 @@ export default function GalleryPage() {
         await Promise.all(
           refsChunk.map(async (r) => {
             if (!isImageExt(r.ext)) return null;
+
+            // Static: URL = fullPath
+            if (r.source === "static") {
+              if (!urlCache.current.has(r.fullPath)) {
+                urlCache.current.set(r.fullPath, r.fullPath);
+              }
+              return r.fullPath;
+            }
+
+            // Firebase
             if (urlCache.current.has(r.fullPath)) return urlCache.current.get(r.fullPath);
             try {
               const u = await getDownloadURL(ref(storage, r.fullPath));
@@ -311,6 +445,7 @@ export default function GalleryPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [modalOpen, closeModal]);
 
+  // UI states
   if (loadingList) return <div className="gallery-container loading">טוען מדיה…</div>;
   if (error) return <div className="gallery-container error">{error}</div>;
   if (filteredRefs.length === 0)
@@ -336,17 +471,17 @@ export default function GalleryPage() {
         </button>
       </div>
 
-      {/* Grid: 9 originals only (for this page) */}
+      {/* Grid: current page only */}
       <div className="gallery-grid collage">
         {loadingPage
-          ? Array.from({ length: itemsPerPage }).map((_, i) => (
+          ? Array.from({ length: ITEMS_PER_PAGE }).map((_, i) => (
               <div key={i} className={`tile ${i % 3 === 0 ? "wide" : "half"}`}>
                 <div className="placeholder" />
               </div>
             ))
           : patternedPageItems.map((m, i) => (
               <LazyMedia
-                key={`${m.fullPath}-${i}`}
+                key={`${m.fullPath || m.url}-${i}`}
                 url={m.url}
                 alt={m.name}
                 isVideo={m.isVideo}
