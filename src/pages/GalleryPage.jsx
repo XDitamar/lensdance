@@ -9,7 +9,7 @@ import "../style.css";
 const USE_FIREBASE = true;
 
 // Static media under public/gallery: 1.jpeg...N.jpeg and 1.<ext>...M.<ext>
-const STATIC_IMAGE_COUNT = 0;                 // how many images (1.jpeg ... N.jpeg)
+const STATIC_IMAGE_COUNT = 24;                 // how many images (1.jpeg ... N.jpeg)
 const STATIC_IMAGE_EXT   = "jpeg";             // "jpeg" | "jpg" | "png" | "webp" etc.
 // Per-extension counts for videos (set each as needed)
 const STATIC_VIDEO_COUNTS = {
