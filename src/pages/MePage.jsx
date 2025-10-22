@@ -1,5 +1,4 @@
-// src/pages/MePage.jsx
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
@@ -7,8 +6,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
 /* ---------------------------------------------
-   iOS video priming
----------------------------------------------- */
+ *   iOS video priming
+ * ---------------------------------------------- */
 let __videosPrimed = false;
 function isLikelyIOS() {
   if (typeof navigator === "undefined") return false;
@@ -48,8 +47,8 @@ if (typeof window !== "undefined") {
 }
 
 /* ---------------------------------------------
-   Downloads
----------------------------------------------- */
+ *   Downloads
+ * ---------------------------------------------- */
 function buildAttachmentURL(url, filename) {
   try {
     const u = new URL(url);
@@ -136,16 +135,16 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
 }
 
 /* ---------------------------------------------
-   Media utils
----------------------------------------------- */
+ *   Media utils
+ * ---------------------------------------------- */
 const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
 const isVideoExt = (ext) => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
 const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
 const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
 
 /* ---------------------------------------------
-   Orientation inference
----------------------------------------------- */
+ *   Orientation inference
+ * ---------------------------------------------- */
 function getImageSize(url) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -181,10 +180,11 @@ async function inferVariantForUrl(url, isVideo) {
 }
 
 /* ---------------------------------------------
-   LazyMedia
----------------------------------------------- */
-const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) => {
+ *   LazyMedia - MODIFIED FOR LQIP
+ * ---------------------------------------------- */
+const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lqipUrl }) => {
   const [inView, setInView] = useState(false);
+  const [loaded, setLoaded] = useState(false); // New state to track if high-res image is loaded
   const mediaRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -207,6 +207,10 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) 
     return () => observer.disconnect();
   }, []);
 
+  const handleImageLoad = useCallback(() => {
+    setLoaded(true);
+  }, []);
+
   return (
     <div
       ref={mediaRef}
@@ -215,9 +219,11 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) 
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
+      style={{ position: 'relative', overflow: 'hidden' }} // Added styles for overlay
     >
       {inView ? (
         isVideo ? (
+          // Video rendering logic (remains the same)
           <video
             ref={videoRef}
             src={url}
@@ -228,9 +234,52 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) 
             data-prime="1"
           />
         ) : (
-          <img src={url} alt={alt} className="tile-media" loading="lazy" />
+          // Image rendering logic - using LQIP (Blur-up)
+          <>
+            {/* 1. Low-Quality Placeholder (LQIP) - Loads instantly, blurred */}
+            {!loaded && lqipUrl && (
+              <img
+                src={lqipUrl}
+                alt={`Placeholder for ${alt}`}
+                className="tile-media lqip"
+                aria-hidden="true"
+                style={{
+                  filter: 'blur(10px)',
+                  transition: 'opacity 0.5s',
+                  opacity: 1,
+                  // Ensure LQIP covers the tile
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            )}
+
+            {/* 2. High-Resolution Image - Fades in on load */}
+            <img
+              src={url}
+              alt={alt}
+              className="tile-media"
+              loading="lazy"
+              onLoad={handleImageLoad}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transition: 'opacity 0.5s',
+                opacity: loaded ? 1 : 0, // Fade in when loaded
+              }}
+            />
+          </>
         )
       ) : (
+        // Initial placeholder before IntersectionObserver triggers
         <div className="placeholder" />
       )}
     </div>
@@ -238,8 +287,8 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half" }) 
 });
 
 /* ---------------------------------------------
-   Page
----------------------------------------------- */
+ *   Page
+ * ---------------------------------------------- */
 export default function MePage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -283,7 +332,14 @@ export default function MePage() {
         const type = itemRef.name.split(".").pop();
         const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(url);
         const variant = await inferVariantForUrl(url, isVid);
-        return { id: itemRef.fullPath, url, name: itemRef.name, type, isVideo: isVid, variant };
+        
+        // NOTE: For LQIP to work, you MUST generate and provide a lqipUrl 
+        // (a tiny, compressed version of the image) from your backend/storage setup.
+        // For demonstration, we'll assume it's the same URL for now, but in reality 
+        // you'd fetch a dedicated thumbnail URL (e.g., from a separate "thumbs" folder).
+        const lqipUrl = !isVid ? url : undefined; // Placeholder: use full URL for size inference, but needs real LQIP URL
+        
+        return { id: itemRef.fullPath, url, name: itemRef.name, type, isVideo: isVid, variant, lqipUrl };
       });
 
       const mediaData = (await Promise.all(baseItemsPromises)).filter(Boolean);
@@ -318,11 +374,14 @@ export default function MePage() {
     let i = 0;
     while (i < filteredMediaItems.length) {
       if (i % 3 === 0) {
+        // Use the original item but set variant to wide
         out.push({ ...filteredMediaItems[i], variant: "wide" });
         i++;
       } else {
+        // Use the original item but set variant to half
         out.push({ ...filteredMediaItems[i], variant: "half" });
         if (i + 1 < filteredMediaItems.length) {
+          // Use the next original item and set variant to half
           out.push({ ...filteredMediaItems[i + 1], variant: "half" });
         }
         i += 2;
@@ -418,6 +477,7 @@ export default function MePage() {
               alt={m.name}
               isVideo={m.isVideo ?? isVideoUrl(m.url)}
               variant={m.variant || "half"}
+              lqipUrl={m.lqipUrl} // Passed the new prop
               onClick={() => openModal(m)}
             />
           ))
