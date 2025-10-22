@@ -138,7 +138,7 @@ export default function GalleryPage() {
     const staticImageRefs = Array.from({ length: STATIC_IMAGE_COUNT }, (_, i) => {
       const id = i + 1;
       const name = `${id}.${STATIC_IMAGE_EXT}`;
-      const url = `/gallery/${name}`; // public/...
+      const url = `/gallery/1.jpeg`; // public/...
       const fullPath = url; // we use URL as key
       // prime cache immediately so we never "resolve" this later
       urlCache.current.set(fullPath, url);
