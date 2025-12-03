@@ -8,7 +8,7 @@ import {
   getDownloadURL,
   uploadBytesResumable,
   deleteObject,
-  updateMetadata,          // ⬅️ new
+  updateMetadata,
 } from "firebase/storage";
 import "../style.css";
 
@@ -32,11 +32,10 @@ function guessExtFromMime(mime = "") {
 }
 
 function sanitizeFilename(name, fallbackMime) {
-  // Keep extension; if none, infer from MIME
   const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(name);
   const ext = hasExt ? name.split(".").pop() : guessExtFromMime(fallbackMime);
   const base = (hasExt ? name.slice(0, -(ext.length + 1)) : name)
-    .replace(/[\/\\:*?"<>|]/g, "_")  // illegal on some OSes
+    .replace(/[\/\\:*?"<>|]/g, "_")
     .replace(/\s+/g, "_")
     .replace(/[\u0000-\u001F]/g, "");
   return `${base || "file"}.${ext}`;
@@ -47,7 +46,6 @@ function downloadableMetadata(filename, mime) {
   return {
     contentType: mime || "application/octet-stream",
     cacheControl: "public, max-age=3600",
-    // 👇 this is what tells browsers "download this" later
     contentDisposition: `attachment; filename="${safeName}"`,
   };
 }
@@ -59,10 +57,9 @@ export default function AdminPage() {
   const [currentFolder, setCurrentFolder] = useState(null);
   const [mediaItems, setMediaItems] = useState([]);
 
-  // NEW: multi-file selection + per-file progress/errors
-  const [files, setFiles] = useState([]); // File[]
-  const [progress, setProgress] = useState({}); // { [fileName]: number }
-  const [uploadErrors, setUploadErrors] = useState({}); // { [fileName]: string }
+  const [files, setFiles] = useState([]);
+  const [progress, setProgress] = useState({});
+  const [uploadErrors, setUploadErrors] = useState({});
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -85,7 +82,7 @@ export default function AdminPage() {
     }
   };
 
-  // --- Fetch Media from a Specific Folder ---
+  // --- Fetch Media from a Specific Folder (מדלגים על .placeholder) ---
   const fetchMediaInFolder = async (folderName) => {
     try {
       setBusy(true);
@@ -94,6 +91,9 @@ export default function AdminPage() {
       const res = await listAll(folderRef);
 
       const mediaPromises = res.items.map(async (itemRef) => {
+        // לא טוענים לפה את ה-placeholder בכלל
+        if (itemRef.name === ".placeholder") return null;
+
         const url = await getDownloadURL(itemRef);
         return {
           id: itemRef.fullPath,
@@ -103,7 +103,7 @@ export default function AdminPage() {
         };
       });
 
-      const mediaData = await Promise.all(mediaPromises);
+      const mediaData = (await Promise.all(mediaPromises)).filter(Boolean);
       setMediaItems(mediaData);
       setBusy(false);
     } catch (e) {
@@ -119,7 +119,7 @@ export default function AdminPage() {
     }
   }, [isAdmin]);
 
-  // --- Multi-file upload (desktop + mobile) ---
+  // --- Multi-file upload ---
   const onPickFiles = (e) => {
     const selected = Array.from(e.target.files || []);
     setFiles(selected);
@@ -136,11 +136,10 @@ export default function AdminPage() {
       setProgress({});
       setUploadErrors({});
 
-      // Upload sequentially for clearer progress + lower memory on mobile.
       for (const f of files) {
         const safeName = sanitizeFilename(f.name, f.type);
         const fileRef = ref(storage, `${currentFolder}/${safeName}`);
-        const meta = downloadableMetadata(safeName, f.type); // 👈 persist 'attachment' + contentType
+        const meta = downloadableMetadata(safeName, f.type);
 
         const task = uploadBytesResumable(fileRef, f, meta);
 
@@ -156,7 +155,7 @@ export default function AdminPage() {
             (err) => {
               console.error("Upload failed for", f.name, err);
               setUploadErrors((prev) => ({ ...prev, [f.name]: err.message }));
-              resolve(); // continue with the rest
+              resolve();
             },
             () => {
               resolve();
@@ -165,7 +164,6 @@ export default function AdminPage() {
         });
       }
 
-      // Clear selection and refresh gallery
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       await fetchMediaInFolder(currentFolder);
@@ -182,7 +180,7 @@ export default function AdminPage() {
     }
   };
 
-  // Retro-fit: force "attachment" on existing files in this folder
+  // --- Force attachment metadata for existing files ---
   const forceAttachmentForExisting = async () => {
     if (!currentFolder || !mediaItems.length) return;
     if (!window.confirm("Update all files in this folder to be downloadable?")) return;
@@ -192,7 +190,10 @@ export default function AdminPage() {
       for (const it of mediaItems) {
         const fileRef = ref(storage, it.id);
         const safeName = sanitizeFilename(it.name || it.id.split("/").pop(), "");
-        const meta = downloadableMetadata(safeName, `image/${(it.type || "jpeg").toLowerCase()}`);
+        const meta = downloadableMetadata(
+          safeName,
+          `image/${(it.type || "jpeg").toLowerCase()}`
+        );
         await updateMetadata(fileRef, meta).catch((err) => {
           console.warn("updateMetadata failed for", it.id, err);
         });
@@ -207,6 +208,7 @@ export default function AdminPage() {
     }
   };
 
+  // --- Delete single item (placeholder לא מגיע לפה בכלל) ---
   const del = async (fullPath) => {
     if (!window.confirm("Delete this item?")) return;
 
@@ -222,6 +224,41 @@ export default function AdminPage() {
       console.error(e);
       setError("Delete failed.");
       alert("Delete failed: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // --- Delete all items in current folder (לא מוחק placeholder) ---
+  const deleteAllInCurrentFolder = async () => {
+    if (!currentFolder || !mediaItems.length) return;
+
+    const ok = window.confirm(
+      "האם אתה בטוח שברצונך למחוק את כל המדיה בתיקייה הזו?\nהפעולה בלתי הפיכה."
+    );
+    if (!ok) return;
+
+    try {
+      setBusy(true);
+      setError("");
+
+      // מדלגים על כל קובץ ששמו .placeholder (ליתר ביטחון, למרות שהוא לא ב-mediaItems)
+      const itemsToDelete = mediaItems.filter((it) => it.name !== ".placeholder");
+
+      for (const item of itemsToDelete) {
+        try {
+          const fileRef = ref(storage, item.id);
+          await deleteObject(fileRef);
+        } catch (e) {
+          console.error("Failed to delete", item.id, e);
+        }
+      }
+
+      await fetchMediaInFolder(currentFolder);
+    } catch (e) {
+      console.error(e);
+      setError("Delete all failed.");
+      alert("Delete all failed: " + e.message);
     } finally {
       setBusy(false);
     }
@@ -292,7 +329,7 @@ export default function AdminPage() {
             Back to Folders
           </button>
 
-          {/* Upload card */}
+          {/* Upload & actions card */}
           <div
             style={{
               background: "#fff",
@@ -315,9 +352,11 @@ export default function AdminPage() {
                 onChange={onPickFiles}
               />
               <button className="auth-primary" onClick={uploadAll} disabled={!files.length || busy}>
-                {busy ? "Uploading..." : files.length ? `Upload ${files.length} file${
-                  files.length > 1 ? "s" : ""
-                }` : "Upload"}
+                {busy
+                  ? "Uploading..."
+                  : files.length
+                  ? `Upload ${files.length} file${files.length > 1 ? "s" : ""}`
+                  : "Upload"}
               </button>
               {!!files.length && (
                 <button
@@ -334,23 +373,36 @@ export default function AdminPage() {
                 </button>
               )}
 
-              {/* NEW: one-click fix for older files in this folder */}
               {mediaItems.length > 0 && (
-                <button
-                  className="filter-button"
-                  onClick={forceAttachmentForExisting}
-                  disabled={busy}
-                  title="Update existing files so browsers will download them instead of previewing"
-                >
-                  Fix existing files (force download)
-                </button>
+                <>
+                  <button
+                    className="filter-button"
+                    onClick={forceAttachmentForExisting}
+                    disabled={busy}
+                    title="Update existing files so browsers will download them instead of previewing"
+                  >
+                    Fix existing files (force download)
+                  </button>
+
+                  {/* Delete all media in this folder (בלי placeholder) */}
+                  <button
+                    className="filter-button"
+                    onClick={deleteAllInCurrentFolder}
+                    disabled={busy}
+                    style={{ backgroundColor: "#b31010", color: "#fff" }}
+                    title="Delete all media files in this gallery (folder + placeholder stay)"
+                  >
+                    Delete all
+                  </button>
+                </>
               )}
             </div>
 
             {!!files.length && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: ".95rem", color: "#555", marginBottom: 8 }}>
-                  Selected: <strong>{files.length}</strong> file{files.length > 1 ? "s" : ""}
+                  Selected: <strong>{files.length}</strong> file
+                  {files.length > 1 ? "s" : ""}
                 </div>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {files.map((f) => (
@@ -358,7 +410,14 @@ export default function AdminPage() {
                       key={f.name + f.lastModified}
                       style={{ padding: "6px 0", borderTop: "1px solid #eee" }}
                     >
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <span style={{ fontSize: ".9rem" }}>
                           <strong>{f.name}</strong> ({Math.round(f.size / 1024)} KB)
                         </span>
@@ -408,7 +467,7 @@ export default function AdminPage() {
           <div className="gallery-grid">
             {mediaItems.map((m) => (
               <div key={m.id} className="gallery-item">
-                {m.type.match(/(mp4|mov|avi|mkv)$/i) ? (
+                {/(mp4|mov|avi|mkv)$/i.test(m.type || "") ? (
                   <video controls src={m.url} className="gallery-item-media" />
                 ) : (
                   <img src={m.url} alt="admin media" className="gallery-item-media" />
