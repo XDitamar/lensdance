@@ -6,7 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import "../style.css";
 
 /* ---------------------------------------------
- *   iOS video priming
+ * iOS video priming
  * ---------------------------------------------- */
 let __videosPrimed = false;
 function isLikelyIOS() {
@@ -47,7 +47,7 @@ if (typeof window !== "undefined") {
 }
 
 /* ---------------------------------------------
- *   Downloads
+ * Downloads helpers
  * ---------------------------------------------- */
 function buildAttachmentURL(url, filename) {
   try {
@@ -135,15 +135,15 @@ async function nativeDownload(url, filename = "download", opts = { prefer: "auto
 }
 
 /* ---------------------------------------------
- *   Media utils
+ * Media utils
  * ---------------------------------------------- */
-const extFromUrl = (url) => url.split("?")[0].split(".").pop().toLowerCase();
-const isVideoExt = (ext) => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
-const isImageExt = (ext) => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
-const isVideoUrl = (url) => isVideoExt(extFromUrl(url));
+const extFromUrl = (url = "") => url.split("?")[0].split(".").pop().toLowerCase();
+const isVideoExt = (ext = "") => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
+const isImageExt = (ext = "") => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
+const isVideoUrl = (url = "") => isVideoExt(extFromUrl(url));
 
 /* ---------------------------------------------
- *   Orientation inference
+ * Orientation inference
  * ---------------------------------------------- */
 function getImageSize(url) {
   return new Promise((resolve) => {
@@ -180,11 +180,11 @@ async function inferVariantForUrl(url, isVideo) {
 }
 
 /* ---------------------------------------------
- *   LazyMedia - MODIFIED FOR LQIP
+ * LazyMedia with LQIP
  * ---------------------------------------------- */
 const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lqipUrl }) => {
   const [inView, setInView] = useState(false);
-  const [loaded, setLoaded] = useState(false); // New state to track if high-res image is loaded
+  const [loaded, setLoaded] = useState(false);
   const mediaRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -219,11 +219,10 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
-      style={{ position: 'relative', overflow: 'hidden' }} // Added styles for overlay
+      style={{ position: "relative", overflow: "hidden" }}
     >
       {inView ? (
         isVideo ? (
-          // Video rendering logic (remains the same)
           <video
             ref={videoRef}
             src={url}
@@ -234,9 +233,7 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
             data-prime="1"
           />
         ) : (
-          // Image rendering logic - using LQIP (Blur-up)
           <>
-            {/* 1. Low-Quality Placeholder (LQIP) - Loads instantly, blurred */}
             {!loaded && lqipUrl && (
               <img
                 src={lqipUrl}
@@ -244,21 +241,18 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
                 className="tile-media lqip"
                 aria-hidden="true"
                 style={{
-                  filter: 'blur(10px)',
-                  transition: 'opacity 0.5s',
+                  filter: "blur(10px)",
+                  transition: "opacity 0.5s",
                   opacity: 1,
-                  // Ensure LQIP covers the tile
-                  position: 'absolute',
+                  position: "absolute",
                   top: 0,
                   left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
                 }}
               />
             )}
-
-            {/* 2. High-Resolution Image - Fades in on load */}
             <img
               src={url}
               alt={alt}
@@ -266,20 +260,19 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
               loading="lazy"
               onLoad={handleImageLoad}
               style={{
-                position: 'absolute',
+                position: "absolute",
                 top: 0,
                 left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                transition: 'opacity 0.5s',
-                opacity: loaded ? 1 : 0, // Fade in when loaded
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                transition: "opacity 0.5s",
+                opacity: loaded ? 1 : 0,
               }}
             />
           </>
         )
       ) : (
-        // Initial placeholder before IntersectionObserver triggers
         <div className="placeholder" />
       )}
     </div>
@@ -287,7 +280,42 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
 });
 
 /* ---------------------------------------------
- *   Page
+ * listAllRecursive – כדי לתפוס גם תתי־תיקיות
+ * ---------------------------------------------- */
+async function listAllRecursive(folderRef) {
+  const res = await listAll(folderRef);
+  const files = [...res.items];
+
+  for (const prefix of res.prefixes) {
+    const childFiles = await listAllRecursive(prefix);
+    files.push(...childFiles);
+  }
+
+  return files;
+}
+
+/* ---------------------------------------------
+ * מחזיר רשימת כל התיקיות האפשריות ליוזר
+ * (כדי לתמוך גם בישנים וגם בחדשים)
+ * ---------------------------------------------- */
+function getUserFolderCandidates(user) {
+  const email = user.email || "";
+  const uid = user.uid || "";
+
+  const sanitized = email.replace(/[.#$[\]]/g, "_");          // כמו Agamfe2010@gmail_com
+  const lowerSanitized = email.toLowerCase().replace(/[.#$[\]]/g, "_");
+  const plain = email;
+  const lowerPlain = email.toLowerCase();
+
+  const set = new Set(
+    [sanitized, lowerSanitized, plain, lowerPlain, uid].filter(Boolean)
+  );
+
+  return Array.from(set);
+}
+
+/* ---------------------------------------------
+ * Page
  * ---------------------------------------------- */
 export default function MePage() {
   const [user, setUser] = useState(null);
@@ -304,6 +332,7 @@ export default function MePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
+  // auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -312,34 +341,59 @@ export default function MePage() {
     return unsub;
   }, []);
 
+  // טוען מדיה מכל התיקיות האפשריות של היוזר
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
       setLoading(false);
       return;
     }
+
     try {
       setLoading(true);
       setError("");
-      const email = u.email || "";
-      const sanitizedEmail = email.replace(/[.#$[\]]/g, "_");
-      const userFolderRef = ref(storage, sanitizedEmail);
-      const res = await listAll(userFolderRef);
 
-      const baseItemsPromises = res.items.map(async (itemRef) => {
+      const folderCandidates = getUserFolderCandidates(u);
+      console.log("Trying folders:", folderCandidates);
+
+      const allFileRefsMap = new Map(); // key = fullPath, value = itemRef
+
+      for (const path of folderCandidates) {
+        try {
+          const folderRef = ref(storage, path);
+          const files = await listAllRecursive(folderRef);
+          files.forEach((f) => {
+            if (!allFileRefsMap.has(f.fullPath)) {
+              allFileRefsMap.set(f.fullPath, f);
+            }
+          });
+        } catch (e) {
+          // אם התיקייה לא קיימת – נתעלם
+          console.warn("Folder not found or error:", path, e?.message);
+        }
+      }
+
+      const allItemRefs = Array.from(allFileRefsMap.values());
+
+      const baseItemsPromises = allItemRefs.map(async (itemRef) => {
         if (itemRef.name === ".placeholder") return null;
+
         const url = await getDownloadURL(itemRef);
         const type = itemRef.name.split(".").pop();
         const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(url);
         const variant = await inferVariantForUrl(url, isVid);
-        
-        // NOTE: For LQIP to work, you MUST generate and provide a lqipUrl 
-        // (a tiny, compressed version of the image) from your backend/storage setup.
-        // For demonstration, we'll assume it's the same URL for now, but in reality 
-        // you'd fetch a dedicated thumbnail URL (e.g., from a separate "thumbs" folder).
-        const lqipUrl = !isVid ? url : undefined; // Placeholder: use full URL for size inference, but needs real LQIP URL
-        
-        return { id: itemRef.fullPath, url, name: itemRef.name, type, isVideo: isVid, variant, lqipUrl };
+
+        const lqipUrl = !isVid ? url : undefined;
+
+        return {
+          id: itemRef.fullPath,
+          url,
+          name: itemRef.name,
+          type,
+          isVideo: isVid,
+          variant,
+          lqipUrl,
+        };
       });
 
       const mediaData = (await Promise.all(baseItemsPromises)).filter(Boolean);
@@ -368,20 +422,17 @@ export default function MePage() {
     [mediaItems, filter]
   );
 
-  // pattern: wide → half+half → wide …
+  // pattern: wide → half+half → wide…
   const patternedItems = useMemo(() => {
     let out = [];
     let i = 0;
     while (i < filteredMediaItems.length) {
       if (i % 3 === 0) {
-        // Use the original item but set variant to wide
         out.push({ ...filteredMediaItems[i], variant: "wide" });
         i++;
       } else {
-        // Use the original item but set variant to half
         out.push({ ...filteredMediaItems[i], variant: "half" });
         if (i + 1 < filteredMediaItems.length) {
-          // Use the next original item and set variant to half
           out.push({ ...filteredMediaItems[i + 1], variant: "half" });
         }
         i += 2;
@@ -390,11 +441,11 @@ export default function MePage() {
     return out;
   }, [filteredMediaItems]);
 
-  const totalPages = Math.ceil(patternedItems.length / itemsPerPage);
+  const totalPages = Math.ceil(patternedItems.length / itemsPerPage) || 1;
   const pageItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return patternedItems.slice(start, start + itemsPerPage);
-  }, [patternedItems, currentPage]);
+  }, [patternedItems, currentPage, itemsPerPage]);
 
   const openModal = (item) => {
     setSelectedItem(item);
@@ -477,7 +528,7 @@ export default function MePage() {
               alt={m.name}
               isVideo={m.isVideo ?? isVideoUrl(m.url)}
               variant={m.variant || "half"}
-              lqipUrl={m.lqipUrl} // Passed the new prop
+              lqipUrl={m.lqipUrl}
               onClick={() => openModal(m)}
             />
           ))
@@ -486,7 +537,7 @@ export default function MePage() {
         )}
       </div>
 
-      {/* Controls: pagination above, download all below */}
+      {/* Pagination + Download all */}
       {(totalPages > 1 || patternedItems.length > 0) && (
         <div style={{ marginTop: 14 }}>
           {totalPages > 1 && (
