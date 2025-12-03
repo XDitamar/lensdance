@@ -7,15 +7,7 @@ import { AuthProvider } from "./context/AuthContext";
 import "./i18n";
 import "./style.css";
 
-// Optional: register a service worker to allow background cache warming.
-// If /sw.js is not present, this will simply no-op.
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .catch((e) => console.log("SW register failed", e));
-  });
-}
+// ❌ הסרנו את קוד ה-service worker כאן
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
