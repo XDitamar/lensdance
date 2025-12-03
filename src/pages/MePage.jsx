@@ -280,7 +280,7 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
 });
 
 /* ---------------------------------------------
- * listAllRecursive – כדי לתפוס גם תתי־תיקיות
+ * listAllRecursive – גם תתי־תיקיות
  * ---------------------------------------------- */
 async function listAllRecursive(folderRef) {
   const res = await listAll(folderRef);
@@ -295,14 +295,13 @@ async function listAllRecursive(folderRef) {
 }
 
 /* ---------------------------------------------
- * מחזיר רשימת כל התיקיות האפשריות ליוזר
- * (כדי לתמוך גם בישנים וגם בחדשים)
+ *   תיקיות אפשריות למשתמש (לשילוב גרסאות ישנות/חדשות)
  * ---------------------------------------------- */
 function getUserFolderCandidates(user) {
   const email = user.email || "";
   const uid = user.uid || "";
 
-  const sanitized = email.replace(/[.#$[\]]/g, "_");          // כמו Agamfe2010@gmail_com
+  const sanitized = email.replace(/[.#$[\]]/g, "_");
   const lowerSanitized = email.toLowerCase().replace(/[.#$[\]]/g, "_");
   const plain = email;
   const lowerPlain = email.toLowerCase();
@@ -332,7 +331,6 @@ export default function MePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -341,7 +339,6 @@ export default function MePage() {
     return unsub;
   }, []);
 
-  // טוען מדיה מכל התיקיות האפשריות של היוזר
   const fetchMedia = async (u) => {
     if (!u) {
       setMediaItems([]);
@@ -356,7 +353,7 @@ export default function MePage() {
       const folderCandidates = getUserFolderCandidates(u);
       console.log("Trying folders:", folderCandidates);
 
-      const allFileRefsMap = new Map(); // key = fullPath, value = itemRef
+      const allFileRefsMap = new Map(); // key = fullPath
 
       for (const path of folderCandidates) {
         try {
@@ -368,7 +365,6 @@ export default function MePage() {
             }
           });
         } catch (e) {
-          // אם התיקייה לא קיימת – נתעלם
           console.warn("Folder not found or error:", path, e?.message);
         }
       }
@@ -378,16 +374,27 @@ export default function MePage() {
       const baseItemsPromises = allItemRefs.map(async (itemRef) => {
         if (itemRef.name === ".placeholder") return null;
 
-        const url = await getDownloadURL(itemRef);
+        const fullUrl = await getDownloadURL(itemRef);
         const type = itemRef.name.split(".").pop();
-        const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(url);
-        const variant = await inferVariantForUrl(url, isVid);
+        const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(fullUrl);
+        const variant = await inferVariantForUrl(fullUrl, isVid);
 
-        const lqipUrl = !isVid ? url : undefined;
+        let gridUrl = fullUrl;
+        let lqipUrl = undefined;
+
+        // כמו בגלריה הפומבית – בגריד נטען דרך /api/image (רק לתמונות)
+        if (!isVid) {
+          const resizedUrl = `/api/image?url=${encodeURIComponent(
+            fullUrl
+          )}&w=1280&q=70`;
+          gridUrl = resizedUrl;
+          lqipUrl = resizedUrl;
+        }
 
         return {
           id: itemRef.fullPath,
-          url,
+          url: fullUrl,      // FULL (למודאל / הורדה)
+          gridUrl,           // קטן ומהיר לגריד
           name: itemRef.name,
           type,
           isVideo: isVid,
@@ -422,7 +429,6 @@ export default function MePage() {
     [mediaItems, filter]
   );
 
-  // pattern: wide → half+half → wide…
   const patternedItems = useMemo(() => {
     let out = [];
     let i = 0;
@@ -524,7 +530,7 @@ export default function MePage() {
           pageItems.map((m) => (
             <LazyMedia
               key={m.id}
-              url={m.url}
+              url={m.gridUrl || m.url}            // גריד = resized
               alt={m.name}
               isVideo={m.isVideo ?? isVideoUrl(m.url)}
               variant={m.variant || "half"}
@@ -592,7 +598,7 @@ export default function MePage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal – תמיד full-res */}
       {modalOpen && selectedItem && (
         <div className="media-modal" onClick={closeModal} role="dialog" aria-modal="true">
           <div className="media-modal-content" onClick={(e) => e.stopPropagation()}>
