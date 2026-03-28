@@ -33,8 +33,7 @@ export default function HomePage() {
         <div className="hero-content">
           <h1>Lens Dance – צילומי סוסים, רכיבה וקפיצות ראווה</h1>
           <p>
-            ב־Lens Dance אני לא רק מצלמת; אני יוצרת אמנות נצחית שמבטאת את היופי,
-            העוצמה והרוך הייחודי של כל סוס. בוא ניצור יחד סיפורים ויזואליים מרהיבים.
+           
           </p>
           <Link to="/gallery" className="cta-button">
             מעבר לגלריה
@@ -46,8 +45,7 @@ export default function HomePage() {
       <div className="container">
         <h2 className="section-title">portafolio</h2>
         <p>
-          צלול אל מבחר מהאהובים האחרונים שלי וגלו את הרגעים שזכיתי להקפיא בזמן.
-          כל תמונה מספרת סיפור ייחודי.
+        
         </p>
         <div className="featured-images-grid">
           <div className="featured-image-item">
