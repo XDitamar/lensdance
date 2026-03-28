@@ -6,6 +6,8 @@ import Header from "./components/Header";
 // 🆕 (these were already in your file)
 import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
 import FloatingTranslateButton from "./components/FloatingTranslateButton";
+import FloatingWhatsApp from "./components/FloatingWhatsApp";
+import AccessibilityWidget from "./components/AccessibilityWidget";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -28,6 +30,8 @@ export default function App() {
       <Header />
       <GoogleTranslateLoader />
       <FloatingTranslateButton />
+      <FloatingWhatsApp />
+      <AccessibilityWidget />
 
       <Routes>
         {/* Public routes */}

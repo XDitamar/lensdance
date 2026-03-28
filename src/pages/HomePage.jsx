@@ -1,19 +1,37 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import vid from "../vid.mp4";
+import TestimonialsSection from "../components/TestimonialsSection";
+import InstagramFeed from "../components/InstagramFeed";
 
 export default function HomePage() {
   return (
     <>
       {/* Hero */}
       <div className="hero-video-container">
+        {/* Fallback image for when video doesn't load */}
+        <img 
+          src="/pics/pic1.png" 
+          alt="צילומי סוסים ורכיבה מקצועיים"
+          className="hero-fallback-image"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            minWidth: '100%',
+            minHeight: '100%',
+            transform: 'translate(-50%, -50%)',
+            objectFit: 'cover',
+            zIndex: -2
+          }}
+        />
         <video autoPlay loop muted playsInline className="hero-video">
           <source src={vid} type="video/mp4" />
           הדפדפן שלך לא תומך בתגית הווידאו.
         </video>
         <div className="video-overlay" />
         <div className="hero-content">
-          <h1>לכוד את רוח הסוסים</h1>
+          <h1>Lens Dance – צילומי סוסים, רכיבה וקפיצות ראווה</h1>
           <p>
             ב־Lens Dance אני לא רק מצלמת; אני יוצרת אמנות נצחית שמבטאת את היופי,
             העוצמה והרוך הייחודי של כל סוס. בוא ניצור יחד סיפורים ויזואליים מרהיבים.
@@ -43,6 +61,9 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Instagram Feed */}
+      <InstagramFeed />
 
       {/* Pricing */}
       <div
@@ -111,6 +132,9 @@ export default function HomePage() {
           תשלום מתקבל בביט, מזומן או PayBox. החזר מקדמה אפשרי במקרה של בעיות מצידנו.
         </p>
       </div>
+
+      {/* Testimonials Section */}
+      <TestimonialsSection />
     </>
   );
 }
