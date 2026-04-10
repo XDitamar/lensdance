@@ -102,33 +102,33 @@ const MediaTile = React.memo(function MediaTile({
 			}
 			style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
 		>
-			{isVideo ? (
-				/* סרטון בגריד: רק placeholder + אייקון play – לא טוענים את הסרטון */
+		{isVideo ? (
+				/* סרטון בגריד: פריים ראשון + אייקון play */
 				<>
-					<div style={{
-						position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-						background: "#1a1a1a",
-					}} />
+					<video
+						src={url}
+						preload="metadata"
+						playsInline
+						muted
+						style={{
+							position: "absolute", top: 0, left: 0,
+							width: "100%", height: "100%",
+							objectFit: "cover",
+							pointerEvents: "none",
+						}}
+					/>
 					<div style={{
 						position: "absolute", top: "50%", left: "50%",
 						transform: "translate(-50%, -50%)",
-						width: 64, height: 64, borderRadius: "50%",
+						width: 56, height: 56, borderRadius: "50%",
 						background: "rgba(255,255,255,0.85)",
 						display: "flex", alignItems: "center", justifyContent: "center",
 						boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
 						pointerEvents: "none",
 					}}>
-						<svg viewBox="0 0 24 24" width="32" height="32" fill="#333">
+						<svg viewBox="0 0 24 24" width="28" height="28" fill="#333">
 							<path d="M8 5v14l11-7z"/>
 						</svg>
-					</div>
-					<div style={{
-						position: "absolute", bottom: 8, left: 0, right: 0,
-						textAlign: "center", color: "#fff", fontSize: "0.75rem",
-						textShadow: "0 1px 3px rgba(0,0,0,0.8)",
-						pointerEvents: "none",
-					}}>
-						▶ לחץ לצפייה
 					</div>
 				</>
 			) : (
