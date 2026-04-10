@@ -25,19 +25,6 @@ const CONTACT_CONFIG = {
   }
 };
 
-// Encrypt/obfuscate the phone number for additional security
-const obfuscatePhone = (phone) => {
-  return btoa(phone); // Simple base64 encoding
-};
-
-const deobfuscatePhone = (encoded) => {
-  try {
-    return atob(encoded);
-  } catch {
-    return CONTACT_CONFIG.whatsapp.number; // fallback
-  }
-};
-
 // Export secure contact methods
 export const getWhatsAppNumber = () => {
   // In production, you might want to fetch this from environment variables

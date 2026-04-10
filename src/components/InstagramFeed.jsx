@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 const InstagramFeed = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error] = useState(false);
 
   // Mock Instagram posts for demonstration
   // In production, replace with actual Instagram API or Behold widget
@@ -49,12 +49,12 @@ const InstagramFeed = () => {
   useEffect(() => {
     // Simulate API loading
     const timer = setTimeout(() => {
-      setPosts(mockPosts);
+      setPosts(mockPosts); // eslint-disable-line react-hooks/exhaustive-deps
       setLoading(false);
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const InstagramPost = ({ post, index }) => {
     const [imageLoaded, setImageLoaded] = useState(false);

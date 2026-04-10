@@ -35,9 +35,9 @@ function sanitizeFilename(name, fallbackMime) {
   const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(name);
   const ext = hasExt ? name.split(".").pop() : guessExtFromMime(fallbackMime);
   const base = (hasExt ? name.slice(0, -(ext.length + 1)) : name)
-    .replace(/[\/\\:*?"<>|]/g, "_")
+    .replace(/[/\\:*?"<>|]/g, "_")
     .replace(/\s+/g, "_")
-    .replace(/[\u0000-\u001F]/g, "");
+    .replace(/[\u0000-\u001f]/g, ""); // eslint-disable-line no-control-regex
   return `${base || "file"}.${ext}`;
 }
 

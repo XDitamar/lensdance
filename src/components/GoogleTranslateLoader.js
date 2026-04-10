@@ -4,8 +4,7 @@ export default function GoogleTranslateLoader() {
   useEffect(() => {
     // init callback for Google script
     window.googleTranslateElementInit = function () {
-      /* global google */
-      new window.google.translate.TranslateElement(
+      new window.google.translate.TranslateElement( // eslint-disable-line no-undef
         {
           pageLanguage: "iw",
           includedLanguages: "en,ar,ru", // Hebrew 'iw', Arabic 'ar', Russian 'ru'
