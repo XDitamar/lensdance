@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { auth, storage } from "../firebase";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
@@ -142,53 +142,18 @@ const isVideoExt = (ext = "") => /(mp4|mov|avi|mkv|webm)$/i.test(ext || "");
 const isImageExt = (ext = "") => /(png|jpg|jpeg|gif|webp|heic|heif|svg)$/i.test(ext || "");
 const isVideoUrl = (url = "") => isVideoExt(extFromUrl(url));
 
-/* ---------------------------------------------
- * Orientation inference
- * ---------------------------------------------- */
-function getImageSize(url) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 });
-    img.onerror = () => resolve({ width: 0, height: 0 });
-    img.src = url;
-  });
-}
-function getVideoSize(url) {
-  return new Promise((resolve) => {
-    const v = document.createElement("video");
-    v.preload = "metadata";
-    v.muted = true;
-    v.playsInline = true;
-    const done = () =>
-      resolve({
-        width: v.videoWidth || 0,
-        height: v.videoHeight || 0,
-      });
-    v.onloadedmetadata = done;
-    v.onerror = done;
-    v.src = url;
-  });
-}
-async function inferVariantForUrl(url, isVideo) {
-  try {
-    const { width, height } = isVideo ? await getVideoSize(url) : await getImageSize(url);
-    if (!width || !height) return "wide";
-    return width >= height ? "wide" : "half";
-  } catch {
-    return "wide";
-  }
-}
 
 /* ---------------------------------------------
- * LazyMedia with LQIP
+ * LazyMedia
  * ---------------------------------------------- */
-const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lqipUrl }) => {
-  const [inView, setInView] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", priority }) => {
+  // priority=true → נטען מיד (above the fold), אחרת IntersectionObserver
+  const [inView, setInView] = useState(!!priority);
   const mediaRef = useRef(null);
   const videoRef = useRef(null);
 
   useEffect(() => {
+    if (priority) return; // כבר inView=true
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -201,15 +166,11 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
           }
         }
       },
-      { root: null, rootMargin: "200px", threshold: 0 }
+      { root: null, rootMargin: "400px", threshold: 0 }
     );
     if (mediaRef.current) observer.observe(mediaRef.current);
     return () => observer.disconnect();
-  }, []);
-
-  const handleImageLoad = useCallback(() => {
-    setLoaded(true);
-  }, []);
+  }, [priority]);
 
   return (
     <div
@@ -233,44 +194,22 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", lq
             data-prime="1"
           />
         ) : (
-          <>
-            {!loaded && lqipUrl && (
-              <img
-                src={lqipUrl}
-                alt={`Placeholder for ${alt}`}
-                className="tile-media lqip"
-                aria-hidden="true"
-                style={{
-                  filter: "blur(10px)",
-                  transition: "opacity 0.5s",
-                  opacity: 1,
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-            )}
-            <img
-              src={url}
-              alt={alt}
-              className="tile-media"
-              loading="lazy"
-              onLoad={handleImageLoad}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                transition: "opacity 0.5s",
-                opacity: loaded ? 1 : 0,
-              }}
-            />
-          </>
+          <img
+            src={url}
+            alt={alt}
+            className="tile-media"
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            fetchpriority={priority ? "high" : "auto"}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
         )
       ) : (
         <div className="placeholder" />
@@ -377,16 +316,21 @@ export default function MePage() {
         const fullUrl = await getDownloadURL(itemRef);
         const type = itemRef.name.split(".").pop();
         const isVid = isVideoExt((type || "").toLowerCase()) || isVideoUrl(fullUrl);
-        const variant = await inferVariantForUrl(fullUrl, isVid);
+        // variant יוגדר ב-applyPattern לפי מיקום (wide/half), לא לפי גודל התמונה
+        // כך נחסכת טעינה כפולה של כל תמונה רק לצורך מדידת מימדים
+        const variant = "wide";
 
         let gridUrl = fullUrl;
         let lqipUrl = undefined;
 
-        // כמו בגלריה הפומבית – בגריד נטען דרך /api/image (רק לתמונות)
+        // בפרודקשן (Vercel) נשתמש ב-/api/image שמקטין את התמונה
+        // בדב (localhost) נשתמש ישירות ב-URL המקורי
         if (!isVid) {
-          const resizedUrl = `/api/image?url=${encodeURIComponent(
-            fullUrl
-          )}&w=1280&q=70`;
+          const isProduction = window.location.hostname !== "localhost" &&
+            !window.location.hostname.startsWith("127.");
+          const resizedUrl = isProduction
+            ? `/api/image?url=${encodeURIComponent(fullUrl)}&w=1280&q=70`
+            : fullUrl;
           gridUrl = resizedUrl;
           lqipUrl = resizedUrl;
         }
@@ -527,7 +471,7 @@ export default function MePage() {
       {/* Gallery */}
       <div className="gallery-grid collage">
         {pageItems.length > 0 ? (
-          pageItems.map((m) => (
+          pageItems.map((m, idx) => (
             <LazyMedia
               key={m.id}
               url={m.gridUrl || m.url}            // גריד = resized
@@ -535,6 +479,7 @@ export default function MePage() {
               isVideo={m.isVideo ?? isVideoUrl(m.url)}
               variant={m.variant || "half"}
               lqipUrl={m.lqipUrl}
+              priority={idx < 3} // 3 הפריטים הראשונים נטענים מיד (above the fold)
               onClick={() => openModal(m)}
             />
           ))

@@ -1,5 +1,5 @@
 // src/pages/GalleryPage.jsx
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react"; // useCallback still used for openModal/closeModal
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import "../style.css";
@@ -89,14 +89,15 @@ const LazyMedia = React.memo(function LazyMedia({
 	isVideo,
 	variant,
 	onClick,
-	lqipUrl,
+	priority,   // true = above-the-fold, load immediately
 }) {
-	const [inView, setInView] = useState(false);
-	const [loaded, setLoaded] = useState(!lqipUrl);
+	// אם priority=true נטען מיד, אחרת נחכה ל-IntersectionObserver
+	const [inView, setInView] = useState(!!priority);
 	const mediaRef = useRef(null);
 	const videoRef = useRef(null);
 
 	useEffect(() => {
+		if (priority) return; // כבר inView=true, אין צורך ב-observer
 		const obs = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting) {
@@ -109,15 +110,11 @@ const LazyMedia = React.memo(function LazyMedia({
 					}
 				}
 			},
-			{ rootMargin: "200px" }
+			{ rootMargin: "400px" }
 		);
 		if (mediaRef.current) obs.observe(mediaRef.current);
 		return () => obs.disconnect();
-	}, []);
-
-	const handleImageLoad = useCallback(() => {
-		setLoaded(true);
-	}, []);
+	}, [priority]);
 
 	return (
 		<div
@@ -144,46 +141,22 @@ const LazyMedia = React.memo(function LazyMedia({
 						data-prime="1"
 					/>
 				) : (
-					<>
-						{!loaded && lqipUrl && (
-							<img
-								src={lqipUrl}
-								alt={`Placeholder for ${alt}`}
-								className="tile-media lqip"
-								aria-hidden="true"
-								style={{
-									filter: "blur(10px)",
-									transition: "opacity 0.5s",
-									opacity: 1,
-									position: "absolute",
-									top: 0,
-									left: 0,
-									width: "100%",
-									height: "100%",
-									objectFit: "cover",
-								}}
-							/>
-						)}
-						<img
-							src={url}
-							alt={alt}
-							className="tile-media"
-							loading="lazy"
-							decoding="async"
-							fetchpriority="low"
-							onLoad={handleImageLoad}
-							style={{
-								position: "absolute",
-								top: 0,
-								left: 0,
-								width: "100%",
-								height: "100%",
-								objectFit: "cover",
-								transition: "opacity 0.5s",
-								opacity: loaded ? 1 : 0,
-							}}
-						/>
-					</>
+					<img
+						src={url}
+						alt={alt}
+						className="tile-media"
+						loading={priority ? "eager" : "lazy"}
+						decoding="async"
+						fetchpriority={priority ? "high" : "auto"}
+						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							width: "100%",
+							height: "100%",
+							objectFit: "cover",
+						}}
+					/>
 				)
 			) : (
 				<div className="placeholder" />
@@ -264,12 +237,14 @@ export default function GalleryPage() {
 								let gridDisplayUrl = fullResUrl;
 								let lqipUrl = undefined;
 
-								if (!isVid) {
-									// כאן הכסם: בגריד נטען דרך API של Vercel שמקטין את התמונה
-									// /api/image?url=<downloadURL>&w=1280&q=70
-									const resizedUrl = `/api/image?url=${encodeURIComponent(
-										fullResUrl
-									)}&w=1280&q=70`;
+							if (!isVid) {
+									// בפרודקשן (Vercel) נשתמש ב-/api/image שמקטין את התמונה
+									// בדב (localhost) נשתמש ישירות ב-URL המקורי
+									const isProduction = window.location.hostname !== "localhost" &&
+										!window.location.hostname.startsWith("127.");
+									const resizedUrl = isProduction
+										? `/api/image?url=${encodeURIComponent(fullResUrl)}&w=1280&q=70`
+										: fullResUrl;
 
 									gridDisplayUrl = resizedUrl;
 									lqipUrl = resizedUrl;
@@ -525,7 +500,7 @@ export default function GalleryPage() {
 								<div className="placeholder" />
 							</div>
 						))
-					: patternedPageItems.map((m) => (
+				: patternedPageItems.map((m, idx) => (
 							<LazyMedia
 								key={m.fullPath}
 								url={m.gridUrl} // ⬅️ כאן כבר /api/image -> תמונה מוקטנת
@@ -533,6 +508,7 @@ export default function GalleryPage() {
 								isVideo={m.isVideo}
 								variant={m.variant}
 								lqipUrl={m.lqipUrl}
+								priority={idx < 3} // 3 הפריטים הראשונים נטענים מיד (above the fold)
 								onClick={() => openModal(m)}
 							/>
 						))}

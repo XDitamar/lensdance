@@ -19,10 +19,16 @@ export default async function handler(req, res) {
     const width = parseInt(w, 10) || 1280;  // למשל 1280px
     const quality = parseInt(q, 10) || 70;  // איכות 70%
 
+    // מטמון חזק – שנה קדימה (לפני הפעולה, כדי שהדפדפן ידע מיד)
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Content-Type", "image/jpeg");
+
     // מורידים את התמונה המקורית (4K) מה-Download URL של Firebase
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: { "Accept": "image/*" },
+    });
     if (!response.ok) {
-      console.error("Failed to fetch original image:", response.status, await response.text());
+      console.error("Failed to fetch original image:", response.status);
       res.status(502).json({ error: "Failed to fetch original image" });
       return;
     }
@@ -31,22 +37,19 @@ export default async function handler(req, res) {
     const buffer = Buffer.from(arrayBuffer);
 
     // משתמשים ב-sharp כדי להקטין ולשמור איכות סבירה
-    let pipeline = sharp(buffer).resize({
-      width,
-      withoutEnlargement: true, // לא להגדיל תמונות קטנות
-    });
+    const outputBuffer = await sharp(buffer)
+      .resize({
+        width,
+        withoutEnlargement: true, // לא להגדיל תמונות קטנות
+        fastShrinkOnLoad: true,   // מהיר יותר בהקטנה
+      })
+      .jpeg({
+        quality,
+        mozjpeg: true,
+        progressive: true,        // JPEG פרוגרסיבי – נראה מהר יותר בדפדפן
+      })
+      .toBuffer();
 
-    // נזרוק את זה החוצה כ-JPEG (בדרך כלל הכי חסכוני)
-    pipeline = pipeline.jpeg({
-      quality,
-      mozjpeg: true,
-    });
-
-    const outputBuffer = await pipeline.toBuffer();
-
-    res.setHeader("Content-Type", "image/jpeg");
-    // מטמון חזק – שנה קדימה
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.status(200).send(outputBuffer);
   } catch (err) {
     console.error("Error in /api/image:", err);
