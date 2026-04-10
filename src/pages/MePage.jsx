@@ -154,18 +154,37 @@ const MediaTile = React.memo(({ url, alt, isVideo, onClick, variant = "half", id
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
-      style={{ position: "relative", overflow: "hidden" }}
+      style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
     >
       {isVideo ? (
-        <video
-          src={url}
-          className="tile-media"
-          playsInline
-          muted
-          preload="metadata"
-          data-prime="1"
-          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        /* סרטון בגריד: רק placeholder + אייקון play – לא טוענים את הסרטון */
+        <>
+          <div style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            background: "#1a1a1a",
+          }} />
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 64, height: 64, borderRadius: "50%",
+            background: "rgba(255,255,255,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
+            pointerEvents: "none",
+          }}>
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="#333">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+          <div style={{
+            position: "absolute", bottom: 8, left: 0, right: 0,
+            textAlign: "center", color: "#fff", fontSize: "0.75rem",
+            textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+            pointerEvents: "none",
+          }}>
+            ▶ לחץ לצפייה
+          </div>
+        </>
       ) : (
         <img
           src={url}
@@ -176,10 +195,8 @@ const MediaTile = React.memo(({ url, alt, isVideo, onClick, variant = "half", id
           fetchpriority={idx < 3 ? "high" : "auto"}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
+            top: 0, left: 0,
+            width: "100%", height: "100%",
             objectFit: "cover",
           }}
         />
