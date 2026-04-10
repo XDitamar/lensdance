@@ -1,9 +1,7 @@
 // api/image.js
 // פונקציית Serverless של Vercel שעושה:
 // מקבלת ?url=<downloadURL>&w=<width>&q=<quality>
-// מורידה את התמונה, מצמצמת עם sharp, ומחזירה למשתמש.
-
-// אין צורך ב-import ל-fetch – ב-Node 18+ הוא גלובלי.
+// מורידה את התמונה, מצמצמת עם sharp, ומחזירה WebP קטן ומהיר.
 
 import sharp from "sharp";
 
@@ -16,14 +14,15 @@ export default async function handler(req, res) {
       return;
     }
 
-    const width = parseInt(w, 10) || 1280;  // למשל 1280px
-    const quality = parseInt(q, 10) || 70;  // איכות 70%
+    const width = parseInt(w, 10) || 900;   // 900px מספיק לגריד
+    const quality = parseInt(q, 10) || 75;  // איכות 75% WebP
 
-    // מטמון חזק – שנה קדימה (לפני הפעולה, כדי שהדפדפן ידע מיד)
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("Content-Type", "image/jpeg");
+    // CDN cache חזק – שבוע ב-Vercel Edge + stale-while-revalidate
+    res.setHeader("Cache-Control", "public, s-maxage=604800, stale-while-revalidate=86400, max-age=86400");
+    res.setHeader("Content-Type", "image/webp");
+    res.setHeader("Vary", "Accept");
 
-    // מורידים את התמונה המקורית (4K) מה-Download URL של Firebase
+    // מורידים את התמונה המקורית מ-Firebase
     const response = await fetch(url, {
       headers: { "Accept": "image/*" },
     });
@@ -36,17 +35,17 @@ export default async function handler(req, res) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // משתמשים ב-sharp כדי להקטין ולשמור איכות סבירה
+    // WebP – קטן ב-30% מ-JPEG, נטען מהר יותר
     const outputBuffer = await sharp(buffer)
       .resize({
         width,
-        withoutEnlargement: true, // לא להגדיל תמונות קטנות
-        fastShrinkOnLoad: true,   // מהיר יותר בהקטנה
+        withoutEnlargement: true,
+        fastShrinkOnLoad: true,
       })
-      .jpeg({
+      .webp({
         quality,
-        mozjpeg: true,
-        progressive: true,        // JPEG פרוגרסיבי – נראה מהר יותר בדפדפן
+        effort: 2,        // מהיר יותר (0=מהיר, 6=איטי)
+        smartSubsample: true,
       })
       .toBuffer();
 

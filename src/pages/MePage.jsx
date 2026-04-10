@@ -144,37 +144,11 @@ const isVideoUrl = (url = "") => isVideoExt(extFromUrl(url));
 
 
 /* ---------------------------------------------
- * LazyMedia
+ * MediaTile – כל תמונות הדף נטענות מיד
  * ---------------------------------------------- */
-const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", priority }) => {
-  // priority=true → נטען מיד (above the fold), אחרת IntersectionObserver
-  const [inView, setInView] = useState(!!priority);
-  const mediaRef = useRef(null);
-  const videoRef = useRef(null);
-
-  useEffect(() => {
-    if (priority) return; // כבר inView=true
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true);
-          observer.disconnect();
-          if (videoRef.current && isLikelyIOS()) {
-            try {
-              videoRef.current.load();
-            } catch {}
-          }
-        }
-      },
-      { root: null, rootMargin: "400px", threshold: 0 }
-    );
-    if (mediaRef.current) observer.observe(mediaRef.current);
-    return () => observer.disconnect();
-  }, [priority]);
-
+const MediaTile = React.memo(({ url, alt, isVideo, onClick, variant = "half", idx }) => {
   return (
     <div
-      ref={mediaRef}
       className={`tile ${variant}`}
       onClick={onClick}
       role="button"
@@ -182,37 +156,33 @@ const LazyMedia = React.memo(({ url, alt, isVideo, onClick, variant = "half", pr
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
       style={{ position: "relative", overflow: "hidden" }}
     >
-      {inView ? (
-        isVideo ? (
-          <video
-            ref={videoRef}
-            src={url}
-            className="tile-media"
-            playsInline
-            muted
-            preload={isLikelyIOS() ? "auto" : "metadata"}
-            data-prime="1"
-          />
-        ) : (
-          <img
-            src={url}
-            alt={alt}
-            className="tile-media"
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
-            fetchpriority={priority ? "high" : "auto"}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        )
+      {isVideo ? (
+        <video
+          src={url}
+          className="tile-media"
+          playsInline
+          muted
+          preload="metadata"
+          data-prime="1"
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        />
       ) : (
-        <div className="placeholder" />
+        <img
+          src={url}
+          alt={alt}
+          className="tile-media"
+          loading="eager"
+          decoding="async"
+          fetchpriority={idx < 3 ? "high" : "auto"}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
       )}
     </div>
   );
@@ -472,14 +442,13 @@ export default function MePage() {
       <div className="gallery-grid collage">
         {pageItems.length > 0 ? (
           pageItems.map((m, idx) => (
-            <LazyMedia
+            <MediaTile
               key={m.id}
-              url={m.gridUrl || m.url}            // גריד = resized
+              url={m.gridUrl || m.url}
               alt={m.name}
               isVideo={m.isVideo ?? isVideoUrl(m.url)}
               variant={m.variant || "half"}
-              lqipUrl={m.lqipUrl}
-              priority={idx < 3} // 3 הפריטים הראשונים נטענים מיד (above the fold)
+              idx={idx}
               onClick={() => openModal(m)}
             />
           ))

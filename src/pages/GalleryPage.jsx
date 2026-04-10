@@ -82,43 +82,19 @@ const applyPattern = (items) => {
 	return out;
 };
 
-/* ---------- Lazy tile (loads only when in view) ---------- */
-const LazyMedia = React.memo(function LazyMedia({
+/* ---------- Media tile – כל תמונות הדף נטענות מיד ---------- */
+const MediaTile = React.memo(function MediaTile({
 	url,
 	alt,
 	isVideo,
 	variant,
 	onClick,
-	priority,   // true = above-the-fold, load immediately
+	idx,
 }) {
-	// אם priority=true נטען מיד, אחרת נחכה ל-IntersectionObserver
-	const [inView, setInView] = useState(!!priority);
-	const mediaRef = useRef(null);
 	const videoRef = useRef(null);
-
-	useEffect(() => {
-		if (priority) return; // כבר inView=true, אין צורך ב-observer
-		const obs = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting) {
-					setInView(true);
-					obs.disconnect();
-					if (videoRef.current && isLikelyIOS()) {
-						try {
-							videoRef.current.load();
-						} catch {}
-					}
-				}
-			},
-			{ rootMargin: "400px" }
-		);
-		if (mediaRef.current) obs.observe(mediaRef.current);
-		return () => obs.disconnect();
-	}, [priority]);
 
 	return (
 		<div
-			ref={mediaRef}
 			className={`tile ${variant}`}
 			onClick={onClick}
 			role="button"
@@ -128,38 +104,35 @@ const LazyMedia = React.memo(function LazyMedia({
 			}
 			style={{ position: "relative", overflow: "hidden" }}
 		>
-			{inView ? (
-				isVideo ? (
-					<video
-						ref={videoRef}
-						className="tile-media"
-						src={url}
-						preload={isLikelyIOS() ? "auto" : "metadata"}
-						playsInline
-						muted
-						controls={false}
-						data-prime="1"
-					/>
-				) : (
-					<img
-						src={url}
-						alt={alt}
-						className="tile-media"
-						loading={priority ? "eager" : "lazy"}
-						decoding="async"
-						fetchpriority={priority ? "high" : "auto"}
-						style={{
-							position: "absolute",
-							top: 0,
-							left: 0,
-							width: "100%",
-							height: "100%",
-							objectFit: "cover",
-						}}
-					/>
-				)
+			{isVideo ? (
+				<video
+					ref={videoRef}
+					className="tile-media"
+					src={url}
+					preload="metadata"
+					playsInline
+					muted
+					controls={false}
+					data-prime="1"
+					style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+				/>
 			) : (
-				<div className="placeholder" />
+				<img
+					src={url}
+					alt={alt}
+					className="tile-media"
+					loading="eager"
+					decoding="async"
+					fetchpriority={idx < 3 ? "high" : "auto"}
+					style={{
+						position: "absolute",
+						top: 0,
+						left: 0,
+						width: "100%",
+						height: "100%",
+						objectFit: "cover",
+					}}
+				/>
 			)}
 		</div>
 	);
@@ -500,15 +473,14 @@ export default function GalleryPage() {
 								<div className="placeholder" />
 							</div>
 						))
-				: patternedPageItems.map((m, idx) => (
-							<LazyMedia
+			: patternedPageItems.map((m, idx) => (
+							<MediaTile
 								key={m.fullPath}
-								url={m.gridUrl} // ⬅️ כאן כבר /api/image -> תמונה מוקטנת
+								url={m.gridUrl}
 								alt={m.name}
 								isVideo={m.isVideo}
 								variant={m.variant}
-								lqipUrl={m.lqipUrl}
-								priority={idx < 3} // 3 הפריטים הראשונים נטענים מיד (above the fold)
+								idx={idx}
 								onClick={() => openModal(m)}
 							/>
 						))}

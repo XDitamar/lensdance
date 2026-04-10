@@ -7,7 +7,15 @@ import { AuthProvider } from "./context/AuthContext";
 import "./i18n";
 import "./style.css";
 
-// ❌ הסרנו את קוד ה-service worker כאן
+// ✅ Service Worker – Image Cache
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => console.log("[SW] Registered:", reg.scope))
+      .catch((err) => console.warn("[SW] Registration failed:", err));
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>

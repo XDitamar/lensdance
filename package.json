@@ -40,7 +40,8 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev:server": "nodemon --watch server --ext js,mjs,cjs --exec node server/index.js",
-    "dev": "concurrently \"npm run dev:server\" \"react-scripts start\""
+    "dev": "concurrently \"npm run dev:server\" \"react-scripts start\"",
+    "vercel-dev": "vercel dev"
   },
   "eslintConfig": {
     "extends": [
