@@ -53,32 +53,58 @@ function downloadableMetadata(filename, mime) {
 /* ---------------------------------------------------------------- */
 
 export default function AdminPage() {
-  const [userFolders, setUserFolders] = useState([]);
+  const [allFolders, setAllFolders] = useState([]); // שומר את כל התיקיות מהשרת
+  const [userFolders, setUserFolders] = useState([]); // התיקיות שמוצגות בפועל (אחרי סינון)
   const [currentFolder, setCurrentFolder] = useState(null);
   const [mediaItems, setMediaItems] = useState([]);
-
   const [files, setFiles] = useState([]);
   const [progress, setProgress] = useState({});
   const [uploadErrors, setUploadErrors] = useState({});
-
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const inputRef = useRef(null);
 
   const user = auth.currentUser;
   const isAdmin = !!user && user.email === ADMIN_EMAIL;
 
-  // --- Fetch User Folders from Storage ---
+  // --- Fetch User Folders from Storage (With Debug Logs) ---
   const fetchUserFolders = async () => {
     try {
       setError("");
+      setBusy(true);
+      console.log("Starting to fetch folders from root...");
+
       const listRef = ref(storage, "/");
       const res = await listAll(listRef);
+
+      console.log("Raw Response from Firebase:", res);
+      console.log("Prefixes (Folders) found:", res.prefixes.length);
+      console.log("Items (Files) found at root:", res.items.length);
+
+      // חילוץ שמות התיקיות (Prefixes)
       const folders = res.prefixes.map((folderRef) => folderRef.name);
-      setUserFolders(folders);
+      
+      // חילוץ קבצים שאולי נמצאים בשורש בטעות במקום בתוך תיקייה
+      const filesAtRootAsFolders = res.items.map(item => item.name);
+      
+      // איחוד כדי לראות את כל מה שקיים בשורש (ללא כפילויות)
+      const allDetectedUsers = Array.from(new Set([...folders, ...filesAtRootAsFolders]));
+
+      console.log("Final processed folder list:", allDetectedUsers);
+
+      setAllFolders(allDetectedUsers);
+      setUserFolders(allDetectedUsers);
+
+      if (allDetectedUsers.length === 0) {
+        console.warn("No folders or files found at root.");
+      }
+
     } catch (e) {
-      console.error(e);
-      setError("Failed to load user folders.");
+      console.error("Error fetching folders:", e);
+      setError("Failed to load user folders. Check console for details.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -91,7 +117,6 @@ export default function AdminPage() {
       const res = await listAll(folderRef);
 
       const mediaPromises = res.items.map(async (itemRef) => {
-        // לא טוענים לפה את ה-placeholder בכלל
         if (itemRef.name === ".placeholder") return null;
 
         const url = await getDownloadURL(itemRef);
@@ -118,6 +143,18 @@ export default function AdminPage() {
       fetchUserFolders();
     }
   }, [isAdmin]);
+
+  // --- Live Search Effect ---
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setUserFolders(allFolders);
+    } else {
+      const filtered = allFolders.filter((folder) =>
+        folder.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setUserFolders(filtered);
+    }
+  }, [searchTerm, allFolders]);
 
   // --- Multi-file upload ---
   const onPickFiles = (e) => {
@@ -242,7 +279,6 @@ export default function AdminPage() {
       setBusy(true);
       setError("");
 
-      // מדלגים על כל קובץ ששמו .placeholder (ליתר ביטחון, למרות שהוא לא ב-mediaItems)
       const itemsToDelete = mediaItems.filter((it) => it.name !== ".placeholder");
 
       for (const item of itemsToDelete) {
@@ -289,204 +325,116 @@ export default function AdminPage() {
   return (
     <main className="container">
       <h2 className="section-title">Admin Panel</h2>
+      
+      {/* Search Bar */}
+      <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+        <input
+          type="text"
+          placeholder="חיפוש משתמשים..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{
+            padding: "10px",
+            borderRadius: "5px",
+            border: "1px solid #ccc",
+            flex: 1
+          }}
+        />
+        {searchTerm && (
+          <button 
+            className="filter-button" 
+            onClick={() => setSearchTerm("")}
+            style={{ margin: 0 }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
       {/* Folder Selection */}
       {!currentFolder ? (
         <div>
           <h3 style={{ marginBottom: "15px" }}>Select a User Gallery:</h3>
-          <div className="gallery-grid">
-            {userFolders.map((folder) => (
-              <button
-                key={folder}
-                className="filter-button"
-                onClick={() => {
-                  setCurrentFolder(folder);
-                  fetchMediaInFolder(folder);
-                }}
-              >
-                {folder}
-              </button>
-            ))}
-          </div>
+          {busy ? (
+             <p>Loading users...</p>
+          ) : (
+            <div className="gallery-grid">
+              {userFolders.map((folder) => (
+                <button
+                  key={folder}
+                  className="filter-button"
+                  onClick={() => {
+                    setCurrentFolder(folder);
+                    fetchMediaInFolder(folder);
+                  }}
+                >
+                  {folder}
+                </button>
+              ))}
+            </div>
+          )}
           {userFolders.length === 0 && !busy && !error && (
             <p>No user galleries found.</p>
           )}
           {error && <div className="auth-error">{error}</div>}
         </div>
       ) : (
-        <div>
-          <h3 style={{ marginBottom: "10px" }}>
-            Viewing: <span style={{ color: "var(--brown-600)" }}>{currentFolder}</span>
-          </h3>
-          <button
-            className="filter-button"
-            onClick={() => {
-              setCurrentFolder(null);
-              setMediaItems([]);
-              fetchUserFolders();
-            }}
-          >
-            Back to Folders
-          </button>
-
-          {/* Upload & actions card */}
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #e9e9e9",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 20,
-              marginTop: 20,
-              boxShadow: "0 4px 12px rgba(0,0,0,.06)",
-            }}
-          >
-            <div
-              style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}
-            >
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                onChange={onPickFiles}
-              />
-              <button className="auth-primary" onClick={uploadAll} disabled={!files.length || busy}>
-                {busy
-                  ? "Uploading..."
-                  : files.length
-                  ? `Upload ${files.length} file${files.length > 1 ? "s" : ""}`
-                  : "Upload"}
-              </button>
-              {!!files.length && (
-                <button
-                  className="filter-button"
-                  onClick={() => {
-                    setFiles([]);
-                    setProgress({});
-                    setUploadErrors({});
-                    if (inputRef.current) inputRef.current.value = "";
-                  }}
-                  disabled={busy}
-                >
-                  Clear selection
-                </button>
-              )}
-
-              {mediaItems.length > 0 && (
-                <>
-                  <button
-                    className="filter-button"
-                    onClick={forceAttachmentForExisting}
-                    disabled={busy}
-                    title="Update existing files so browsers will download them instead of previewing"
-                  >
-                    Fix existing files (force download)
-                  </button>
-
-                  {/* Delete all media in this folder (בלי placeholder) */}
-                  <button
-                    className="filter-button"
-                    onClick={deleteAllInCurrentFolder}
-                    disabled={busy}
-                    style={{ backgroundColor: "#b31010", color: "#fff" }}
-                    title="Delete all media files in this gallery (folder + placeholder stay)"
-                  >
-                    Delete all
-                  </button>
-                </>
-              )}
-            </div>
-
-            {!!files.length && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: ".95rem", color: "#555", marginBottom: 8 }}>
-                  Selected: <strong>{files.length}</strong> file
-                  {files.length > 1 ? "s" : ""}
-                </div>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {files.map((f) => (
-                    <li
-                      key={f.name + f.lastModified}
-                      style={{ padding: "6px 0", borderTop: "1px solid #eee" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <span style={{ fontSize: ".9rem" }}>
-                          <strong>{f.name}</strong> ({Math.round(f.size / 1024)} KB)
-                        </span>
-                        {typeof progress[f.name] === "number" && (
-                          <div
-                            role="progressbar"
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={progress[f.name]}
-                            style={{
-                              flex: 1,
-                              height: 8,
-                              background: "#f1f1f1",
-                              borderRadius: 999,
-                              overflow: "hidden",
-                              minWidth: 120,
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: `${progress[f.name]}%`,
-                                height: "100%",
-                                background: "var(--brown-600)",
-                              }}
-                            />
-                          </div>
-                        )}
-                        {uploadErrors[f.name] && (
-                          <span className="auth-error" style={{ marginLeft: 8 }}>
-                            {uploadErrors[f.name]}
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {error && (
-                  <div className="auth-error" style={{ marginTop: 10 }}>
-                    {error}
-                  </div>
-                )}
-              </div>
-            )}
+        <section>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0 }}>User: {currentFolder}</h3>
+            <button className="filter-button" onClick={() => setCurrentFolder(null)}>
+              Back to users
+            </button>
           </div>
 
-          {/* Gallery */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <input ref={inputRef} type="file" multiple onChange={onPickFiles} />
+            <button className="filter-button" onClick={uploadAll} disabled={busy || !files.length}>
+              Upload
+            </button>
+            <button className="filter-button" onClick={forceAttachmentForExisting} disabled={busy || !mediaItems.length}>
+              Make all downloadable
+            </button>
+            <button className="filter-button" onClick={deleteAllInCurrentFolder} disabled={busy || !mediaItems.length}>
+              Delete all
+            </button>
+          </div>
+
+          {!!files.length && (
+            <ul style={{ marginBottom: "12px" }}>
+              {files.map((f) => (
+                <li key={f.name}>
+                  {f.name} {progress[f.name] != null ? `- ${progress[f.name]}%` : ""}
+                  {uploadErrors[f.name] ? ` (Error: ${uploadErrors[f.name]})` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {busy && <p>Loading media...</p>}
+
           <div className="gallery-grid">
-            {mediaItems.map((m) => (
-              <div key={m.id} className="gallery-item">
-                {/(mp4|mov|avi|mkv)$/i.test(m.type || "") ? (
-                  <video controls src={m.url} className="gallery-item-media" />
+            {mediaItems.map((item) => (
+              <div key={item.id} className="gallery-item">
+                {/[.]?(jpg|jpeg|png|gif|webp)$/i.test(item.name) ? (
+                  <img src={item.url} alt={item.name} style={{ width: "100%", borderRadius: "8px" }} />
                 ) : (
-                  <img src={m.url} alt="admin media" className="gallery-item-media" />
+                  <video src={item.url} controls style={{ width: "100%", borderRadius: "8px" }} />
                 )}
-                <button
-                  className="auth-primary"
-                  style={{ marginTop: 10 }}
-                  onClick={() => del(m.id)}
-                  disabled={busy}
-                >
-                  {busy ? "Working..." : "Delete"}
-                </button>
+                <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                  <a className="filter-button" href={item.url} target="_blank" rel="noreferrer">
+                    Open
+                  </a>
+                  <button className="filter-button" onClick={() => del(item.id)}>
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-          {mediaItems.length === 0 && (
-            <p style={{ marginTop: 20, color: "#666" }}>No media in this gallery.</p>
-          )}
-        </div>
+
+          {!mediaItems.length && !busy && <p>No media in this folder.</p>}
+        </section>
       )}
     </main>
   );

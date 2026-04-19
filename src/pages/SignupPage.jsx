@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import { auth, storage } from "../firebase";
+import { db } from "../firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
@@ -35,6 +37,11 @@ export default function SignupPage() {
 
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, pw);
+
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        createdAt: new Date(),
+      });
 
       if (name) {
         await updateProfile(user, { displayName: name });

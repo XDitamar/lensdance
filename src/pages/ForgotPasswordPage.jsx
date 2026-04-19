@@ -1,63 +1,87 @@
-// src/pages/ForgotPasswordPage.jsx
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
+import { auth } from '../firebase'; 
 
-// ✅ No env vars. Use your absolute Cloud Function URL:
-const SEND_RESET_URL = "https://us-central1-<YOUR-PROJECT-ID>.cloudfunctions.net/sendResetEmail";
-
-export default function ForgotPasswordPage() {
-  const [step, setStep] = useState(1);
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [pw, setPw] = useState("");
-  const [pw2, setPw2] = useState("");
+export default function SmsAuthComponent() {
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [countryCode, setCountryCode] = useState('+972');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [step, setStep] = useState(1);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  
   const navigate = useNavigate();
 
-  const sendCode = async (e) => {
+  // מנגנון האבטחה - עכשיו עם פונקציית ניקיון מיוחדת שמונעת קריסות!
+  useEffect(() => {
+    // 1. קודם כל, מנקים שאריות של מנגנונים ישנים כדי למנוע את שגיאת ה-removed
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
+    }
+
+    // 2. יוצרים מנגנון חדש ונקי
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {},
+      'expired-callback': () => {}
+    });
+
+    // 3. כשהקומפוננטה נסגרת או מתרעננת (Hot Reload), ננקה את המנגנון שוב
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    };
+  }, []);
+
+  const sendVerificationCode = async (e) => {
     e.preventDefault();
-    setErr(""); setMsg(""); setLoading(true);
+    setLoading(true);
+    setErr('');
+    setMsg('');
+    
+    const appVerifier = window.recaptchaVerifier;
+
+    // מנקים את המספר מרווחים, מקפים וכל טקסט אחר
+    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+    // מחברים לקידומת ומורידים את ה-0 בהתחלה אם יש
+    const formattedPhoneNumber = countryCode + cleanPhone.replace(/^0/, '');
+
     try {
-      const res = await fetch(SEND_RESET_URL, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ email: email.trim() })
-      });
-      const ct = (res.headers.get("content-type") || "").toLowerCase();
-      const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
-      if (!res.ok) throw new Error(data.error || "שליחת האימייל נכשלה");
-      setMsg("אם קיים חשבון עבור כתובת זו, שלחנו אליך קישור לאיפוס סיסמה.");
+      const result = await signInWithPhoneNumber(auth, formattedPhoneNumber, appVerifier);
+      setConfirmationResult(result);
       setStep(2);
-    } catch (e) {
-      setErr(e.message);
+      setMsg('שלחנו לך קוד אימות ב-SMS.');
+    } catch (error) {
+      console.error(error);
+      setErr('מספר טלפון לא תקין או שחלה שגיאה בשליחה.');
     } finally {
       setLoading(false);
     }
   };
 
-  const confirm = async (e) => {
+  const verifyCode = async (e) => {
     e.preventDefault();
-    setErr(""); setMsg(""); setLoading(true);
-    if (pw !== pw2) {
-      setErr("הסיסמאות אינן תואמות.");
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setErr('');
+    setMsg('');
+
     try {
-      const res = await fetch(`${SEND_RESET_URL.replace("sendResetEmail","confirmRecoveryCode")}`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ email: email.trim(), code: code.trim(), newPassword: pw })
-      });
-      const ct = (res.headers.get("content-type") || "").toLowerCase();
-      const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
-      if (!res.ok) throw new Error(data.error || "נכשל איפוס הסיסמה");
-      setMsg("הסיסמה שונתה. כעת ניתן להתחבר.");
-      setTimeout(() => navigate("/login", { replace: true, state: { email } }), 600);
-    } catch (e) {
-      setErr(e.message);
+      await confirmationResult.confirm(verificationCode);
+      setMsg('התחברת בהצלחה! מעביר אותך...');
+      
+      setTimeout(() => {
+        navigate('/'); 
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setErr('קוד אימות שגוי, אנא נסה שוב.');
     } finally {
       setLoading(false);
     }
@@ -67,28 +91,49 @@ export default function ForgotPasswordPage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">אפס את הסיסמה שלך</p>
-          <h1 className="auth-title">שכחת סיסמה</h1>
+          <p className="auth-subtitle">כניסה מהירה ובטוחה</p>
+          <h1 className="auth-title">התחברות עם SMS</h1>
         </div>
 
+        <div id="recaptcha-container"></div>
+
         {step === 1 && (
-          <form onSubmit={sendCode} className="auth-form">
-            <label className="auth-label">
-              אימייל חשבון
+          <form onSubmit={sendVerificationCode} className="auth-form">
+            <label className="auth-label" style={{ display: 'block', marginBottom: '8px' }}>
+              מספר טלפון
+            </label>
+            
+            <div style={{ display: 'flex', gap: '10px', direction: 'ltr', marginBottom: '15px' }}>
+              <select 
+                className="auth-input" 
+                value={countryCode} 
+                onChange={(e) => setCountryCode(e.target.value)}
+                style={{ width: '120px', padding: '10px', cursor: 'pointer' }}
+              >
+                <option value="+972">IL (+972)</option>
+                <option value="+1">US (+1)</option>
+                <option value="+44">UK (+44)</option>
+              </select>
+              
               <input
                 className="auth-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="tel"
+                placeholder="0501234567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
                 required
                 autoFocus
+                style={{ flex: 1, padding: '10px' }} 
               />
-            </label>
+            </div>
+            
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
+            
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "שולח…" : "שלח קישור לאיפוס"}
+              {loading ? "שולח..." : "שלח קוד אימות"}
             </button>
+            
             <p className="auth-switch" style={{ marginTop: 12 }}>
               <Link to="/login" className="auth-link">חזרה להתחברות</Link>
             </p>
@@ -96,52 +141,36 @@ export default function ForgotPasswordPage() {
         )}
 
         {step === 2 && (
-          <form onSubmit={confirm} className="auth-form">
+          <form onSubmit={verifyCode} className="auth-form">
             <label className="auth-label">
-              קוד אימות
+              קוד אימות (6 ספרות)
               <input
                 className="auth-input"
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="קוד בן 6 ספרות"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
+                placeholder="הכנס את הקוד"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
                 required
+                autoFocus
               />
             </label>
-            <label className="auth-label">
-              סיסמה חדשה
-              <input
-                className="auth-input"
-                type="password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                required
-              />
-            </label>
-            <label className="auth-label">
-              אשר סיסמה חדשה
-              <input
-                className="auth-input"
-                type="password"
-                value={pw2}
-                onChange={(e) => setPw2(e.target.value)}
-                required
-              />
-            </label>
+            
             {err && <div className="auth-error">{err}</div>}
             {msg && <div className="auth-success">{msg}</div>}
+            
             <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "מעדכן…" : "שנה סיסמה"}
+              {loading ? "מאמת..." : "אמת והיכנס"}
             </button>
+            
             <p className="auth-switch" style={{ marginTop: 12 }}>
               <button
                 type="button"
                 className="auth-link"
                 onClick={() => { setStep(1); setErr(""); setMsg(""); }}
               >
-                שלח קישור מחדש
+                שנה מספר טלפון
               </button>
               {" · "}
               <Link to="/login" className="auth-link">חזרה להתחברות</Link>
