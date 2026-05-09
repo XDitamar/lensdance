@@ -1,7 +1,7 @@
 // src/App.js
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Header from "./components/Header";
+// import Header from "./components/Header";
 
 // 🆕 (these were already in your file)
 // import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
