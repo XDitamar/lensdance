@@ -1,33 +1,13 @@
-import { initializeApp, cert } from "firebase-admin/app";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const adminEmail = (process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com").toLowerCase();
+const ADMIN_EMAIL = "lensdance29@gmail.com";
 
-const app =
-  global._firebaseAdminApp ||
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
-
-global._firebaseAdminApp = app;
-
-async function getAllAuthUsers() {
-  const auth = getAuth(app);
-  const users = [];
-  let nextPageToken;
-
-  do {
-    const result = await auth.listUsers(1000, nextPageToken);
-    users.push(...result.users);
-    nextPageToken = result.pageToken;
-  } while (nextPageToken);
-
-  return users;
+function getAdminApp() {
+  if (getApps().length > 0) return getApps()[0];
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  return initializeApp({ credential: cert(serviceAccount) });
 }
 
 export default async function handler(req, res) {
@@ -35,52 +15,58 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  try {
-    const callerEmail = String(req.headers["x-admin-email"] || "").toLowerCase();
-    if (!callerEmail || callerEmail !== adminEmail) {
-      return res.status(403).json({ ok: false, error: "Forbidden" });
-    }
+  const callerEmail = String(req.headers["x-admin-email"] || "").toLowerCase();
+  if (callerEmail !== ADMIN_EMAIL) {
+    return res.status(403).json({ ok: false, error: "Forbidden" });
+  }
 
+  try {
+    const app = getAdminApp();
+    const auth = getAuth(app);
     const db = getFirestore(app);
-    const authUsers = await getAllAuthUsers();
+
+    // List all Auth users with pagination
+    const allUsers = [];
+    let pageToken;
+    do {
+      const result = await auth.listUsers(1000, pageToken);
+      allUsers.push(...result.users);
+      pageToken = result.pageToken;
+    } while (pageToken);
 
     let created = 0;
     let existing = 0;
-    let skippedWithoutEmail = 0;
 
-    for (const user of authUsers) {
-      if (!user.email) {
-        skippedWithoutEmail += 1;
+    for (const user of allUsers) {
+      if (!user.email) continue;
+
+      const ref = db.collection("users").doc(user.uid);
+      const snap = await ref.get();
+
+      if (snap.exists) {
+        existing++;
         continue;
       }
 
-      const userRef = db.collection("users").doc(user.uid);
-      const existingDoc = await userRef.get();
-
-      if (existingDoc.exists) {
-        existing += 1;
-        continue;
-      }
-
-      await userRef.set({
+      await ref.set({
         uid: user.uid,
-        email: String(user.email).toLowerCase(),
+        email: user.email.toLowerCase(),
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
         createdAt: FieldValue.serverTimestamp(),
-        syncedFromAuthAt: FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
 
-      created += 1;
+      created++;
     }
 
     return res.status(200).json({
       ok: true,
-      totalAuthUsers: authUsers.length,
+      totalAuthUsers: allUsers.length,
       created,
       existing,
-      skippedWithoutEmail,
     });
-  } catch (error) {
-    console.error("Error in /api/admin-sync-auth-users:", error);
-    return res.status(500).json({ ok: false, error: error.message || "Internal server error" });
+  } catch (e) {
+    console.error("admin-sync-auth-users error:", e);
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }

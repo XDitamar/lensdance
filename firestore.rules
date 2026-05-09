@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- users (Admin sync) ----
+    match /users/{userId} {
+      allow read: if request.auth != null 
+        && request.auth.token.email == "lensdance29@gmail.com";
+      allow read, write: if request.auth != null 
+        && request.auth.uid == userId;
+    }
+
+    // ---- agreements ----
+    match /agreements/{docId} {
+      allow create, read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // ---- mediaGallery ----
+    match /mediaGallery/{docId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // ברירת מחדל – הכל חסום
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
