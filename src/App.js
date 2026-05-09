@@ -1,6 +1,6 @@
 // src/App.js
-import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 
 // 🆕 (these were already in your file)
@@ -10,7 +10,6 @@ import FloatingWhatsApp from "./components/FloatingWhatsApp";
 import AccessibilityWidget from "./components/AccessibilityWidget";
 
 // Pages
-// import MaintenancePage from "./pages/MaintenancePage"; // Import the maintenance page
 import HomePage from "./pages/HomePage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
@@ -26,25 +25,16 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 export default function App() {
-  const location = useLocation();
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  
-  // Check if we're in maintenance mode (at root path with MaintenancePage)
-  useEffect(() => {
-    setIsMaintenanceMode(location.pathname === '/');
-  }, [location.pathname]);
-
   return (
     <>
-      {!isMaintenanceMode && <Header />}
-      {!isMaintenanceMode && <GoogleTranslateLoader />}
-      {!isMaintenanceMode && <FloatingTranslateButton />}
-      {!isMaintenanceMode && <FloatingWhatsApp />}
-      {!isMaintenanceMode && <AccessibilityWidget />}
+      <Header />
+      <GoogleTranslateLoader />
+      <FloatingTranslateButton />
+      <FloatingWhatsApp />
+      <AccessibilityWidget />
 
       <Routes>
         {/* Public routes */}
-        {/* <Route path="/" element={<MaintenancePage />} /> Show maintenance page at root */}
         <Route path="/" element={<HomePage />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/contact" element={<ContactPage />} />
