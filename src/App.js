@@ -10,8 +10,8 @@ import FloatingWhatsApp from "./components/FloatingWhatsApp";
 import AccessibilityWidget from "./components/AccessibilityWidget";
 
 // Pages
-import MaintenancePage from "./pages/MaintenancePage"; // Import the maintenance page
-// import HomePage from "./pages/HomePage";
+// import MaintenancePage from "./pages/MaintenancePage"; // Import the maintenance page
+import HomePage from "./pages/HomePage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
 import GalleryPage from "./pages/GalleryPage";
@@ -44,8 +44,8 @@ export default function App() {
 
       <Routes>
         {/* Public routes */}
-        <Route path="/" element={<MaintenancePage />} /> {/* Show maintenance page at root */}
-        {/* <Route path="/" element={<HomePage />} /> */}
+        {/* <Route path="/" element={<MaintenancePage />} /> Show maintenance page at root */}
+        <Route path="/" element={<HomePage />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
