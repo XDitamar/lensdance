@@ -1,16 +1,21 @@
 // src/pages/MaintenancePage.jsx
 import React from "react";
-import "./MaintenancePage.css"; // מייבאים את קובץ העיצוב
 
 const MaintenancePage = () => {
   return (
-    <div className="maintenance-container">
-      <img
-        src="/mob.jpeg"
-        alt="האתר בתחזוקה"
-        className="maintenance-image"
-      />
-    </div>
+    <img
+      src="/mob.jpeg"
+      alt="האתר בתחזוקה"
+      style={{
+        display: "block",
+        width: "100vw",
+        height: "100vh",
+        objectFit: "contain",
+        backgroundColor: "#000",
+        margin: 0,
+        padding: 0
+      }}
+    />
   );
 };
 
