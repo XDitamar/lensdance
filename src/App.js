@@ -11,7 +11,7 @@ import AccessibilityWidget from "./components/AccessibilityWidget";
 
 // Pages
 import MaintenancePage from "./pages/MaintenancePage"; // Import the maintenance page
-import HomePage from "./pages/HomePage";
+// import HomePage from "./pages/HomePage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
 import GalleryPage from "./pages/GalleryPage";
