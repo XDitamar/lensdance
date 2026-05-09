@@ -1,8 +1,8 @@
 import React from 'react';
 
 // כאן אנחנו מייבאים את התמונות מהתיקייה המקומית
-import mobileImage from '../images/1.jpeg';
-import desktopImage from '../images/2.jpeg';
+import mobileImage from '../images/mob.jpeg';
+import desktopImage from '../images/comp.jpeg';
 
 const MaintenancePage = () => {
   return (
