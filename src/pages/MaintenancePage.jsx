@@ -1,5 +1,9 @@
 import React from 'react';
 
+// כאן אנחנו מייבאים את התמונות מהתיקייה המקומית
+import mobileImage from '../images/2.jpeg';
+import desktopImage from '../images/2.jpeg';
+
 const MaintenancePage = () => {
   return (
     <div style={{
@@ -14,12 +18,12 @@ const MaintenancePage = () => {
       backgroundColor: '#000'
     }}>
       <picture>
-        {/* תמונה למסכים גדולים (מחשבים) - מרוחב 768 פיקסלים ומעלה */}
-        <source media="(min-width: 768px)" srcSet="/images/2.jpeg" />
+        {/* תמונה למסכים גדולים */}
+        <source media="(min-width: 768px)" srcSet={desktopImage} />
         
-        {/* תמונת ברירת המחדל למסכים קטנים (טלפונים) */}
+        {/* תמונת ברירת המחדל (טלפונים) */}
         <img 
-          src="/images/1.jpeg" 
+          src={mobileImage} 
           alt="האתר בתחזוקה" 
           style={{
             width: '100%',
