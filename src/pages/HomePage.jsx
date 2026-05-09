@@ -4,7 +4,7 @@ import React from "react";
 const MaintenancePage = () => {
   return (
     <img
-      src="/mob.jpeg"
+      src="/mob.jpg"
       alt="האתר בתחזוקה"
       style={{
         display: "block",
