@@ -1,13 +1,13 @@
 // src/App.js
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-// import Header from "./components/Header";
+import Header from "./components/Header";
 
 // 🆕 (these were already in your file)
-// import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
-// import FloatingTranslateButton from "./components/FloatingTranslateButton";
-// import FloatingWhatsApp from "./components/FloatingWhatsApp";
-// import AccessibilityWidget from "./components/AccessibilityWidget";
+import GoogleTranslateLoader from "./components/GoogleTranslateLoader";
+import FloatingTranslateButton from "./components/FloatingTranslateButton";
+import FloatingWhatsApp from "./components/FloatingWhatsApp";
+import AccessibilityWidget from "./components/AccessibilityWidget";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -27,11 +27,11 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 export default function App() {
   return (
     <>
-      {/* <Header /> */}
-      {/* <GoogleTranslateLoader />
+      <Header />
+      <GoogleTranslateLoader />
       <FloatingTranslateButton />
       <FloatingWhatsApp />
-      <AccessibilityWidget /> */}
+      <AccessibilityWidget />
 
       <Routes>
         {/* Public routes */}
