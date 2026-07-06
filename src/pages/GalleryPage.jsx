@@ -67,6 +67,10 @@ export default function GalleryPage() {
 	const [selectedItem, setSelectedItem] = useState(null);
 	const [loaded, setLoaded] = useState({}); // fade-in tracking, keyed by fullPath
 
+	// עימוד — עד 9 תמונות בכל עמוד
+	const PER_PAGE = 9;
+	const [page, setPage] = useState(1);
+
 	// preconnect for faster first bytes
 	useEffect(() => {
 		if (typeof document === "undefined" || typeof window === "undefined") return;
@@ -118,6 +122,47 @@ export default function GalleryPage() {
 			return img || vid;
 		});
 	}, [allItems, filter]);
+
+	// עימוד: מחלקים ל-9 תמונות בעמוד
+	const totalPages = Math.max(1, Math.ceil(filteredItems.length / PER_PAGE));
+	const safePage = Math.min(page, totalPages);
+	const pageItems = useMemo(() => {
+		const start = (safePage - 1) * PER_PAGE;
+		return filteredItems.slice(start, start + PER_PAGE);
+	}, [filteredItems, safePage]);
+
+	// כשמחליפים סינון — חוזרים לעמוד הראשון
+	useEffect(() => {
+		setPage(1);
+	}, [filter]);
+
+	// טעינה מהירה: מחממים מראש את תמונות העמוד הבא בזמן idle
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const start = safePage * PER_PAGE;
+		const next = filteredItems.slice(start, start + PER_PAGE);
+		const warm = () => {
+			next.forEach((it) => {
+				if (it.isVideo || !it.thumbUrl) return;
+				const img = new Image();
+				img.decoding = "async";
+				if ("fetchPriority" in img) img.fetchPriority = "low";
+				img.src = it.thumbUrl;
+			});
+		};
+		if ("requestIdleCallback" in window) {
+			const id = window.requestIdleCallback(warm, { timeout: 3000 });
+			return () => window.cancelIdleCallback?.(id);
+		}
+		const t = setTimeout(warm, 800);
+		return () => clearTimeout(t);
+	}, [filteredItems, safePage]);
+
+	// מעבר עמוד — גלילה חלקה לראש הגריד
+	const goToPage = useCallback((p) => {
+		setPage(p);
+		if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+	}, []);
 
 	const openModal = useCallback((item) => {
 		setSelectedItem(item);
@@ -186,83 +231,118 @@ export default function GalleryPage() {
 				<button onClick={() => setFilter("videos")} className={`filter-button ${filter === "videos" ? "active" : ""}`}>סרטונים</button>
 			</div>
 
-			{/* TILE GRID — original masonry look (wide hero every 5 tiles) */}
-			<div style={{
-				display: "grid",
-				gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-				gap: 8,
-				gridAutoFlow: "dense",
-				maxWidth: 700,
-				margin: "0 auto",
-				padding: "16px 24px 40px",
-			}}>
-				{filteredItems.map((item, index) => {
-					const isVideo = item.isVideo;
-					const isWide = index % 5 === 0;
-					const isLoaded = loaded[item.fullPath];
-					return (
-						<div
-							key={item.fullPath}
-							onClick={() => openModal(item)}
-							style={{
-								position: "relative",
-								overflow: "hidden",
-								borderRadius: 10,
-								gridColumn: isWide ? "1 / -1" : "span 1",
-								aspectRatio: isWide ? "18 / 9" : "3 / 4",
-								background: "#1A1208",
-								cursor: "pointer",
-							}}
-						>
-							{isVideo ? (
-								<>
-									<video
-										src={item.gridUrl}
-										style={{ display: "block", width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }}
-										muted
-										playsInline
-										preload="metadata"
-									/>
-									<div style={{
-										position: "absolute", inset: 0,
-										display: "flex", alignItems: "center", justifyContent: "center",
-										pointerEvents: "none",
-									}}>
+			{/* TILE GRID — זהה לגלריה הפרטית: מיקום ומראה (תמונה רחבה בכל 5 אריחים) */}
+			<div style={{ padding: "16px 22px 40px", background: "#FAFAF8" }}>
+				<div style={{
+					display: "grid",
+					gridTemplateColumns: "repeat(2, 1fr)",
+					gap: 8,
+					gridAutoFlow: "dense",
+				}}>
+					{pageItems.map((item, index) => {
+						const isVideo = item.isVideo;
+						const isWide = index % 5 === 0; // הראשון בכל קבוצה = רחב
+						const isLoaded = loaded[item.fullPath];
+						return (
+							<div
+								key={item.fullPath}
+								onClick={() => openModal(item)}
+								style={{
+									position: "relative",
+									overflow: "hidden",
+									gridColumn: isWide ? "1 / -1" : "span 1",
+									height: isWide ? 220 : undefined,
+									aspectRatio: isWide ? undefined : "4/3",
+									background: "#1A1208",
+									cursor: "pointer",
+								}}
+							>
+								{isVideo ? (
+									<>
+										<video
+											src={item.gridUrl || item.url}
+											style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.65, display: "block" }}
+											muted
+											playsInline
+											preload="metadata"
+										/>
 										<div style={{
-											width: 44, height: 44, borderRadius: "50%",
-											background: "rgba(255,255,255,.18)",
-											border: "1.5px solid rgba(255,255,255,.6)",
+											position: "absolute", inset: 0,
 											display: "flex", alignItems: "center", justifyContent: "center",
+											pointerEvents: "none",
 										}}>
 											<div style={{
-												width: 0, height: 0,
-												borderTop: "7px solid transparent",
-												borderBottom: "7px solid transparent",
-												borderLeft: "12px solid rgba(255,255,255,.85)",
-												marginRight: -3,
-											}} />
+												width: 42, height: 42, borderRadius: "50%",
+												background: "rgba(255,255,255,.18)",
+												border: "1.5px solid rgba(255,255,255,.6)",
+												display: "flex", alignItems: "center", justifyContent: "center",
+											}}>
+												<div style={{
+													width: 0, height: 0,
+													borderTop: "7px solid transparent",
+													borderBottom: "7px solid transparent",
+													borderLeft: "12px solid rgba(255,255,255,.85)",
+													marginRight: -3,
+												}} />
+											</div>
 										</div>
-									</div>
-								</>
-							) : (
-								<img
-									src={isWide ? (item.gridUrl || item.thumbUrl) : (item.thumbUrl || item.gridUrl)}
-									alt=""
-									loading={index < 4 ? "eager" : "lazy"}
-									fetchpriority={index < 2 ? "high" : undefined}
-									decoding="async"
-									onLoad={() => setLoaded((l) => ({ ...l, [item.fullPath]: true }))}
-									style={{
-										display: "block", width: "100%", height: "100%",
-										objectFit: "cover",
-										opacity: isLoaded ? 1 : 0,
-										transition: "opacity .4s ease",
-									}}
-								/>
-							)}
-						</div>
-					);
-				})}
+									</>
+								) : (
+									<img
+										src={isWide ? (item.gridUrl || item.url) : (item.thumbUrl || item.gridUrl || item.url)}
+										alt=""
+										loading="eager"
+										fetchpriority={index < 4 ? "high" : undefined}
+										decoding="async"
+										onLoad={() => setLoaded((l) => ({ ...l, [item.fullPath]: true }))}
+										style={{
+											width: "100%", height: "100%", objectFit: "cover", display: "block",
+											opacity: isLoaded ? 1 : 0,
+											transition: "opacity .4s ease",
+										}}
+									/>
+								)}
+							</div>
+						);
+					})}
+				</div>
+
+				{/* PAGINATION — עד 9 תמונות בכל עמוד */}
+				{totalPages > 1 && (
+					<div style={{
+						display: "flex", justifyContent: "center", alignItems: "center",
+						gap: 6, flexWrap: "wrap", marginTop: 26,
+					}}>
+						<button
+							onClick={() => goToPage(Math.max(1, safePage - 1))}
+							disabled={safePage === 1}
+							className="filter-button"
+							style={{ opacity: safePage === 1 ? 0.4 : 1, cursor: safePage === 1 ? "default" : "pointer" }}
+						>
+							‹ הקודם
+						</button>
+
+						{Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+							<button
+								key={p}
+								onClick={() => goToPage(p)}
+								className={`filter-button ${p === safePage ? "active" : ""}`}
+								style={{ minWidth: 38 }}
+							>
+								{p}
+							</button>
+						))}
+
+						<button
+							onClick={() => goToPage(Math.min(totalPages, safePage + 1))}
+							disabled={safePage === totalPages}
+							className="filter-button"
+							style={{ opacity: safePage === totalPages ? 0.4 : 1, cursor: safePage === totalPages ? "default" : "pointer" }}
+						>
+							הבא ›
+						</button>
+					</div>
+				)}
 			</div>
 
 			{/* WATERMARK */}

@@ -1993,3 +1993,64 @@ html[data-theme="dark"] .hero-cta-button:hover { background: #D9C3A9; color: #1A
 }
 .theme-toggle:hover { background: var(--border); transform: rotate(15deg); }
 
+
+/* ============================================================
+   MOBILE RESPONSIVENESS — site-wide + admin
+   נוסף כדי להתאים את כל האתר לטלפונים
+   ============================================================ */
+
+/* מונע גלילה אופקית וזליגה של תוכן מחוץ למסך */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
+/* מדיה ושדות לא יחרגו מרוחב המסך */
+img, video, canvas, svg { max-width: 100%; }
+input, select, textarea { max-width: 100%; }
+
+@media (max-width: 768px) {
+  /* מרווחי קונטיינר קטנים יותר בטלפון */
+  .container { padding: 32px 16px !important; }
+  .section-title { font-size: 2em !important; }
+
+  /* עמוד ניהול ההרשמות — שני חלונות הופכים לערימה אנכית */
+  .admin-regs-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .admin-regs-sidebar {
+    border-left: none !important;
+    border-bottom: 1px solid #DDD8CF;
+    max-height: 40vh;
+    padding: 12px 0 !important;
+  }
+  .admin-regs-content {
+    padding: 20px 16px !important;
+  }
+
+  /* כפתורי סינון/פעולה נוחים יותר למגע */
+  .filter-button {
+    padding: 10px 14px;
+  }
+
+  /* input של קבצים באדמין לא יחרוג */
+  input[type="file"] {
+    width: 100%;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 24px 12px !important; }
+  .section-title { font-size: 1.7em !important; }
+
+  /* עמוד הניהול הראשי — כותרות וכפתורים */
+  .admin-regs-content h1 { font-size: 18px !important; }
+
+  /* מודל תצוגה — כפתורי פעולה במגע נוח */
+  .modal-actions .download-btn,
+  .modal-actions button {
+    font-size: 13px;
+  }
+}

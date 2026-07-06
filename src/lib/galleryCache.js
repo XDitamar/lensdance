@@ -71,7 +71,7 @@ export async function getMainGalleryItems() {
 // Warm only the first screenful of thumbnails, during idle time. Warming the
 // entire gallery up-front used to compete with the homepage hero for
 // bandwidth and downloaded megabytes most visitors never viewed.
-const WARM_COUNT = 8;
+const WARM_COUNT = 9;
 
 export function warmImages(items = []) {
   if (typeof window === "undefined") return;

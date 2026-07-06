@@ -121,10 +121,10 @@ export default function AdminRegistrationsPage() {
         </a>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", flex: 1, minHeight: "calc(100vh - 48px)" }}>
+      <div className="admin-regs-layout" style={{ display: "grid", gridTemplateColumns: "260px 1fr", flex: 1, minHeight: "calc(100vh - 48px)" }}>
 
         {/* LEFT — Competition list */}
-        <div style={{ background: "#EDE8DF", borderLeft: "1px solid #DDD8CF", padding: "24px 0", overflowY: "auto" }}>
+        <div className="admin-regs-sidebar" style={{ background: "#EDE8DF", borderLeft: "1px solid #DDD8CF", padding: "24px 0", overflowY: "auto" }}>
           <div style={{ padding: "0 20px 16px", borderBottom: "1px solid #DDD8CF", marginBottom: 8 }}>
             <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "#B2967D" }}>
               תחרויות
@@ -167,7 +167,7 @@ export default function AdminRegistrationsPage() {
         </div>
 
         {/* RIGHT — Registrants */}
-        <div style={{ padding: "28px 32px", overflowY: "auto", direction: "rtl" }}>
+        <div className="admin-regs-content" style={{ padding: "28px 32px", overflowY: "auto", direction: "rtl" }}>
 
           {/* Title + count + search */}
           <div style={{ marginBottom: 24 }}>
