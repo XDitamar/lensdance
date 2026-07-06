@@ -1,7 +1,7 @@
 // src/pages/AdminPage.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { auth, storage } from "../firebase";
+import { auth, storage, db } from "../firebase";
 import {
   ref,
   listAll,
@@ -10,6 +10,8 @@ import {
   deleteObject,
   updateMetadata,
 } from "firebase/storage";
+import { collection, getDocs } from "firebase/firestore";
+import { folderKeysFor, fetchDownloadsForFolder } from "../lib/downloads";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -63,10 +65,17 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [users, setUsers] = useState([]); // Firestore user profiles (name, email, uid…)
+  const [downloads, setDownloads] = useState([]);
+  const [downloadsLoading, setDownloadsLoading] = useState(false);
   const inputRef = useRef(null);
 
   const user = auth.currentUser;
   const isAdmin = !!user && user.email === ADMIN_EMAIL;
+
+  // Match a Storage folder name to its Firestore user profile
+  const userForFolder = (folder) =>
+    users.find((u) => folderKeysFor({ email: u.email, uid: u.uid }).includes(folder));
 
   // --- Fetch User Folders from Storage (With Debug Logs) ---
   const fetchUserFolders = async () => {
@@ -144,17 +153,47 @@ export default function AdminPage() {
     }
   }, [isAdmin]);
 
-  // --- Live Search Effect ---
+  // Load Firestore user profiles so folders can show real full names
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setUserFolders(allFolders);
-    } else {
-      const filtered = allFolders.filter((folder) =>
-        folder.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setUserFolders(filtered);
+    if (!isAdmin) return;
+    getDocs(collection(db, "users"))
+      .then((snap) => setUsers(snap.docs.map((d) => ({ uid: d.id, ...d.data() }))))
+      .catch((e) => console.warn("Could not load user profiles:", e));
+  }, [isAdmin]);
+
+  // Open a user folder: load its media AND that user's download history
+  const openFolder = async (folder) => {
+    setCurrentFolder(folder);
+    fetchMediaInFolder(folder);
+    setDownloads([]);
+    setDownloadsLoading(true);
+    try {
+      setDownloads(await fetchDownloadsForFolder(folder));
+    } catch (e) {
+      console.warn("Could not load downloads:", e);
+    } finally {
+      setDownloadsLoading(false);
     }
-  }, [searchTerm, allFolders]);
+  };
+
+  // --- Live Search Effect (matches full name, email, or folder) ---
+  useEffect(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (term === "") {
+      setUserFolders(allFolders);
+      return;
+    }
+    const filtered = allFolders.filter((folder) => {
+      const u = userForFolder(folder);
+      const haystack = [folder, u?.name, u?.email, u?.username]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+    setUserFolders(filtered);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, allFolders, users]);
 
   // --- Multi-file upload ---
   const onPickFiles = (e) => {
@@ -330,7 +369,7 @@ export default function AdminPage() {
       <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
         <input
           type="text"
-          placeholder="חיפוש משתמשים..."
+          placeholder="חיפוש לפי שם מלא / אימייל..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
@@ -359,18 +398,22 @@ export default function AdminPage() {
              <p>Loading users...</p>
           ) : (
             <div className="gallery-grid">
-              {userFolders.map((folder) => (
-                <button
-                  key={folder}
-                  className="filter-button"
-                  onClick={() => {
-                    setCurrentFolder(folder);
-                    fetchMediaInFolder(folder);
-                  }}
-                >
-                  {folder}
-                </button>
-              ))}
+              {userFolders.map((folder) => {
+                const u = userForFolder(folder);
+                return (
+                  <button
+                    key={folder}
+                    className="filter-button"
+                    onClick={() => openFolder(folder)}
+                    style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "center" }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{u?.name || folder}</span>
+                    {u?.name && (
+                      <span style={{ fontSize: 10, opacity: 0.6, direction: "ltr" }}>{folder}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
           {userFolders.length === 0 && !busy && !error && (
@@ -380,11 +423,57 @@ export default function AdminPage() {
         </div>
       ) : (
         <section>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <h3 style={{ margin: 0 }}>User: {currentFolder}</h3>
-            <button className="filter-button" onClick={() => setCurrentFolder(null)}>
-              Back to users
-            </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ margin: 0 }}>{userForFolder(currentFolder)?.name || currentFolder}</h3>
+              <span style={{ fontSize: 12, color: "#888", direction: "ltr", display: "block" }}>
+                {userForFolder(currentFolder)?.email || currentFolder}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {userForFolder(currentFolder)?.uid && (
+                <Link className="filter-button" to={`/me?uid=${userForFolder(currentFolder).uid}`}>
+                  פתח גלריה אישית
+                </Link>
+              )}
+              <button className="filter-button" onClick={() => { setCurrentFolder(null); setDownloads([]); }}>
+                Back to users
+              </button>
+            </div>
+          </div>
+
+          {/* ── Download history for this user ── */}
+          <div style={{ marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8, background: "#FDFAF5" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #EDE8DF", fontWeight: 700, fontSize: 14 }}>
+              📥 תמונות שהמשתמש הוריד {downloadsLoading ? "" : `(${downloads.length})`}
+            </div>
+            <div style={{ maxHeight: 220, overflowY: "auto", padding: "6px 14px" }}>
+              {downloadsLoading ? (
+                <p style={{ color: "#888", fontSize: 13 }}>טוען היסטוריית הורדות…</p>
+              ) : downloads.length === 0 ? (
+                <p style={{ color: "#888", fontSize: 13 }}>המשתמש עדיין לא הוריד תמונות.</p>
+              ) : (
+                <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                  {downloads.map((d) => (
+                    <li key={d.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid #F0EBE2", fontSize: 13 }}>
+                      <span style={{ direction: "ltr", wordBreak: "break-all" }}>
+                        {d.isVideo ? "🎬 " : "🖼️ "}
+                        {d.url ? (
+                          <a href={d.url} target="_blank" rel="noreferrer" style={{ color: "#4A3525" }}>
+                            {d.fileName || d.filePath || "קובץ"}
+                          </a>
+                        ) : (
+                          d.fileName || d.filePath || "קובץ"
+                        )}
+                      </span>
+                      <span style={{ color: "#999", whiteSpace: "nowrap" }}>
+                        {d.at?.seconds ? new Date(d.at.seconds * 1000).toLocaleString("he-IL") : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>

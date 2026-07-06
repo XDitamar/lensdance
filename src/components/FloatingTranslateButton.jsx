@@ -74,6 +74,8 @@ export default function FloatingTranslateButton() {
     // 3) manage session flag (optional)
     if (appLang !== "en") sessionStorage.setItem("translated", "true");
     else sessionStorage.removeItem("translated");
+    // remember the manual choice so geo auto-language never overrides it
+    localStorage.setItem("ld_lang_manual", "1");
     // 4) reload to apply
     window.location.assign(window.location.pathname + window.location.search);
   };

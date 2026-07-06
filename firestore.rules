@@ -2,12 +2,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "lensdance29@gmail.com";
+    }
+
     // ---- users (Admin sync) ----
     match /users/{userId} {
-      allow read: if request.auth != null 
-        && request.auth.token.email == "lensdance29@gmail.com";
-      allow read, write: if request.auth != null 
+      // The admin can read every profile and edit any profile (title / cover).
+      allow read, write: if isAdmin();
+      // Each user can read and edit their own profile.
+      allow read, write: if request.auth != null
         && request.auth.uid == userId;
+    }
+
+    // ---- downloads (per-user download history) ----
+    match /downloads/{docId} {
+      // Any signed-in user may log a download; only the admin can read them.
+      allow create: if request.auth != null;
+      allow read:   if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---- registrations (competition sign-ups) ----
+    match /registrations/{docId} {
+      allow create: if request.auth != null;
+      allow read:   if isAdmin();
+      allow update, delete: if false;
     }
 
     // ---- agreements ----
@@ -20,6 +41,12 @@ service cloud.firestore {
     match /mediaGallery/{docId} {
       allow read: if true;
       allow create, update, delete: if false;
+    }
+
+    // ---- settings (competition title, etc.) ----
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ברירת מחדל – הכל חסום

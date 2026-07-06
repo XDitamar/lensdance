@@ -7,6 +7,15 @@ import { AuthProvider } from "./context/AuthContext";
 import "./i18n";
 import "./style.css";
 
+// Apply the saved theme before first paint to avoid a light-mode flash.
+try {
+  const saved = localStorage.getItem("theme");
+  const theme = saved === "dark" || saved === "light"
+    ? saved
+    : (window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light");
+  document.documentElement.dataset.theme = theme;
+} catch {}
+
 // ✅ Service Worker – Image Cache
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

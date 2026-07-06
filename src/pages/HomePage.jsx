@@ -1,138 +1,188 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import vid from "../vid.mp4";
-import TestimonialsSection from "../components/TestimonialsSection";
 import InstagramFeed from "../components/InstagramFeed";
+import { useGeoPrice, PRICES } from "../hooks/useGeoPrice";
+import "./homepage.css";
 
 export default function HomePage() {
+  const { prices, isIsrael } = useGeoPrice();
+  const p = prices || PRICES.IL; // show Hebrew defaults until the country is known
+  const heb = isIsrael !== false;
+
   return (
-    <>
-      {/* Hero */}
+    <div className="homepage-root">
+
+      {/* ── HERO ── */}
       <div className="hero-video-container">
-        {/* Fallback image for when video doesn't load */}
-        <img 
-          src="/pics/pic1.png" 
-          alt="צילומי סוסים ורכיבה מקצועיים"
-          className="hero-fallback-image"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            minWidth: '100%',
-            minHeight: '100%',
-            transform: 'translate(-50%, -50%)',
-            objectFit: 'cover',
-            zIndex: -2
-          }}
-        />
+        <img src="/pics/pic1.webp" alt="צילומי סוסים ורכיבה מקצועיים" className="hero-fallback-image" fetchpriority="high" decoding="async" />
         <video autoPlay loop muted playsInline className="hero-video">
           <source src={vid} type="video/mp4" />
-          הדפדפן שלך לא תומך בתגית הווידאו.
         </video>
         <div className="video-overlay" />
         <div className="hero-content">
-          <h1>Lens Dance – צילומי סוסים, רכיבה וקפיצות ראווה</h1>
-          <p>
-           
-          </p>
-          <Link to="/gallery" className="cta-button">
-            מעבר לגלריה
+          <h1 className="hero-title">Lens Dance</h1>
+          <div className="hero-subtitle-wrapper">
+            <div className="hero-subtitle-line"></div>
+            <span className="hero-subtitle-text">Photography · Equestrian · Israel & International</span>
+            <div className="hero-subtitle-line"></div>
+          </div>
+        </div>
+        <div className="hero-cta-container">
+          <Link to="/gallery" className="cta-button">לגלריה שלי →</Link>
+        </div>
+      </div>
+
+      {/* ── PORTFOLIO DIVIDER ── */}
+      <div className="ornamental-divider">
+        <span></span>
+        <div className="ornamental-diamond"></div>
+        <span className="ornamental-label">Portfolio</span>
+        <div className="ornamental-diamond"></div>
+        <span></span>
+      </div>
+
+      {/* ── PORTFOLIO ── */}
+      <div className="section-container">
+        <div className="featured-images-grid">
+          <div className="featured-image-item">
+            <img src="/pics/pic1.webp" alt="קפיצות ראווה" className="featured-img-main" loading="lazy" decoding="async" />
+          </div>
+          <div className="featured-column">
+            <div className="featured-image-item">
+              <img src="/pics/pic2.webp" alt="רכיבה" className="featured-img-sub" loading="lazy" decoding="async" />
+            </div>
+            <div className="featured-image-item">
+              <img src="/pics/pic3.webp" alt="פורטרט" className="featured-img-sub" loading="lazy" decoding="async" />
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: "center", marginTop: 24 }}>
+          <Link to="/gallery" style={{
+            fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: "0.2em",
+            textTransform: "uppercase", color: "var(--brown-600)",
+            borderBottom: "1px solid var(--brown-500)", paddingBottom: 2, textDecoration: "none"
+          }}>
+            לכל הגלריה →
           </Link>
         </div>
       </div>
 
-      {/* Featured */}
-      <div className="container">
-        <h2 className="section-title">portafolio</h2>
-        <p>
-        
+      {/* ── PULL QUOTE ── */}
+      <div className="pull-quote-section">
+        <div className="ornamental-divider" style={{ marginBottom: 20 }}>
+          <span></span><div className="ornamental-diamond"></div><div className="ornamental-diamond"></div>
+        </div>
+        <p className="pull-quote-text">
+          "כל סוס הוא עולם בפני עצמו — אני כאן כדי לתפוס אותו ברגע האמת"
         </p>
-        <div className="featured-images-grid">
-          <div className="featured-image-item">
-            <img src="/pics/pic1.png" alt="קפיצות ראווה — תמונה מוצגת 1" />
-          </div>
-          <div className="featured-image-item">
-            <img src="/pics/pic2.png" alt="קפיצות ראווה — תמונה מוצגת 2" />
-          </div>
-          <div className="featured-image-item">
-            <img src="/pics/pic3.png" alt="קפיצות ראווה — תמונה מוצגת 3" />
-          </div>
+        <div className="pull-quote-author">— [שמך], Lens Dance Photography</div>
+        <div className="ornamental-divider" style={{ marginTop: 20 }}>
+          <span></span><div className="ornamental-diamond"></div><div className="ornamental-diamond"></div>
         </div>
       </div>
 
-      {/* Instagram Feed */}
+      {/* ── INSTAGRAM ── */}
       <InstagramFeed />
 
-      {/* Pricing */}
-      <div
-        className="container"
-        style={{
-          backgroundColor: "#f0ede5",
-          borderRadius: "10px",
-          padding: "50px 20px",
-        }}
-      >
-        <h2 className="section-title">מחירים וחבילות</h2>
-        <p>אלו טווחי פתיחה; הצעת מחיר מותאמת תינתן לאחר ייעוץ אישי.</p>
+      {/* ── PRICING DIVIDER ── */}
+      <div className="ornamental-divider">
+        <span></span>
+        <div className="ornamental-diamond"></div>
+        <span className="ornamental-label">מחירים · Pricing</span>
+        <div className="ornamental-diamond"></div>
+        <span></span>
+      </div>
 
-        <div className="pricing-grid">
-          <div className="price-card">
-            <h3>תמונות לפי כניסה</h3>
-            <ul>
-              <li>60 ₪ לאדם (כולל מקדמה של 10 ₪)</li>
-              <li>30 ₪ עבור סוס נוסף באותו מקצה</li>
-              <li>תמונות דיגיטליות באיכות גבוהה</li>
-              <li>מסירה מאובטחת אונליין</li>
-            </ul>
-            <p className="price-range-text">החל מ־60 ₪</p>
-          </div>
-
-          <div className="price-card">
-            <h3>תמונות לפי בחירה</h3>
-            <ul>
-              <li>גישה לכל התמונות עם עריכה בסיסית (כולל לוגו)</li>
-              <li>6 ₪ לכל תמונה סופית ערוכה</li>
-              <li>2 התמונות הראשונות כלולות במקדמה</li>
-              <li>משלמים רק על התמונות שאהבתם!</li>
-            </ul>
-            <p className="price-range-text">החל מ־6 ₪ לתמונה</p>
-          </div>
-
-          <div className="price-card">
-            <h3>חבילת וידאו</h3>
-            <ul>
-              <li>גישה לכל קליפי הווידאו הגולמיים</li>
-              <li>ריל מותאם אישית לאינסטגרם</li>
-              <li>150 ₪ סה״כ (כולל מקדמה של 40 ₪)</li>
-            </ul>
-            <p className="price-range-text">מחיר כולל: 150 ₪</p>
-          </div>
-
-          <div className="price-card">
-            <h3>חבילה מותאמת אישית</h3>
-            <ul>
-              <li>ייעוץ אישי</li>
-              <li>אתם בוחרים את מספר התמונות הסופיות</li>
-              <li>מושלם לאירועים או פרויקטים מיוחדים</li>
-              <li>מחיר גמיש לאחר ייעוץ</li>
-            </ul>
-            <p className="price-range-text">המחיר ייקבע לאחר ייעוץ</p>
-          </div>
-        </div> {/* end pricing-grid */}
-
-        {/* Book button outside grid */}
-        <div className="book-btn-container">
-          <Link to="/contact" className="book">הזמן עכשיו</Link>
+      {/* ── PRICING ── */}
+      <div className="pricing-container">
+        <div className="section-header">
+          <h2 className="section-title">{heb ? "מחירים וחבילות" : "Pricing & Packages"}</h2>
+          <p className="pricing-subtitle">
+            {heb
+              ? "אלו טווחי פתיחה — הצעת מחיר מותאמת תינתן לאחר ייעוץ אישי"
+              : "These are starting ranges — a custom quote is given after a personal consultation"}
+          </p>
         </div>
-
-        <p style={{ marginTop: 30, fontStyle: "italic", color: "#666" }}>
-          <br />
-          תשלום מתקבל בביט, מזומן או PayBox. החזר מקדמה אפשרי במקרה של בעיות מצידנו.
+        <div className="pricing-grid">
+          {[p.perEntry, p.perPhoto, p.videoPackage, p.custom].map((card, i) => (
+            <div className="price-card" key={i}>
+              <div className="price-card-header">
+                <h3>{card.title}</h3>
+                <ul className="price-card-features">
+                  <li>{card.sub}</li>
+                </ul>
+              </div>
+              <div className="price-range-text">{card.from}</div>
+            </div>
+          ))}
+        </div>
+        <div className="book-btn-container">
+          <Link to="/contact" className="book-btn">{heb ? "הזמן עכשיו" : "Book Now"}</Link>
+        </div>
+        <p className="pricing-footer-text">
+          {heb
+            ? 'תשלום בביט, מזומן או PayBox · לגולשים מחו"ל: PayPal / העברה בנקאית'
+            : "Payment via PayPal or bank transfer"}
         </p>
       </div>
 
-      {/* Testimonials Section */}
-      <TestimonialsSection />
-    </>
+      {/* ── FOOTER ── */}
+      <footer style={{
+        background: "#2C1E12",
+        padding: "18px 36px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        {/* Left — copyright */}
+        <span style={{
+          fontFamily: "Arial, sans-serif",
+          fontSize: 9,
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          color: "rgba(255,255,255,0.28)",
+        }}>
+          © 2025 Lens Dance
+        </span>
+
+        {/* Right — social links */}
+        <div style={{ display: "flex", gap: 20 }}>
+          <a
+            href="https://www.instagram.com/lens.dance29/"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontFamily: "Arial, sans-serif",
+              fontSize: 9,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.45)",
+              textDecoration: "none",
+              transition: "color 0.2s",
+            }}
+          >
+            Instagram
+          </a>
+          <a
+            href="https://wa.me/972XXXXXXXXX"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontFamily: "Arial, sans-serif",
+              fontSize: 9,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.45)",
+              textDecoration: "none",
+              transition: "color 0.2s",
+            }}
+          >
+            WhatsApp
+          </a>
+        </div>
+      </footer>
+
+    </div>
   );
 }

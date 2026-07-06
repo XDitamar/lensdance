@@ -14,11 +14,13 @@ export default async function handler(req, res) {
       return;
     }
 
-    const width = parseInt(w, 10) || 900;   // 900px מספיק לגריד
-    const quality = parseInt(q, 10) || 75;  // איכות 75% WebP
+    // הגבלת רוחב/איכות — מונע ניצול לרעה ושומר על זמן עיבוד קצר
+    const width = Math.min(parseInt(w, 10) || 900, 2048);
+    const quality = Math.min(Math.max(parseInt(q, 10) || 75, 30), 90);
 
+    // התמונות ב-Storage לא משתנות תחת אותו URL — אפשר immutable
     // CDN cache חזק – שבוע ב-Vercel Edge + stale-while-revalidate
-    res.setHeader("Cache-Control", "public, s-maxage=604800, stale-while-revalidate=86400, max-age=86400");
+    res.setHeader("Cache-Control", "public, s-maxage=604800, stale-while-revalidate=86400, max-age=604800, immutable");
     res.setHeader("Content-Type", "image/webp");
     res.setHeader("Vary", "Accept");
 

@@ -6,7 +6,7 @@
  * בפעם הבאה נטענת מהדיסק המקומי ב-0ms
  * ============================================================ */
 
-const CACHE_NAME = "lensdance-images-v1";
+const CACHE_NAME = "lensdance-images-v2"; // v2: new thumb/modal URL scheme
 
 // כמה זמן לשמור תמונה (7 ימים)
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
