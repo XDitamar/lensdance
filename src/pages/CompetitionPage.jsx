@@ -63,7 +63,7 @@ export default function CompetitionPage() {
         setTitleDraft(snap.data().title || "");
       }
     });
-  }, []);
+  }, [t]);
 
   // Admin: save new title
   const saveTitle = async () => {

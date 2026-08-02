@@ -414,6 +414,10 @@ export default function MePage() {
     return () => {
       cancelled = true;
     };
+    // fetchMedia is re-created on every render; listing it here would refetch
+    // the whole gallery on each one. This must run only when the viewer or the
+    // gallery being viewed actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user, targetUid]);
 
   // Records a download under the gallery's OWNER (not the viewer), so an admin

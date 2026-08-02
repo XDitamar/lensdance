@@ -95,7 +95,7 @@ export default function AdminRegistrationsPage() {
     };
 
     loadData();
-  }, [user]);
+  }, [user, t]);
 
   if (loadingAuth || loading) {
     return (

@@ -37,7 +37,8 @@ export default function ResetPasswordPage() {
         setStatus("error");
       }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
