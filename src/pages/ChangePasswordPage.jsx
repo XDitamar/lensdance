@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export default function ChangePasswordPage() {
+  const { t, i18n } = useTranslation();
   const [current, setCurrent] = useState("");
   const [newPw,   setNewPw]   = useState("");
   const [confirm, setConfirm] = useState("");
@@ -15,8 +17,8 @@ export default function ChangePasswordPage() {
   const doChange = async (e) => {
     e.preventDefault();
     setError(""); setSuccess(false);
-    if (newPw.length < 6) { setError("הסיסמה החדשה חייבת להכיל לפחות 6 תווים."); return; }
-    if (newPw !== confirm) { setError("הסיסמאות אינן זהות."); return; }
+    if (newPw.length < 6) { setError(t("errors.passwordTooShort")); return; }
+    if (newPw !== confirm) { setError(t("errors.passwordMismatch")); return; }
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -27,36 +29,36 @@ export default function ChangePasswordPage() {
       setTimeout(() => navigate("/me"), 2000);
     } catch (err) {
       if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-        setError("הסיסמה הנוכחית שגויה.");
+        setError(t("errors.currentPasswordWrong"));
       } else {
-        setError("אירעה שגיאה. נסי שוב.");
+        setError(t("common.genericError"));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  return <SettingsLayout title="שנה סיסמא" back="/me">
+  return <SettingsLayout title={t("changePassword.title")} back="/me" dir={i18n.dir()} t={t}>
     <form onSubmit={doChange} noValidate>
-      <Field label="סיסמה נוכחית">
+      <Field label={t("changePassword.current")}>
         <input style={s.input} type="password" value={current}
-          placeholder="הכניסי את הסיסמה הנוכחית"
+          placeholder={t("changePassword.currentPlaceholder")}
           onChange={e => setCurrent(e.target.value)} required />
       </Field>
-      <Field label="סיסמה חדשה">
+      <Field label={t("changePassword.new")}>
         <input style={s.input} type="password" value={newPw}
-          placeholder="לפחות 6 תווים"
+          placeholder={t("changePassword.newPlaceholder")}
           onChange={e => setNewPw(e.target.value)} required />
       </Field>
-      <Field label="אימות סיסמה חדשה">
+      <Field label={t("changePassword.confirm")}>
         <input style={s.input} type="password" value={confirm}
-          placeholder="חזרי על הסיסמה החדשה"
+          placeholder={t("changePassword.confirmPlaceholder")}
           onChange={e => setConfirm(e.target.value)} required />
       </Field>
       {error   && <div style={s.error}>{error}</div>}
-      {success && <div style={s.success}>הסיסמה עודכנה בהצלחה ✦</div>}
+      {success && <div style={s.success}>{t("changePassword.success")}</div>}
       <button type="submit" disabled={loading} style={{ ...s.btn, opacity: loading ? 0.65 : 1 }}>
-        {loading ? "מעדכן..." : "עדכון סיסמה"}
+        {loading ? t("common.updating") : t("changePassword.submit")}
       </button>
     </form>
   </SettingsLayout>;
@@ -64,9 +66,9 @@ export default function ChangePasswordPage() {
 
 // ── Shared layout & helpers ────────────────────
 
-function SettingsLayout({ title, back, children }) {
+function SettingsLayout({ title, back, children, dir, t }) {
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir="rtl">
+    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={dir}>
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "60px 24px", flex: 1, width: "100%" }}>
 
         {/* Back link */}
@@ -77,13 +79,13 @@ function SettingsLayout({ title, back, children }) {
           borderBottom: "1px solid #B2967D", paddingBottom: 1,
           display: "inline-block", marginBottom: 36,
         }}>
-          ← חזרה
+          {t("settings.back")}
         </a>
 
         {/* Title */}
         <div style={{ marginBottom: 32 }}>
           <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 6 }}>
-            Settings
+            {t("settings.eyebrow")}
           </span>
           <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: 0 }}>
             {title}
@@ -122,7 +124,7 @@ function Field({ label, children }) {
 }
 
 const s = {
-  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "rtl", boxSizing: "border-box" },
+  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "inherit", boxSizing: "border-box" },
   btn:     { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "13px 0", fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", cursor: "pointer", transition: "background .2s", marginTop: 4 },
   error:   { background: "#FFF0EE", border: "1px solid #E8C4BC", color: "#8A2A1F", padding: "10px 14px", fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.6, marginBottom: 16 },
   success: { background: "#F0F7F0", border: "1px solid #B8D4B8", color: "#2A5A2A", padding: "10px 14px", fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.6, marginBottom: 16 },

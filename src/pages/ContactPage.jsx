@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Link } from "react-router-dom";
 
 export default function ContactPage() {
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
 
   const [showAgreement, setShowAgreement] = useState(false);
@@ -17,47 +19,9 @@ export default function ContactPage() {
     setShowAgreement(true);
   }, []);
 
-  // ===== Hebrew-only agreement =====
-  const agreementText = `תקנון הזמנת תמונות/סרטונים מתחרויות רכיבה על סוסים
-
-1. כללי:
-שירות זה מציע צילום תמונות ו/או סרטונים מאירועי רכיבה על סוסים, וכן אספקת התוצרים ללקוח.
-על ידי הזמנת השירות, הלקוח מסכים לתנאים המפורטים בתקנון זה.
-
-2. ביצוע ההזמנה:
-הזמנת שירותי הצילום תתבצע בתיאום מראש.
-יש לוודא שהפרטים של הלקוח, פרטי הסוס והרוכב, וכן פרטי התחרות והמקצה, מדויקים ומועברים באופן ברור.
-
-3. מועדי אספקה:
-מועד אספקה רגיל: התמונות ו/או הסרטונים יישלחו ללקוח בתוך 10 ימי עסקים מיום סיום התחרות.
-מועד אספקה במצב חירום: במקרה של מצב חירום במדינה (כגון מלחמה, מבצע צבאי או אסון טבע), מועד האספקה עשוי להתארך. אספקת התמונות תתחדש לאחר תום מצב החירום, בתוספת זמן סביר לעיבוד התמונות. הלקוח יקבל עדכון על שינויים אלה בהקדם האפשרי.
-
-4. איכות ותוכן:
-הצילום נעשה באופן מקצועי, אך לא ניתן להבטיח תמונה מושלמת של כל רגע ורגע.
-התוצרים שיימסרו ללקוח יעברו עריכה בסיסית וטיוב (כגון תיקון צבע ותאורה) לפי שיקול דעת הצלם.
-
-5. שימוש בתוצרים:
-הלקוח רשאי להשתמש בתמונות ו/או בסרטונים לשימוש אישי בלבד, כולל העלאה לרשתות חברתיות.
-יש לתת קרדיט לצלם בעת פרסום התמונות ברשתות החברתיות (כגון תיוג או ציון שם).
-פרסום על ידי הצלם: עם אישור הלקוח, הצלם רשאי להשתמש בתמונות ו/או סרטונים שבהם הלקוח מופיע, לצורך פרסום עצמי ברשתות חברתיות או באתר האינטרנט של הצלם. 
-יש לציין את שם הלקוח בעת הפרסום, בכדי לתת לו קרדיט.
-חל איסור על שימוש מסחרי בתוצרים ללא אישור מפורש מראש.
-בעת אישור הלקוח פירסום תמונות שלו אני רשאית להשתמש בתמונות ברשתות חברתיות ובאתר 
-
-6. תשלום:
-פרטי התשלום יסוכמו מול הלקוח טרם ביצוע הצילום.
-התשלום מהווה אישור סופי של הלקוח לתקנון
-במידה והלקוח מעוניין לבטל את ההזמנה לפני התחרות (10 שעות לפני תחילת המקצה ), הוא יקבל החזר כספי מלא.
-במידה ושולמה מקדמה עבור השירות והתחרות בוטלה מכל סיבה שהיא, המקדמה תוחזר ללקוח במלואה.
-במידה והלקוח מבקש החזר כספי לאחר קבלת התמונות/סרטונים, לא יינתן החזר כספי. ניתן להגיש בקשה לבחינת המקרה לגופו, וההחלטה תתקבל בשיקול דעת הצלם.
-במידה וההחזר אושר אין ללקוח אישור להשתמש בתמונות שקיבל בלי הסכמת הצלם 
-
-7. התנהלות וכיבוד הדדי:
-השירות ניתן על בסיס של כבוד הדדי ותקשורת נעימה.
-במידה ולקוח מתנהג בצורה לא מכובדת או פוגענית, הצלם שומר לעצמו את הזכות לבחור שלא להמשיך לספק שירותים ללקוח זה בעתיד.
-
-8. אישור:
-התשלום מהווה אישור סופי של הלקוח לתקנון.`;
+  // The terms live in src/locales/*.json ("contact.agreement"). Hebrew is the
+  // binding version; the English one is a convenience translation and says so.
+  const agreementText = t("contact.agreement");
 
   async function handleAgree() {
     if (!user) return;
@@ -69,7 +33,7 @@ export default function ContactPage() {
         {
           email: user.email || null,
           agreedAt: serverTimestamp(),
-          language: "he",
+          language: i18n.language,
           userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
         }
       );
@@ -78,7 +42,7 @@ export default function ContactPage() {
     } catch (err) {
       console.error("Error saving agreement:", err);
       setSaving(false);
-      alert("ארעה שגיאה בשמירת ההסכמה (בדוק הרשאות Firestore).");
+      alert(t("contact.saveFailed"));
     }
   }
 
@@ -86,8 +50,8 @@ export default function ContactPage() {
 
   return (
     <div className="container">
-      <h2 className="section-title">הרשמה לתחרות הבאה</h2>
-      <p>נשמח לשמוע מכם! מלאו את הטופס שלהלן ✨</p>
+      <h2 className="section-title">{t("contact.title")}</h2>
+      <p>{t("contact.subtitle")}</p>
 
       <div className="google-form-embed" style={{ maxWidth: 700, margin: "0 auto" }}>
         <iframe
@@ -106,18 +70,18 @@ export default function ContactPage() {
       {/* Popup */}
       {showAgreement && (
         <div className="agreement-overlay">
-          <div className="agreement-modal" dir="rtl">
+          <div className="agreement-modal" dir={i18n.dir()}>
             {!user ? (
               <>
-                <h3>🔒 עליך להתחבר כדי להמשיך</h3>
-                <p>אנא התחבר כדי לאשר את התקנון ולהמשיך.</p>
+                <h3>{t("contact.loginRequired")}</h3>
+                <p>{t("contact.loginPrompt")}</p>
                 <Link to="/login" className="auth-btn">
-                  התחברות
+                  {t("contact.login")}
                 </Link>
               </>
             ) : (
               <>
-                <h3 style={{ marginTop: 0 }}>📜 תקנון</h3>
+                <h3 style={{ marginTop: 0 }}>{t("contact.terms")}</h3>
                 <div className="agreement-text">
                   <pre style={{ margin: 0 }}>{agreementText}</pre>
                 </div>
@@ -128,7 +92,7 @@ export default function ContactPage() {
                     checked={readChecked}
                     onChange={(e) => setReadChecked(e.target.checked)}
                   />{" "}
-                  קראתי
+                  {t("contact.read")}
                 </label>
 
                 <label style={{ display: "block", marginTop: 6 }}>
@@ -137,7 +101,7 @@ export default function ContactPage() {
                     checked={agreeChecked}
                     onChange={(e) => setAgreeChecked(e.target.checked)}
                   />{" "}
-                  מאשר
+                  {t("contact.agree")}
                 </label>
 
                 <div className="agreement-actions">
@@ -146,7 +110,7 @@ export default function ContactPage() {
                     onClick={handleAgree}
                     className="auth-btn"
                   >
-                    {saving ? "שומר..." : "המשך"}
+                    {saving ? t("common.saving") : t("common.continue")}
                   </button>
                 </div>
               </>

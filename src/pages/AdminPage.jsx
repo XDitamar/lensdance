@@ -12,9 +12,15 @@ import {
 } from "firebase/storage";
 import { collection, getDocs } from "firebase/firestore";
 import { folderKeysFor, fetchDownloadsForFolder } from "../lib/downloads";
+import { useTranslation } from "react-i18next";
+import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
+
+/* Riding discipline (`users/{uid}.discipline`, set from /change-discipline).
+   Profiles created before the field existed simply have none. */
+const NO_DISCIPLINE = "__none__";
 
 /* ---------------- helpers: filenames & metadata ---------------- */
 
@@ -64,7 +70,11 @@ export default function AdminPage() {
   const [uploadErrors, setUploadErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { t, i18n } = useTranslation();
+  const disciplineLabel = (id) => t(disciplineKey(id));
   const [searchTerm, setSearchTerm] = useState("");
+  const [disciplineFilter, setDisciplineFilter] = useState(""); // "" = all
+  const [sortBy, setSortBy] = useState("name"); // "name" | "discipline"
   const [users, setUsers] = useState([]); // Firestore user profiles (name, email, uid…)
   const [downloads, setDownloads] = useState([]);
   const [downloadsLoading, setDownloadsLoading] = useState(false);
@@ -176,24 +186,56 @@ export default function AdminPage() {
     }
   };
 
-  // --- Live Search Effect (matches full name, email, or folder) ---
+  // --- Live search + discipline filter + sort ---
+  // Matches full name, email or folder; then narrows to one riding discipline
+  // and orders the result. Runs on every keystroke over an in-memory list, so
+  // there's no need to debounce it.
   useEffect(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (term === "") {
-      setUserFolders(allFolders);
-      return;
+
+    let list = allFolders;
+
+    if (term !== "") {
+      list = list.filter((folder) => {
+        const u = userForFolder(folder);
+        const haystack = [folder, u?.name, u?.email, u?.username, disciplineLabel(u?.discipline)]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(term);
+      });
     }
-    const filtered = allFolders.filter((folder) => {
-      const u = userForFolder(folder);
-      const haystack = [folder, u?.name, u?.email, u?.username]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(term);
+
+    if (disciplineFilter) {
+      list = list.filter((folder) => {
+        const d = userForFolder(folder)?.discipline;
+        // The "no category yet" bucket has to be selectable too, otherwise
+        // older profiles are invisible whenever a filter is on.
+        return disciplineFilter === NO_DISCIPLINE ? !d : d === disciplineFilter;
+      });
+    }
+
+    const byName = (folder) =>
+      (userForFolder(folder)?.name || folder || "").toLocaleLowerCase("he");
+
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === "discipline") {
+        // Group by category, keeping the uncategorised users last, then sort
+        // by name inside each group.
+        const rank = (folder) => {
+          const d = userForFolder(folder)?.discipline;
+          const i = DISCIPLINES.findIndex((x) => x.id === d);
+          return i === -1 ? DISCIPLINES.length : i;
+        };
+        const diff = rank(a) - rank(b);
+        if (diff !== 0) return diff;
+      }
+      return byName(a).localeCompare(byName(b), "he");
     });
-    setUserFolders(filtered);
+
+    setUserFolders(sorted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, allFolders, users]);
+  }, [searchTerm, disciplineFilter, sortBy, allFolders, users, t]);
 
   // --- Multi-file upload ---
   const onPickFiles = (e) => {
@@ -310,7 +352,7 @@ export default function AdminPage() {
     if (!currentFolder || !mediaItems.length) return;
 
     const ok = window.confirm(
-      "האם אתה בטוח שברצונך למחוק את כל המדיה בתיקייה הזו?\nהפעולה בלתי הפיכה."
+      t("admin.confirmDeleteAll")
     );
     if (!ok) return;
 
@@ -365,24 +407,49 @@ export default function AdminPage() {
     <main className="container">
       <h2 className="section-title">Admin Panel</h2>
       
-      {/* Search Bar */}
-      <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+      {/* Search + riding-discipline filter + sort */}
+      <div style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
           type="text"
-          placeholder="חיפוש לפי שם מלא / אימייל..."
+          placeholder={t("registrations.search")}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
             padding: "10px",
             borderRadius: "5px",
             border: "1px solid #ccc",
-            flex: 1
+            flex: "1 1 220px",
+            minWidth: 180,
           }}
         />
-        {searchTerm && (
-          <button 
-            className="filter-button" 
-            onClick={() => setSearchTerm("")}
+
+        <select
+          value={disciplineFilter}
+          onChange={(e) => setDisciplineFilter(e.target.value)}
+          title={t("admin.filterByDiscipline")}
+          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
+        >
+          <option value="">{t("registrations.allCategories")}</option>
+          {DISCIPLINES.map((d) => (
+            <option key={d.id} value={d.id}>{t(disciplineKey(d.id))}</option>
+          ))}
+          <option value={NO_DISCIPLINE}>{t("disciplines.none")}</option>
+        </select>
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          title={t("admin.sort")}
+          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
+        >
+          <option value="name">{t("admin.sortByName")}</option>
+          <option value="discipline">{t("admin.sortByDiscipline")}</option>
+        </select>
+
+        {(searchTerm || disciplineFilter || sortBy !== "name") && (
+          <button
+            className="filter-button"
+            onClick={() => { setSearchTerm(""); setDisciplineFilter(""); setSortBy("name"); }}
             style={{ margin: 0 }}
           >
             Clear
@@ -411,6 +478,9 @@ export default function AdminPage() {
                     {u?.name && (
                       <span style={{ fontSize: 10, opacity: 0.6, direction: "ltr" }}>{folder}</span>
                     )}
+                    <span style={{ fontSize: 10, opacity: u?.discipline ? 0.85 : 0.4 }}>
+                      {disciplineLabel(u?.discipline)}
+                    </span>
                   </button>
                 );
               })}
@@ -433,7 +503,7 @@ export default function AdminPage() {
             <div style={{ display: "flex", gap: 8 }}>
               {userForFolder(currentFolder)?.uid && (
                 <Link className="filter-button" to={`/me?uid=${userForFolder(currentFolder).uid}`}>
-                  פתח גלריה אישית
+                  {t("admin.openGallery")}
                 </Link>
               )}
               <button className="filter-button" onClick={() => { setCurrentFolder(null); setDownloads([]); }}>
@@ -445,13 +515,13 @@ export default function AdminPage() {
           {/* ── Download history for this user ── */}
           <div style={{ marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8, background: "#FDFAF5" }}>
             <div style={{ padding: "10px 14px", borderBottom: "1px solid #EDE8DF", fontWeight: 700, fontSize: 14 }}>
-              📥 תמונות שהמשתמש הוריד {downloadsLoading ? "" : `(${downloads.length})`}
+              {t("admin.downloads")} {downloadsLoading ? "" : `(${downloads.length})`}
             </div>
             <div style={{ maxHeight: 220, overflowY: "auto", padding: "6px 14px" }}>
               {downloadsLoading ? (
-                <p style={{ color: "#888", fontSize: 13 }}>טוען היסטוריית הורדות…</p>
+                <p style={{ color: "#888", fontSize: 13 }}>{t("admin.downloadsLoading")}</p>
               ) : downloads.length === 0 ? (
-                <p style={{ color: "#888", fontSize: 13 }}>המשתמש עדיין לא הוריד תמונות.</p>
+                <p style={{ color: "#888", fontSize: 13 }}>{t("admin.downloadsEmpty")}</p>
               ) : (
                 <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                   {downloads.map((d) => (
@@ -460,14 +530,14 @@ export default function AdminPage() {
                         {d.isVideo ? "🎬 " : "🖼️ "}
                         {d.url ? (
                           <a href={d.url} target="_blank" rel="noreferrer" style={{ color: "#4A3525" }}>
-                            {d.fileName || d.filePath || "קובץ"}
+                            {d.fileName || d.filePath || t("admin.file")}
                           </a>
                         ) : (
-                          d.fileName || d.filePath || "קובץ"
+                          d.fileName || d.filePath || t("admin.file")
                         )}
                       </span>
                       <span style={{ color: "#999", whiteSpace: "nowrap" }}>
-                        {d.at?.seconds ? new Date(d.at.seconds * 1000).toLocaleString("he-IL") : ""}
+                        {d.at?.seconds ? new Date(d.at.seconds * 1000).toLocaleString(i18n.language) : ""}
                       </span>
                     </li>
                   ))}

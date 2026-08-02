@@ -1,58 +1,29 @@
 // src/components/FloatingTranslateButton.jsx
+//
+// The visitor's manual language picker. Choosing a language here is sticky —
+// it beats the browser-language auto-detection for good. All the cookie and
+// i18next mechanics live in src/lib/lang.js; this file is only the menu.
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import icon from "../translate.png"; // your custom icon at src/translate.png
+import { findLanguage, searchLanguages } from "../lib/languages";
+import { applyTarget, reloadForTranslation, resolveTarget } from "../lib/lang";
 
-// Map app locale → Google locale (Hebrew is "iw" for Google)
-const TO_GOOGLE = { en: "en", he: "iw", ru: "ru", ar: "ar" };
-const LABELS = { en: "English", he: "עברית", ru: "Русский", ar: "العربية" };
-const ORDER = ["en", "he", "ru", "ar"];
+// The four pinned defaults, always shown at the top of the menu.
+// Codes are Google's (Hebrew is "iw", not "he").
+const PINNED = ["iw", "en", "ru", "ar"];
 
-/* Read current from cookie (handles 'iw'→'he') */
-function getCurrentLang() {
-  const m = document.cookie.match(/(?:^|;\s*)googtrans=([^;]+)/);
-  const raw = m ? decodeURIComponent(m[1]) : "/en/en";
-  const tgt = (raw.split("/")[2] || "en").toLowerCase();
-  return tgt === "iw" ? "he" : tgt;
-}
-
-/* Clear ALL plausible googtrans cookies (host + dot-domain, common values) */
-function clearGoogTransCookies() {
-  const host = window.location.hostname;
-  const dotHost = host.startsWith(".") ? host : "." + host;
-  const expire = "Thu, 01 Jan 1970 00:00:00 GMT";
-  const values = ["/en/en", "/auto/en"]; // typical reset variants
-
-  // clear generic
-  document.cookie = `googtrans=; expires=${expire}; path=/`;
-  document.cookie = `googtrans=; domain=${host}; expires=${expire}; path=/`;
-  document.cookie = `googtrans=; domain=${dotHost}; expires=${expire}; path=/`;
-
-  // belt & suspenders: clear with explicit values too
-  for (const v of values) {
-    document.cookie = `googtrans=${v}; expires=${expire}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${host}; expires=${expire}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${dotHost}; expires=${expire}; path=/`;
-  }
-}
-
-/* Set BOTH variants Google respects, on host & dot-domain */
-function setGoogTransCookie(targetGoogleCode) {
-  const host = window.location.hostname;
-  const dotHost = host.startsWith(".") ? host : "." + host;
-  const forever = "Fri, 31 Dec 9999 23:59:59 GMT";
-  const variants = [`/en/${targetGoogleCode}`, `/auto/${targetGoogleCode}`];
-
-  for (const v of variants) {
-    document.cookie = `googtrans=${v}; expires=${forever}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${host}; expires=${forever}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${dotHost}; expires=${forever}; path=/`;
-  }
-}
+/* Case-insensitive comparison that treats he/iw as the same language. */
+const sameLang = (a, b) => {
+  const n = (x) => (String(x || "").toLowerCase() === "he" ? "iw" : String(x || "").toLowerCase());
+  return n(a) === n(b);
+};
 
 export default function FloatingTranslateButton() {
   const [open, setOpen] = useState(false);
-  const current = useMemo(getCurrentLang, []);
+  const [query, setQuery] = useState("");
+  const current = useMemo(resolveTarget, []);
   const popRef = useRef(null);
+  const searchRef = useRef(null);
 
   // Close popover on outside click
   useEffect(() => {
@@ -65,19 +36,68 @@ export default function FloatingTranslateButton() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  const switchTo = (appLang) => {
-    const googleCode = TO_GOOGLE[appLang] || "en";
-    // 1) clear old cookies
-    clearGoogTransCookies();
-    // 2) set new cookies
-    setGoogTransCookie(googleCode);
-    // 3) manage session flag (optional)
-    if (appLang !== "en") sessionStorage.setItem("translated", "true");
-    else sessionStorage.removeItem("translated");
-    // remember the manual choice so geo auto-language never overrides it
-    localStorage.setItem("ld_lang_manual", "1");
-    // 4) reload to apply
-    window.location.assign(window.location.pathname + window.location.search);
+  // Reset the search each time the menu closes, and close on Escape.
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      return;
+    }
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const pinned = useMemo(
+    () => PINNED.map(findLanguage).filter(Boolean),
+    []
+  );
+  const results = useMemo(() => searchLanguages(query), [query]);
+
+  const switchTo = (googleCode) => {
+    // Records the choice as manual (auto-detection stops overriding it),
+    // flips the googtrans cookie, and tells us whether a reload is needed for
+    // Google to re-render the page.
+    const needsReload = applyTarget(googleCode, { manual: true });
+    if (needsReload) reloadForTranslation();
+    else window.location.reload(); // Hebrew ⇄ Hebrew: still re-render i18next
+  };
+
+  // One row in either list — kept identical to the original item styling.
+  const LangItem = ({ lang }) => {
+    const active = sameLang(current, lang.code);
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => switchTo(lang.code)}
+          className={`translate-item ${active ? "is-active" : ""}`}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            background: active ? "#f2efe9" : "transparent",
+            border: "none",
+            padding: "8px 10px",
+            borderRadius: 8,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: ".95rem",
+            color: "#333",
+            fontWeight: active ? 700 : 400,
+          }}
+        >
+          <span
+            className="translate-item-label"
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {lang.native}
+          </span>
+          {active && <span className="translate-check" aria-hidden>✓</span>}
+        </button>
+      </li>
+    );
   };
 
   return (
@@ -110,7 +130,9 @@ export default function FloatingTranslateButton() {
       {/* Popover */}
       {open && (
         <div
-          className="translate-popover"
+          /* notranslate: language names must stay in their own script — we
+             don't want Google rewriting "Русский" into the active language. */
+          className="translate-popover notranslate"
           ref={popRef}
           role="dialog"
           aria-label="Language menu"
@@ -133,35 +155,66 @@ export default function FloatingTranslateButton() {
           >
             Translate
           </div>
+          {/* The four defaults, always visible */}
           <ul className="translate-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {ORDER.map((lang) => (
-              <li key={lang}>
-                <button
-                  type="button"
-                  onClick={() => switchTo(lang)}
-                  className={`translate-item ${current === lang ? "is-active" : ""}`}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    background: current === lang ? "#f2efe9" : "transparent",
-                    border: "none",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    fontSize: ".95rem",
-                    color: "#333",
-                    fontWeight: current === lang ? 700 : 400
-                  }}
-                >
-                  <span className="translate-item-label">{LABELS[lang]}</span>
-                  {current === lang && <span className="translate-check" aria-hidden>✓</span>}
-                </button>
-              </li>
+            {pinned.map((lang) => (
+              <LangItem key={lang.code} lang={lang} />
             ))}
           </ul>
+
+          {/* Search — for anyone whose language isn't one of the four above */}
+          <div style={{ borderTop: "1px solid #eee", margin: "8px 0 0", paddingTop: 8 }}>
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search language…"
+              aria-label="Search language"
+              className="translate-search notranslate"
+              dir="ltr"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "8px 10px",
+                border: "1px solid #e6e6e6",
+                borderRadius: 8,
+                fontSize: ".9rem",
+                color: "#333",
+                outline: "none",
+                background: "#fafafa",
+              }}
+            />
+          </div>
+
+          {/* Results appear only while typing, so the menu keeps its usual size */}
+          {query.trim() !== "" && (
+            <ul
+              className="translate-list translate-results"
+              style={{
+                listStyle: "none",
+                margin: "6px 0 0",
+                padding: 0,
+                maxHeight: 220,
+                overflowY: "auto",
+              }}
+            >
+              {results.length > 0 ? (
+                results.map((lang) => <LangItem key={lang.code} lang={lang} />)
+              ) : (
+                <li
+                  style={{
+                    padding: "8px 10px",
+                    fontSize: ".85rem",
+                    color: "#999",
+                    textAlign: "center",
+                  }}
+                >
+                  No matches
+                </li>
+              )}
+            </ul>
+          )}
         </div>
       )}
     </>

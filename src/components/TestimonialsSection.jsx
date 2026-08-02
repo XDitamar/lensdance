@@ -1,26 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const TestimonialsSection = () => {
-  const testimonials = [
-    {
-      quote: "התמונות של הסוסה שלי יצאו מדהימות! הצלמת הצליחה לתפוס את הרוח החופשית שלה בצורה מושלמת. כל תמונה מספרת סיפור.",
-      author: "שרה כהן",
-      role: "רוכבת דרסאז'",
-      stars: 5
-    },
-    {
-      quote: "שירות מקצועי ותוצאות מעל הציפיות. הצילומים בתחרות יצאו חדים ומרהיבים, בדיוק מה שחיפשתי לאלבום הזיכרונות שלי.",
-      author: "דני לוי",
-      role: "רוכב קפיצות",
-      stars: 5
-    },
-    {
-      quote: "אחרי שנים של חיפוש אחר צלם שמבין סוסים, סוף סוף מצאתי! התמונות משקפות את הקשר המיוחד בינינו.",
-      author: "מיכל אברהם",
-      role: "בעלת חוות סוסים",
-      stars: 5
-    }
-  ];
+  const { t } = useTranslation();
+  // returnObjects gives us the array straight out of the locale file, so
+  // adding or removing a testimonial is a JSON edit, not a code change.
+  const testimonials = t('testimonials.items', { returnObjects: true }) || [];
 
   const renderStars = (count) => {
     return '★'.repeat(count);
@@ -29,14 +14,14 @@ const TestimonialsSection = () => {
   return (
     <div className="testimonials-section">
       <div className="container">
-        <h2 className="section-title">מה הלקוחות שלנו אומרים</h2>
-        <p>גלו מה רוכבים ובעלי סוסים אומרים על החוויה שלהם איתנו</p>
+        <h2 className="section-title">{t('testimonials.title')}</h2>
+        <p>{t('testimonials.subtitle')}</p>
         
         <div className="testimonials-grid">
           {testimonials.map((testimonial, index) => (
             <div key={index} className="testimonial-card">
               <div className="testimonial-stars">
-                {renderStars(testimonial.stars)}
+                {renderStars(testimonial.stars || 5)}
               </div>
               <div className="testimonial-quote">
                 {testimonial.quote}

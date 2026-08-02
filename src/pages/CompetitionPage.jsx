@@ -2,55 +2,35 @@ import React, { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { useTranslation } from "react-i18next";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 import { ADMIN_EMAIL } from "../constants";
 
-// Package prices per region (ids must stay the same — the admin page maps them)
-const PACKAGES_IL = [
-  { id: "photos", label: "תמונות 60 ₪" },
-  { id: "video",  label: "סרטון 150₪" },
-  { id: "short",  label: "סרטון של מקסימום 15 שניות 70₪" },
+// The packages come from useGeoPrice: amounts/currency per the visitor's
+// country (src/config/pricing.js), wording per their language
+// (src/locales/*.json → "pricing.packages"). The ids — photos / video / short —
+// are a data contract with AdminRegistrationsPage; never rename them.
+
+// The terms live in src/locales/*.json ("competition.terms"). Hebrew is the
+// binding version; the English one is a convenience translation and says so.
+
+/* The stored value is the Hebrew day name, because that is what every existing
+   registration document already contains — only the label is translated. */
+const DAYS = [
+  { value: "חמישי", key: "thursday" },
+  { value: "שישי",  key: "friday" },
+  { value: "רביעי", key: "wednesday" },
 ];
-const PACKAGES_INTL = [
-  { id: "photos", label: "Photos — $100 per person" },
-  { id: "video",  label: "Video — $350" },
-  { id: "short",  label: "Short video (max 15 seconds) — $150" },
-];
-
-const TERMS = `תקנון הזמנת תמונות/סרטונים מתחרויות רכיבה על סוסים
-
-1. כללי:
-שירות זה מציע צילום תמונות ו/או סרטונים מאירועי רכיבה על סוסים, וכן אספקת התוצר. על ידי הזמנת השירות, הלקוח מסכים לתנאים המפורטים בתקנון זה.
-
-2. ביצוע ההזמנה:
-הזמנת שירותי הצילום תתבצע בתיאום מראש. יש לוודא שפרטי הלקוח, פרטי הסוס והרוכב, וכן פרטי התחרות והמקצה — מדויקים.
-
-3. מועדי אספקה:
-מועד אספקה רגיל: התמונות ו/או הסרטונים יישלחו ללקוח בתוך 10 ימי עסקים מיום סיום. מועד אספקה במצב חירום: במקרה של מצב חירום במדינה (כגון מלחמה, מבצע צבאי) — המועד יתואם בנפרד.
-
-4. איכות ותוכן:
-הצילומים נעשים באופן מקצועי, אך לא ניתן להבטיח תמונה מושלמת של כל רגע ורגע. התוצרים שיימסרו ללקוח יעברו עריכה בסיסית וטיוב (כגון תיקון צבע ותאורה) לפי שיקול הצלמת.
-
-5. שימוש בתוצרים:
-הלקוח רשאי להשתמש בתמונות ו/או בסרטונים לשימוש אישי בלבד, כולל העלאה לרשתות החברתיות. יש לתת קרדיט לצלמת בעת פרסום (תיוג או ציון שם). חל איסור על שימוש מסחרי בתוצרים ללא אישור מפורש מראש. בעת אישור פרסום — הצלמת רשאית להשתמש בתמונות לצרכי שיווק תוך ציון שם הלקוח.
-
-6. תשלום:
-פרטי התשלום יסוכמו מול הלקוח טרם ביצוע הצילומים. התשלום מהווה אישור סופי של הלקוח לתקנון. ביטול עד 10 שעות לפני התחרות — המקדמה תוחזר. ביטול פחות מ-10 שעות לפני, או אי הגעה — המקדמה לא תוחזר. לאחר קבלת התמונות/סרטונים — לא יינתן החזר כספי.
-
-7. התנהלות וכיבוד הדדי:
-השירות ניתן על בסיס של כבוד הדדי ותקשורת נעימה. במידה ולקוח מתנהג בצורה לא מכובדת, הצלמת שומרת לעצמה את הזכות לסרב לשירות.
-
-8. אישור:
-התשלום מהווה אישור סופי של הלקוח לתקנון.`;
 
 export default function CompetitionPage() {
-  const [user] = useAuthState(auth);
+  const { t, i18n } = useTranslation();
+  const [user, authLoading] = useAuthState(auth);
   const isAdmin = user?.email === ADMIN_EMAIL;
-  const { isIsrael } = useGeoPrice();
-  const packages = isIsrael === false ? PACKAGES_INTL : PACKAGES_IL;
+  const { prices } = useGeoPrice();
+  const packages = prices.packages;
 
   // Competition title state
-  const [title, setTitle] = useState("טוען...");
+  const [title, setTitle] = useState("…");
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
 
@@ -79,7 +59,7 @@ export default function CompetitionPage() {
   useEffect(() => {
     getDoc(doc(db, "settings", "competition")).then(snap => {
       if (snap.exists()) {
-        setTitle(snap.data().title || "תחרות קפיצות");
+        setTitle(snap.data().title || t("competition.pageTitle"));
         setTitleDraft(snap.data().title || "");
       }
     });
@@ -101,15 +81,15 @@ export default function CompetitionPage() {
   }));
 
   const validate = () => {
-    if (!form.day)            return "נא לבחור יום תחרות.";
-    if (!form.riderName.trim()) return "נא להזין שם רוכב/ת.";
-    if (!form.horseName.trim()) return "נא להזין שם וקוד סוס.";
-    if (!form.deposit.trim())   return "נא להזין פרטי מקדמה.";
-    if (form.packages.length === 0) return "נא לבחור חבילה אחת לפחות.";
-    if (!form.contact.trim())   return "נא להזין פרטי יצירת קשר.";
-    if (!form.receiptWanted)    return "נא לבחור אם תרצו קבלה.";
-    if (!form.publishPermission) return "נא לבחור העדפת פרסום.";
-    if (!termsApproved)         return "נא לאשר את התקנון.";
+    if (!form.day)            return t("competition.errors.day");
+    if (!form.riderName.trim()) return t("competition.errors.rider");
+    if (!form.horseName.trim()) return t("competition.errors.horse");
+    if (!form.deposit.trim())   return t("competition.errors.deposit");
+    if (form.packages.length === 0) return t("competition.errors.packages");
+    if (!form.contact.trim())   return t("competition.errors.contact");
+    if (!form.receiptWanted)    return t("competition.errors.receipt");
+    if (!form.publishPermission) return t("competition.errors.publish");
+    if (!termsApproved)         return t("competition.errors.terms");
     return null;
   };
 
@@ -124,15 +104,60 @@ export default function CompetitionPage() {
         ...form,
         competitionTitle: title,
         userId: user?.uid || null,
+        userEmail: user?.email || null,
+        userName: user?.displayName || null,
         submittedAt: serverTimestamp(),
       });
       setSubmitted(true);
-    } catch {
-      setError("אירעה שגיאה. נסו שוב.");
+    } catch (err) {
+      if (err?.code === "permission-denied" || !user) {
+        setError(t("competition.errors.needAccount"));
+      } else {
+        setError(t("common.errorWithCode", { detail: err?.code || "unknown" }));
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // ── AUTH GATE ──
+  // Registrations require a signed-in user (Firestore rules). Show a clear
+  // call-to-action instead of letting a logged-out visitor fill the whole
+  // form and hit a silent failure.
+  if (authLoading) {
+    return (
+      <Page>
+        <div style={{ textAlign: "center", padding: "60px 0", direction: i18n.dir() }}>
+          <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#B2967D", letterSpacing: ".14em" }}>
+            {t("common.loading")}
+          </span>
+        </div>
+      </Page>
+    );
+  }
+  if (!user) {
+    return (
+      <Page>
+        <div style={{ textAlign: "center", padding: "40px 0", direction: i18n.dir() }}>
+          <div style={{ fontSize: 30, marginBottom: 16 }}>✦</div>
+          <h2 style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 400, color: "#2C1E12", marginBottom: 14 }}>
+            {t("competition.needAccountTitle")}
+          </h2>
+          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#8A7868", lineHeight: 1.85, marginBottom: 24 }}>
+            <span dangerouslySetInnerHTML={{ __html: t("competition.needAccountBody") }} />
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <a href="/login" style={{ ...s.btn, width: "auto", padding: "13px 28px", textDecoration: "none", display: "inline-block" }}>
+              {t("competition.login")}
+            </a>
+            <a href="/signup" style={{ fontFamily: "Arial,sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", color: "#4A3525", border: "1px solid #B2967D", padding: "13px 28px", textDecoration: "none", display: "inline-block" }}>
+              {t("competition.signup")}
+            </a>
+          </div>
+        </div>
+      </Page>
+    );
+  }
 
   // ── TERMS PAGE ──
   if (!showForm) {
@@ -144,45 +169,42 @@ export default function CompetitionPage() {
           saveTitle={saveTitle} />
 
         {/* Intro text */}
-        <div style={{ background: "#FDFAF5", border: "1px solid #E2D9CE", padding: "28px 32px", marginBottom: 24, direction: "rtl", lineHeight: 1.85 }}>
+        <div style={{ background: "#FDFAF5", border: "1px solid #E2D9CE", padding: "28px 32px", marginBottom: 24, direction: i18n.dir(), lineHeight: 1.85 }}>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525", marginBottom: 14 }}>
-            📋 אם אתם רוצים שאצלם אתכם, מוזמנים למלא את הטופס הבא.<br />
-            עדיפות ליצירת קשר בוואטסאפ <strong>0525078189</strong> — lens.dance או דרך האינסטגרם :)
+            <span dangerouslySetInnerHTML={{ __html: t("competition.introA") + t("competition.introB") }} />
           </p>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525", marginBottom: 14 }}>
-            לאור המרחק והמאמץ לעריכת כל תמונה ותמונה — הבטחת ההרשמה כרוכה בתשלום מקדמה.
+            {t("competition.depositNote")}
           </p>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#8A2A1F", fontWeight: 600 }}>
-            ❗ מי שלא יירשם לא יצולם בימי התחרות<br />
-            ❗ ההרשמה כרוכה בתשלום מקדמה סמלי, לאור המרחק<br />
-            ❗ אין החזר כספי לאחר קבלת תמונה ותמונה<br />
+            <span dangerouslySetInnerHTML={{ __html: t("competition.warnings") }} />
           </p>
         </div>
 
         {/* Terms box */}
         <div style={{ marginBottom: 20 }}>
-          <label style={s.label}>תקנון — נא לקרוא לפני ההמשך</label>
+          <label style={s.label}>{t("competition.termsLabel")}</label>
           <div style={{
             background: "#F5F1EA", border: "1px solid #D7C9B8",
             padding: "16px 18px", height: 200, overflowY: "auto",
             fontFamily: "Arial,sans-serif", fontSize: 11, color: "#4A3525",
-            lineHeight: 1.85, direction: "rtl", whiteSpace: "pre-line",
+            lineHeight: 1.85, direction: i18n.dir(), whiteSpace: "pre-line",
           }}>
-            {TERMS}
+            {t("competition.terms")}
           </div>
         </div>
 
         {/* Terms checkboxes */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, direction: "rtl", marginBottom: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, direction: i18n.dir(), marginBottom: 28 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525" }}>
             <input type="checkbox" checked={termsRead} onChange={e => setTermsRead(e.target.checked)}
               style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
-            קראתי את התקנון
+            {t("competition.read")}
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525" }}>
             <input type="checkbox" checked={termsApproved} onChange={e => setTermsApproved(e.target.checked)}
               style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
-            אני מאשר/ת את התקנון
+            {t("competition.approve")}
           </label>
         </div>
 
@@ -191,7 +213,7 @@ export default function CompetitionPage() {
           onClick={() => setShowForm(true)}
           style={{ ...s.btn, opacity: (!termsRead || !termsApproved) ? 0.45 : 1, cursor: (!termsRead || !termsApproved) ? "not-allowed" : "pointer" }}
         >
-          המשך לטופס ההרשמה →
+          {t("competition.continue")}
         </button>
       </Page>
     );
@@ -201,17 +223,16 @@ export default function CompetitionPage() {
   if (submitted) {
     return (
       <Page>
-        <div style={{ textAlign: "center", padding: "40px 0", direction: "rtl" }}>
+        <div style={{ textAlign: "center", padding: "40px 0", direction: i18n.dir() }}>
           <div style={{ fontSize: 32, marginBottom: 16 }}>✦</div>
           <h2 style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 400, color: "#2C1E12", marginBottom: 14 }}>
-            ההרשמה התקבלה!
+            {t("competition.successTitle")}
           </h2>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#8A7868", lineHeight: 1.85, marginBottom: 10 }}>
-            שימו לב! לפני שאתם עוזבים תודאו שקראתם את התקנון ומסכימים ומסכימות 😊<br />
-            לפרטים בנוגע למחירי חבילות צילום מוזמנים לשלוח הודעה באתר / באינסטגרם / בוואטסאפ
+            <span dangerouslySetInnerHTML={{ __html: t("competition.successBody") }} />
           </p>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#B2967D" }}>
-            נחזור אליכם בהקדם לאישור ♡
+            {t("competition.successFooter")}
           </p>
         </div>
       </Page>
@@ -226,47 +247,47 @@ export default function CompetitionPage() {
         setEditingTitle={setEditingTitle} setTitleDraft={setTitleDraft}
         saveTitle={saveTitle} />
 
-      <form onSubmit={handleSubmit} noValidate style={{ direction: "rtl" }}>
+      <form onSubmit={handleSubmit} noValidate style={{ direction: i18n.dir() }}>
 
         {/* Day */}
-        <Field label="איזה ימים את/ה מתחרה? *">
-          {["חמישי", "שישי", "רביעי"].map(d => (
-            <label key={d} style={s.radioLabel}>
-              <input type="radio" name="day" value={d}
-                checked={form.day === d} onChange={set("day")}
+        <Field label={t("competition.dayLabel")}>
+          {/* The VALUE stays Hebrew — it is what the admin list already stores.
+              Only the visible label follows the language. */}
+          {DAYS.map(({ value, key }) => (
+            <label key={value} style={s.radioLabel}>
+              <input type="radio" name="day" value={value}
+                checked={form.day === value} onChange={set("day")}
                 style={{ accentColor: "#B2967D" }} />
-              {d}
+              {t(`competition.days.${key}`)}
             </label>
           ))}
         </Field>
 
         {/* Rider name */}
-        <Field label="שם הרוכב/ת *">
+        <Field label={t("competition.riderLabel")}>
           <input style={s.input} type="text" value={form.riderName}
-            placeholder="שם פרטי ומשפחה"
+            placeholder={t("competition.riderPlaceholder")}
             onChange={set("riderName")} required />
         </Field>
 
         {/* Horse name + number */}
-        <Field label="שם ומספר סוס/ה *">
+        <Field label={t("competition.horseLabel")}>
           <input style={s.input} type="text" value={form.horseName}
-            placeholder="שם הסוס + מספר מקצה אם ידוע"
+            placeholder={t("competition.horsePlaceholder")}
             onChange={set("horseName")} required />
         </Field>
 
         {/* Deposit */}
-        <Field label="מקדמה + כניסה אם יש *">
+        <Field label={t("competition.depositLabel")}>
           <input style={s.input} type="text" value={form.deposit}
-            placeholder="סכום המקדמה + דמי כניסה אם רלוונטי"
+            placeholder={t("competition.depositPlaceholder")}
             onChange={set("deposit")} required />
         </Field>
 
         {/* Package selection */}
-        <Field label="שימו לב גם אי אפשר זה מוריד איכות לתמונות *">
+        <Field label={t("competition.deliveryLabel")}>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", marginBottom: 10, lineHeight: 1.65 }}>
-            אני שולחת את התמונות דרך האתר שלי — כדי שתוכלו לקבל אותן תצטרכו לפתוח חשבון באתר
-            (אם אתם מסתבכים תמיד מזמינים לשלוח לי הודעה ואעזור לכם).
-            שימו לב שאני שולחת את התמונות גם לענף קפיצות ולפעמים גם לחווה שבה היתה התחרות.
+            {t("competition.deliveryBody")}
           </p>
           {packages.map(pkg => (
             <label key={pkg.id} style={s.checkLabel}>
@@ -280,15 +301,15 @@ export default function CompetitionPage() {
         </Field>
 
         {/* Contact */}
-        <Field label="דרך ליצירת קשר (טלפון/אינסטגרם וכו) *">
+        <Field label={t("competition.contactLabel")}>
           <input style={s.input} type="text" value={form.contact}
-            placeholder="טלפון / @instagram / וואטסאפ"
+            placeholder={t("competition.contactPlaceholder")}
             onChange={set("contact")} required />
         </Field>
 
         {/* Receipt */}
-        <Field label="קבלת קבלה לאחר תשלום *">
-          {[{ v: "yes", l: "כן אשמח" }, { v: "no", l: "לא" }].map(o => (
+        <Field label={t("competition.receiptLabel")}>
+          {[{ v: "yes", l: t("competition.receiptYes") }, { v: "no", l: t("competition.receiptNo") }].map(o => (
             <label key={o.v} style={s.radioLabel}>
               <input type="radio" name="receipt" value={o.v}
                 checked={form.receiptWanted === o.v} onChange={set("receiptWanted")}
@@ -299,15 +320,14 @@ export default function CompetitionPage() {
         </Field>
 
         {/* Publish permission */}
-        <Field label="אישור פרסום — האם אתם נותנים לי אישור לפרסם את התמונות בעמוד האינסטגרם / טיקטוק שלי? *">
+        <Field label={t("competition.publishLabel")}>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", marginBottom: 10, lineHeight: 1.65 }}>
-            *אם בחרתם בתשובה "לא" אתם יכולים להיות בטוחים ב-100% שלא אפרסם.<br />
-            **במידה ואתם מתחת לגיל 16 נדרש אישור הורה
+            <span dangerouslySetInnerHTML={{ __html: t("competition.publishNote") }} />
           </p>
           {[
-            { v: "yes",      l: "כן, אני מאשר/ת פרסום" },
-            { v: "no",       l: "לא, רוצה לשמור על פרטיות" },
-            { v: "underage", l: "אני מתחת לגיל 16 ומאשר/ת פרסום (אם בחרת בזה אני מחויבת לאישור הורה)" },
+            { v: "yes",      l: t("competition.publishYes") },
+            { v: "no",       l: t("competition.publishNo") },
+            { v: "underage", l: t("competition.publishUnderage") },
           ].map(o => (
             <label key={o.v} style={s.checkLabel}>
               <input type="checkbox"
@@ -322,7 +342,7 @@ export default function CompetitionPage() {
         {/* Terms reminder */}
         <div style={{ background: "#EDE8DF", border: "1px solid #D7C9B8", padding: "14px 18px", marginBottom: 22 }}>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#4A3525", lineHeight: 1.7 }}>
-            ✓ קראת ואישרת את התקנון בשלב הקודם. התשלום מהווה אישור סופי.
+            {t("competition.termsConfirmed")}
           </p>
         </div>
 
@@ -330,7 +350,7 @@ export default function CompetitionPage() {
 
         <button type="submit" disabled={loading}
           style={{ ...s.btn, opacity: loading ? 0.65 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
-          {loading ? "שולח הרשמה..." : "שליחת הרשמה ✦"}
+          {loading ? t("competition.submitting") : t("competition.submit")}
         </button>
 
       </form>
@@ -355,10 +375,11 @@ function Page({ children }) {
 }
 
 function TitleBlock({ title, isAdmin, editingTitle, titleDraft, setEditingTitle, setTitleDraft, saveTitle }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div style={{ textAlign: "center", marginBottom: 32, direction: "rtl" }}>
+    <div style={{ textAlign: "center", marginBottom: 32, direction: i18n.dir() }}>
       <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 8 }}>
-        הרשמה לצילום
+        {t("competition.pageTitle")}
       </span>
       {editingTitle ? (
         <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
@@ -367,15 +388,15 @@ function TitleBlock({ title, isAdmin, editingTitle, titleDraft, setEditingTitle,
             onChange={e => setTitleDraft(e.target.value)}
             style={{ fontFamily: "Georgia,serif", fontSize: 20, border: "none", borderBottom: "2px solid #B2967D", background: "transparent", outline: "none", color: "#2C1E12", textAlign: "center", minWidth: 260 }}
           />
-          <button onClick={saveTitle} style={{ ...s.btn, padding: "8px 18px", fontSize: 10 }}>שמור</button>
-          <button onClick={() => setEditingTitle(false)} style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D", background: "none", border: "none", cursor: "pointer" }}>ביטול</button>
+          <button onClick={saveTitle} style={{ ...s.btn, padding: "8px 18px", fontSize: 10 }}>{t("common.save")}</button>
+          <button onClick={() => setEditingTitle(false)} style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D", background: "none", border: "none", cursor: "pointer" }}>{t("common.cancel")}</button>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <h1 style={{ fontFamily: "Georgia,serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: 0 }}>{title}</h1>
           {isAdmin && (
             <button onClick={() => { setEditingTitle(true); setTitleDraft(title); }}
-              title="ערוך כותרת (אדמין בלבד)"
+              title={t("competition.editTitle")}
               style={{ background: "none", border: "none", cursor: "pointer", color: "#B2967D", fontSize: 14 }}>
               ✏️
             </button>
@@ -396,7 +417,7 @@ function TitleBlock({ title, isAdmin, editingTitle, titleDraft, setEditingTitle,
             borderBottom: "1px solid #B2967D",
             paddingBottom: 1,
           }}>
-            ← צפייה ברשימות הרשמה
+            {t("competition.viewRegistrations")}
           </a>
         </div>
       )}
@@ -417,7 +438,7 @@ function Field({ label, children }) {
 
 const s = {
   label:      { display: "block", fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".18em", textTransform: "uppercase", color: "#B2967D", marginBottom: 4 },
-  input:      { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "rtl", boxSizing: "border-box" },
+  input:      { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "inherit", boxSizing: "border-box" },
   radioLabel: { display: "flex", alignItems: "center", gap: 10, fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525", cursor: "pointer" },
   checkLabel: { display: "flex", alignItems: "flex-start", gap: 10, fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525", cursor: "pointer", lineHeight: 1.6 },
   btn:        { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "13px 0", fontFamily: "Arial,sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", cursor: "pointer", transition: "background .2s" },

@@ -14,6 +14,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Security: only proxy images from Firebase Storage / Google CDN hosts.
+    // Prevents this endpoint from being abused as an open SSRF / resize proxy.
+    const ALLOWED_HOSTS = new Set([
+      "firebasestorage.googleapis.com",
+      "storage.googleapis.com",
+      "lensdance-8d29c.firebasestorage.app",
+      "lensdance-8d29c.appspot.com",
+    ]);
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      res.status(400).json({ error: "Invalid url" });
+      return;
+    }
+    if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname)) {
+      res.status(400).json({ error: "URL host not allowed" });
+      return;
+    }
+
     // הגבלת רוחב/איכות — מונע ניצול לרעה ושומר על זמן עיבוד קצר
     const width = Math.min(parseInt(w, 10) || 900, 2048);
     const quality = Math.min(Math.max(parseInt(q, 10) || 75, 30), 90);

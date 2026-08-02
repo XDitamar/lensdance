@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { auth, storage, db } from "../firebase";
 import { ref, listAll, getDownloadURL, uploadBytes } from "firebase/storage";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -152,6 +153,7 @@ const isVideoUrl = (url = "") => isVideoExt(extFromUrl(url));
  * ---------------------------------------------- */
 // eslint-disable-next-line no-unused-vars
 const MediaTile = React.memo(({ url, alt, isVideo, onClick, variant = "half", idx }) => {
+  const { t } = useTranslation();
   return (
     <div
       className={`tile ${variant}`}
@@ -187,7 +189,7 @@ const MediaTile = React.memo(({ url, alt, isVideo, onClick, variant = "half", id
             textShadow: "0 1px 3px rgba(0,0,0,0.8)",
             pointerEvents: "none",
           }}>
-            ▶ לחץ לצפייה
+            {t("me.playVideo")}
           </div>
         </>
       ) : (
@@ -248,6 +250,7 @@ function getUserFolderCandidates(user) {
  * Page
  * ---------------------------------------------- */
 export default function MePage() {
+  const { t, i18n } = useTranslation();
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [mediaItems, setMediaItems] = useState([]);
@@ -303,7 +306,16 @@ export default function MePage() {
       setLoading(true);
       setError("");
 
-      const folderCandidates = getUserFolderCandidates(u);
+      // Prefer the canonical folderKey stored on the user's profile; fall back
+      // to guessing sanitized-email variants for older accounts.
+      let folderCandidates = getUserFolderCandidates(u);
+      try {
+        const profileSnap = await getDoc(doc(db, "users", u.uid));
+        const storedKey = profileSnap.exists() ? profileSnap.data().folderKey : "";
+        if (storedKey) folderCandidates = [storedKey, ...folderCandidates.filter(k => k !== storedKey)];
+      } catch (e) {
+        console.warn("Could not read folderKey from profile:", e?.message);
+      }
       console.log("Trying folders:", folderCandidates);
 
       const allFileRefsMap = new Map(); // key = fullPath
@@ -364,7 +376,7 @@ export default function MePage() {
       setMediaItems(mediaData);
     } catch (e) {
       console.error(e);
-      setError("טעינת הגלריה הפרטית נכשלה.");
+      setError(t("me.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -420,7 +432,7 @@ export default function MePage() {
       setUserData((d) => ({ ...(d || {}), name }));
       setEditingTitle(false);
     } catch (e) {
-      alert("שמירת הכותרת נכשלה: " + e.message);
+      alert(t("me.titleSaveFailed", { detail: e.message }));
     }
   };
 
@@ -441,7 +453,7 @@ export default function MePage() {
       await updateDoc(doc(db, "users", targetUid), { coverImage: url });
       setUserData((d) => ({ ...(d || {}), coverImage: url }));
     } catch (err) {
-      alert("העלאת תמונת השער נכשלה: " + err.message);
+      alert(t("me.coverUploadFailed", { detail: err.message }));
     } finally {
       setSavingCover(false);
       if (e.target) e.target.value = "";
@@ -539,7 +551,7 @@ export default function MePage() {
   if (authLoading || loading) {
     return (
       <div className="container" style={{ textAlign: "center" }}>
-        <p>{authLoading ? "בודק התחברות..." : "טוען את הגלריה שלך..."}</p>
+        <p>{authLoading ? t("me.checkingAuth") : t("me.loading")}</p>
       </div>
     );
   }
@@ -547,10 +559,10 @@ export default function MePage() {
   if (!user) {
     return (
       <main className="container" style={{ textAlign: "center" }}>
-        <h2 className="section-title">הגלריה שלי</h2>
-        <p>אינך מחובר.</p>
+        <h2 className="section-title">{t("me.title")}</h2>
+        <p>{t("me.notSignedIn")}</p>
         <Link className="auth-primary" to="/login">
-          התחבר כדי לצפות בתמונות שלך
+          {t("me.signInPrompt")}
         </Link>
       </main>
     );
@@ -559,14 +571,14 @@ export default function MePage() {
   if (error) {
     return (
       <main className="container" style={{ textAlign: "center" }}>
-        <h2 className="section-title">הגלריה שלי</h2>
+        <h2 className="section-title">{t("me.title")}</h2>
         <p>{error}</p>
       </main>
     );
   }
 
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", direction: "rtl" }}>
+    <div style={{ background: "#F5F1EA", minHeight: "100vh", direction: i18n.dir() }}>
 
       {/* ══════════════════════════════════════
           COVER IMAGE
@@ -576,7 +588,7 @@ export default function MePage() {
         {/* Background image — coverImage from Firestore, fallback to first media */}
         <img
           src={userData?.coverImage || (mediaItems[0]?.gridUrl) || (mediaItems[0]?.url) || "/pics/pic1.webp"}
-          alt="תמונת כותרת"
+          alt={t("me.coverAlt")}
           fetchpriority="high"
           decoding="async"
           style={{
@@ -603,7 +615,7 @@ export default function MePage() {
             padding: "7px 14px", cursor: savingCover ? "wait" : "pointer",
             backdropFilter: "blur(2px)",
           }}>
-            {savingCover ? "מעלה…" : "✎ שנה תמונת שער"}
+            {savingCover ? t("me.uploading") : t("me.changeCover")}
             <input type="file" accept="image/*" onChange={onPickCover}
               disabled={savingCover} style={{ display: "none" }} />
           </label>
@@ -623,7 +635,7 @@ export default function MePage() {
             letterSpacing: ".24em", textTransform: "uppercase",
             color: "rgba(255,255,255,.45)", marginBottom: 10,
           }}>
-            גלריה אישית · {new Date().getFullYear()}
+            {t("me.personalGallery", { year: new Date().getFullYear() })}
           </span>
 
           {/* Rider name — editable by admin */}
@@ -644,12 +656,12 @@ export default function MePage() {
                 fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em",
                 textTransform: "uppercase", color: "#2C1E12", background: "#fff",
                 border: "none", padding: "7px 14px", cursor: "pointer",
-              }}>שמור</button>
+              }}>{t("common.save")}</button>
               <button onClick={() => { setEditingTitle(false); setTitleDraft(userData?.name || ""); }} style={{
                 fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em",
                 textTransform: "uppercase", color: "rgba(255,255,255,.7)",
                 background: "transparent", border: "none", cursor: "pointer",
-              }}>ביטול</button>
+              }}>{t("common.cancel")}</button>
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 8px" }}>
@@ -658,12 +670,12 @@ export default function MePage() {
                 fontWeight: 400, color: "#fff",
                 letterSpacing: ".04em", margin: 0,
               }}>
-                {userData?.name || user?.displayName || "הגלריה שלך"}
+                {userData?.name || user?.displayName || t("me.yourGallery")}
               </h1>
               {isAdmin && (
                 <button
                   onClick={() => { setEditingTitle(true); setTitleDraft(userData?.name || ""); }}
-                  title="ערוך כותרת"
+                  title={t("me.editTitle")}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,.85)", fontSize: 15 }}
                 >✏️</button>
               )}
@@ -677,7 +689,7 @@ export default function MePage() {
               color: "#FDFAF5", background: "rgba(178,150,125,.85)",
               padding: "8px 16px", textDecoration: "none", marginBottom: 14, display: "inline-block",
             }}>
-              ✦ הוסיפו שם מלא כדי שהצלמת תוכל לשייך אליכם את התמונות ←
+              {t("me.addNameHint")}
             </Link>
           )}
 
@@ -734,9 +746,9 @@ export default function MePage() {
         borderBottom: "1px solid #DDD8CF",
       }}>
         {[
-          ["📸", mediaItems.filter(m => !m.isVideo).length, "תמונות"],
-          ["🎬", mediaItems.filter(m => m.isVideo).length, "סרטונים"],
-          ["📅", userData?.lastShootDate || "—", "תאריך"],
+          ["📸", mediaItems.filter(m => !m.isVideo).length, t("me.photos")],
+          ["🎬", mediaItems.filter(m => m.isVideo).length, t("me.videos")],
+          ["📅", userData?.lastShootDate || "—", t("me.date")],
         ].map(([icon, val, label], i) => (
           <div key={i} style={{
             padding: "13px 16px", textAlign: "center",
@@ -762,7 +774,7 @@ export default function MePage() {
         background: "#FDFAF5",
       }}>
         <span style={{ fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".08em", color: "#9A8878" }}>
-          {mediaItems.length} תמונות · לחצו על תמונה לפתיחה
+          {t("me.countLine", { count: mediaItems.length })}
         </span>
         <div style={{ display: "flex", gap: 10 }}>
           {/* Select all button */}
@@ -775,7 +787,7 @@ export default function MePage() {
               cursor: "pointer", borderBottom: "1px solid #B2967D", paddingBottom: 1,
             }}
           >
-            בחר הכל
+            {t("me.selectAll")}
           </button>
           {/* Download button */}
           <button
@@ -787,7 +799,7 @@ export default function MePage() {
               background: "transparent", padding: "6px 16px", cursor: "pointer",
             }}
           >
-            הורד נבחרים
+            {t("me.downloadSelected")}
           </button>
         </div>
       </div>
@@ -929,7 +941,7 @@ export default function MePage() {
                   recordDownload(selectedItem);
                 }}
               >
-                הורד
+                {t("me.download")}
               </button>
             </div>
           </div>

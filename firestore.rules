@@ -3,8 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
+      // Prefer a custom claim (admin: true); keep the known email as a bootstrap
+      // fallback so admin access never breaks before the claim is set.
       return request.auth != null
-        && request.auth.token.email == "lensdance29@gmail.com";
+        && (request.auth.token.admin == true
+            || request.auth.token.email == "lensdance29@gmail.com");
     }
 
     // ---- users (Admin sync) ----
@@ -47,6 +50,13 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ---- secrets (server-only: Instagram access token, etc.) ----
+    // Explicitly closed to every client, including the admin. Only the
+    // firebase-admin SDK in api/ (which bypasses rules) may read or write here.
+    match /secrets/{docId} {
+      allow read, write: if false;
     }
 
     // ברירת מחדל – הכל חסום

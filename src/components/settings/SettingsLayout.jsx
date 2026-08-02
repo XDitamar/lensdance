@@ -1,8 +1,10 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 export default function SettingsLayout({ title, back, children }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir="rtl">
+    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={i18n.dir()}>
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "60px 24px", flex: 1, width: "100%" }}>
 
         {/* Back link */}
@@ -13,13 +15,13 @@ export default function SettingsLayout({ title, back, children }) {
           borderBottom: "1px solid #B2967D", paddingBottom: 1,
           display: "inline-block", marginBottom: 36,
         }}>
-          ← חזרה
+          {t("settings.back")}
         </a>
 
         {/* Title */}
         <div style={{ marginBottom: 32 }}>
           <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 6 }}>
-            Settings
+            {t("settings.eyebrow")}
           </span>
           <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: 0 }}>
             {title}

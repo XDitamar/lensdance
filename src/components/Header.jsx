@@ -3,6 +3,8 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { useTranslation } from "react-i18next";
+import { isRtlLang } from "../i18n";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
 
@@ -16,11 +18,14 @@ function getInitialTheme() {
 }
 
 export default function Header() {
+  const { t, i18n } = useTranslation();
   const [user] = useAuthState(auth);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
   const navigate = useNavigate();
+  // Dropdowns used to hardcode direction:"rtl"; follow the active language now.
+  const dir = isRtlLang(i18n.language) ? "rtl" : "ltr";
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -97,24 +102,23 @@ export default function Header() {
         }}
           className="desktop-nav"
         >
-          <NavLink to="/gallery"  style={linkStyle}>גלריה</NavLink>
-          {/* <NavLink to="/contact"  style={linkStyle}>הזמן</NavLink> */}
-          <NavLink to="/pricing"  style={linkStyle}>מחירים</NavLink>
-          <NavLink to="/about"    style={linkStyle}>מי אני</NavLink>
-          <NavLink to="/register" style={linkStyle}>הרשמה לתחרות</NavLink>
+          <NavLink to="/gallery"  style={linkStyle}>{t("nav.gallery")}</NavLink>
+          <NavLink to="/pricing"  style={linkStyle}>{t("nav.pricing")}</NavLink>
+          <NavLink to="/about"    style={linkStyle}>{t("nav.about")}</NavLink>
+          <NavLink to="/register" style={linkStyle}>{t("nav.register")}</NavLink>
 
-          {/* גלריה פרטית — רק כשמחובר */}
+          {/* Private gallery — only when signed in */}
           {user && (
             <NavLink to="/me" style={({ isActive }) => ({
               ...linkStyle({ isActive }),
               color: isActive ? "var(--link-active)" : "var(--link-active)",
               fontWeight: 500,
             })}>
-              גלריה פרטית
+              {t("nav.privateGallery")}
             </NavLink>
           )}
 
-          {/* Admin links — רק עבור אדמין */}
+          {/* Admin links — admin only */}
           {isAdmin && (
             <>
               <NavLink to="/admin" style={({ isActive }) => ({
@@ -122,14 +126,14 @@ export default function Header() {
                 color: isActive ? "#8A2A1F" : "#8A2A1F",
                 fontWeight: 600,
               })}>
-                ניהול
+                {t("nav.admin")}
               </NavLink>
               <NavLink to="/admin/registrations" style={({ isActive }) => ({
                 ...linkStyle({ isActive }),
                 color: isActive ? "#8A2A1F" : "#8A2A1F",
                 fontWeight: 600,
               })}>
-                הרשמות
+                {t("nav.registrations")}
               </NavLink>
             </>
           )}
@@ -141,8 +145,8 @@ export default function Header() {
           <button
             onClick={toggleTheme}
             className="theme-toggle"
-            aria-label={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
-            title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
+            aria-label={theme === "dark" ? t("theme.toLight") : t("theme.toDark")}
+            title={theme === "dark" ? t("theme.toLight") : t("theme.toDark")}
           >
             {theme === "dark" ? "☀" : "☾"}
           </button>
@@ -164,7 +168,7 @@ export default function Header() {
                   cursor: "pointer",
                 }}
               >
-                Settings
+                {t("auth.settings")}
               </button>
 
               {settingsOpen && (
@@ -184,12 +188,12 @@ export default function Header() {
                     boxShadow: "0 8px 28px rgba(44,30,18,.1)",
                     minWidth: 180,
                     zIndex: 999,
-                    direction: "rtl",
+                    direction: dir,
                   }}>
                     {[
-                      { label: "שנה שם",       to: "/change-name" },
-                      { label: "שנה קטגוריה", to: "/change-discipline" },
-                      { label: "שנה סיסמא",   to: "/change-password" },
+                      { label: t("settings.changeName"),       to: "/change-name" },
+                      { label: t("settings.changeDiscipline"), to: "/change-discipline" },
+                      { label: t("settings.changePassword"),   to: "/change-password" },
                     ].map(item => (
                       <Link
                         key={item.to}
@@ -217,7 +221,7 @@ export default function Header() {
                       style={{
                         display: "block",
                         width: "100%",
-                        textAlign: "right",
+                        textAlign: dir === "rtl" ? "right" : "left",
                         fontFamily: "Arial, sans-serif",
                         fontSize: 10,
                         letterSpacing: "0.12em",
@@ -231,21 +235,21 @@ export default function Header() {
                       onMouseEnter={e => e.currentTarget.style.background = "var(--border)"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
-                      התנתק
+                      {t("auth.logout")}
                     </button>
                   </div>
                 </>
               )}
             </div>
           ) : (
-            /* Logged out — show כניסה */
+            /* Logged out — show the log-in link */
             <Link to="/login" style={{
               fontFamily: "Arial, sans-serif", fontSize: 10,
               letterSpacing: "0.16em", textTransform: "uppercase",
               color: "var(--link-active)", textDecoration: "none",
               borderBottom: "1px solid var(--link-active)", paddingBottom: 2,
             }}>
-              כניסה
+              {t("auth.login")}
             </Link>
           )}
 
@@ -253,7 +257,7 @@ export default function Header() {
           <button
             onClick={() => setMenuOpen(o => !o)}
             className="hamburger-btn"
-            aria-label="תפריט"
+            aria-label={t("nav.menu")}
             style={{
               display: "none", /* shown via CSS on mobile */
               background: "none", border: "none", cursor: "pointer",
@@ -274,18 +278,17 @@ export default function Header() {
           background: "var(--bg)", borderTop: "1px solid var(--border)",
           borderBottom: "1px solid var(--border)",
           boxShadow: "0 8px 24px rgba(44,30,18,.08)",
-          zIndex: 999, direction: "rtl",
+          zIndex: 999, direction: dir,
         }}>
           {[
-            { to: "/gallery",  label: "גלריה" },
-            // { to: "/contact",  label: "הזמן" },
-            { to: "/pricing",  label: "מחירים" },
-            // { to: "/about",    label: "אודות" },
-            { to: "/register", label: "הרשמה לתחרות" },
-            ...(user ? [{ to: "/me", label: "גלריה פרטית", bold: true }] : []),
+            { to: "/gallery",  label: t("nav.gallery") },
+            { to: "/pricing",  label: t("nav.pricing") },
+            { to: "/about",    label: t("nav.about") },
+            { to: "/register", label: t("nav.register") },
+            ...(user ? [{ to: "/me", label: t("nav.privateGallery"), bold: true }] : []),
             ...(isAdmin ? [
-              { to: "/admin", label: "ניהול", admin: true },
-              { to: "/admin/registrations", label: "הרשמות", admin: true }
+              { to: "/admin", label: t("nav.admin"), admin: true },
+              { to: "/admin/registrations", label: t("nav.registrations"), admin: true }
             ] : []),
           ].map(item => (
             <Link key={item.to} to={item.to} onClick={closeMenu} style={{
@@ -311,7 +314,7 @@ export default function Header() {
                 color: "var(--muted)", background: "transparent",
                 border: "none", cursor: "pointer",
               }}>
-                יציאה ({user.displayName || user.email})
+                {t("auth.signOut", { name: user.displayName || user.email })}
               </button>
             ) : (
               <Link to="/login" onClick={closeMenu} style={{
@@ -320,7 +323,7 @@ export default function Header() {
                 color: "var(--link-active)", textDecoration: "none",
                 borderBottom: "1px solid var(--link-active)", paddingBottom: 2,
               }}>
-                כניסה
+                {t("auth.login")}
               </Link>
             )}
           </div>

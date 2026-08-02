@@ -463,7 +463,16 @@ html[data-theme="dark"] {
     border-color:var(--brown-500);
     box-shadow:0 0 0 3px rgba(140,112,94,.18);
   }
-  
+
+  /* Keyboard-visible focus ring for the custom checkboxes/radios and buttons */
+  input[type="checkbox"]:focus-visible,
+  input[type="radio"]:focus-visible,
+  button:focus-visible,
+  a:focus-visible{
+    outline:2px solid var(--brown-500, #B2967D);
+    outline-offset:2px;
+  }
+
   .auth-row{
     display:flex; align-items:center; justify-content:space-between;
     gap:10px; margin-top:2px;
@@ -1123,46 +1132,186 @@ html[data-theme="dark"] {
 }
 
 /* =========================================
-   WhatsApp Floating Button - Updated for Container
+   WhatsApp Floating Button
+   Designed as a twin of .accessibility-widget (see further down): same 45px
+   left-edge tab, same inner white ring, same hover nudge — sitting directly
+   below it so the two form one vertical pair on the left edge.
+   NOTE: this button is rendered directly by App.js, NOT inside
+   .floating-buttons-container, so it must position itself.
 ========================================= */
+:root {
+  /* Muted, non-neon green so it sits with the warm cream palette instead of
+     shouting over it. #25D366 is WhatsApp's brand green — too bright here. */
+  --whatsapp-green: #2E8B57;
+  --whatsapp-green-hover: #256F46;
+}
+
 .whatsapp-fab {
-  position: static; /* Changed from fixed */
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  position: fixed;
+  left: 0;
+  /* .accessibility-widget occupies bottom 70px→115px; sit 10px under it. */
+  bottom: 15px;
+  width: 45px;
+  height: 45px;
+  border-radius: 0 50% 50% 0;
   border: none;
-  background: #25D366; /* WhatsApp green */
+  background: var(--whatsapp-green);
   color: #fff;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.3);
+  padding: 4px;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, background 0.2s ease;
+  z-index: 1300;
 }
 
 .whatsapp-fab:hover {
-  background: #128C7E; /* Darker WhatsApp green */
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 12px 32px rgba(37, 211, 102, 0.4);
+  background: var(--whatsapp-green-hover);
+  transform: translateX(4px);
 }
 
 .whatsapp-fab:active {
-  transform: translateY(-1px) scale(1.02);
+  transform: translateX(2px);
 }
 
-/* Mobile positioning for container */
+.whatsapp-fab-ring {
+  width: 33px;
+  height: 33px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile: .accessibility-widget moves to bottom 90px, so follow it up. */
 @media (max-width: 480px) {
-  .floating-buttons-container {
-    bottom: 15px;
-    right: 15px;
-    gap: 12px;
-  }
-  
   .whatsapp-fab {
-    width: 52px;
-    height: 52px;
+    bottom: 35px;
   }
+}
+
+/* =========================================
+   Admin "browse as country" Floating Button
+   Third tab in the left-edge stack, directly BELOW the WhatsApp button.
+   Rendered only for the admin (see AdminCountryButton.jsx), which is why the
+   two buttons above it are shifted up by a class on <html> instead of being
+   given permanent room they'd otherwise waste.
+========================================= */
+html.has-admin-geo-fab .accessibility-widget { bottom: 125px; }
+html.has-admin-geo-fab .whatsapp-fab { bottom: 70px; }
+
+.admin-geo-fab {
+  position: fixed;
+  left: 0;
+  bottom: 15px;
+  width: 45px;
+  height: 45px;
+  border-radius: 0 50% 50% 0;
+  border: none;
+  background: #6B4B2A; /* warm brown, matches the palette */
+  color: #fff;
+  display: none; /* only shown once the admin class is on <html> */
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+  z-index: 1300;
+}
+
+html.has-admin-geo-fab .admin-geo-fab { display: flex; }
+
+.admin-geo-fab:hover { background: #533A20; transform: translateX(4px); }
+.admin-geo-fab:active { transform: translateX(2px); }
+/* While a country is forced the button goes red — impossible to leave on by accident. */
+.admin-geo-fab.is-forced { background: #A33B2A; }
+.admin-geo-fab.is-forced:hover { background: #822E20; }
+
+.admin-geo-fab-ring {
+  width: 33px;
+  height: 33px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-geo-fab-code {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.admin-geo-popover {
+  position: fixed;
+  left: 55px;
+  bottom: 15px;
+  width: 250px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  padding: 10px;
+  z-index: 1301;
+  direction: rtl;
+  text-align: right;
+}
+
+.admin-geo-popover-title {
+  font-weight: 700;
+  color: var(--brown-700, #6B4B2A);
+  margin: 2px 6px 8px;
+}
+
+.admin-geo-list { list-style: none; margin: 0; padding: 0; }
+
+.admin-geo-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  text-align: inherit;
+}
+
+.admin-geo-item:hover { background: #f7f4ee; }
+.admin-geo-item.is-active { background: #f2efe9; font-weight: 700; }
+
+.admin-geo-set {
+  font-size: 0.72rem;
+  color: #999;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.admin-geo-hint {
+  border-top: 1px solid #eee;
+  margin-top: 8px;
+  padding: 8px 6px 2px;
+  font-size: 0.75rem;
+  color: #888;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  html.has-admin-geo-fab .accessibility-widget { bottom: 145px; }
+  html.has-admin-geo-fab .whatsapp-fab { bottom: 90px; }
+  .admin-geo-fab { bottom: 35px; }
+  .admin-geo-popover { bottom: 35px; width: min(250px, calc(100vw - 70px)); }
 }
 
 /* =========================================
@@ -1758,47 +1907,66 @@ html[data-theme="dark"] {
 /* =========================================
    Accessibility Widget - Updated for Container
 ========================================= */
+/* Studioland-style: black half-circle attached to the left screen edge */
 .accessibility-widget {
-  position: static; /* Changed from fixed */
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  position: fixed;
+  left: 0;
+  bottom: 70px;
+  width: 45px;
+  height: 45px;
+  border-radius: 0 50% 50% 0;
   border: none;
-  background: var(--brown-600);
+  background: #000;
   color: #fff;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease;
-  font-size: 20px;
+  transition: transform 0.2s ease;
+  z-index: 1300;
 }
 
 .accessibility-widget:hover {
-  background: var(--brown-500);
-  transform: scale(1.1);
+  background: #000;
+  transform: translateX(4px);
+}
+
+.accessibility-widget-ring {
+  width: 33px;
+  height: 33px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .accessibility-panel {
   position: fixed;
-  right: 20px;
-  bottom: 200px; /* Positioned above the container */
+  left: 55px;
+  right: auto;
+  bottom: 70px;
   background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
-  width: 280px;
-  padding: 20px;
-  z-index: 1150;
+  border: 1px solid #e2ddd2;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(44, 30, 18, 0.18);
+  width: 330px;
+  max-width: calc(100vw - 70px);
+  max-height: 74vh;
+  overflow-y: auto;
+  padding: 16px 18px;
+  z-index: 1300;
   font-size: 14px;
+  font-family: 'Georgia', serif;
 }
 
 .accessibility-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
   padding-bottom: 10px;
   border-bottom: 1px solid #eee;
 }
@@ -1806,94 +1974,136 @@ html[data-theme="dark"] {
 .accessibility-header h3 {
   margin: 0;
   color: var(--brown-700);
-  font-size: 16px;
+  font-size: 17px;
+  font-family: 'Playfair Display', serif;
 }
 
 .close-accessibility {
   background: none;
   border: none;
-  font-size: 20px;
   cursor: pointer;
-  color: #666;
+  color: #8a7a68;
   padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
 }
 
 .close-accessibility:hover {
   color: var(--brown-600);
+  background: #f2efe9;
 }
 
-.accessibility-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+.acc-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brown-500);
+  letter-spacing: 0.08em;
+  margin: 14px 2px 8px;
 }
 
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.control-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #333;
-  cursor: pointer;
-}
-
-.font-size-controls {
+.acc-slider-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.font-size-controls button {
+.acc-slider-row label {
+  font-size: 13px;
+  color: var(--text, #1A1410);
+  width: 84px;
+  flex-shrink: 0;
+}
+
+.acc-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--brown-600);
+  cursor: pointer;
+}
+
+.acc-slider-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brown-600);
+  width: 44px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.acc-tile-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.acc-tile-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.acc-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 4px;
+  border: 1px solid #e2ddd2;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--brown-700);
+  font-size: 11.5px;
+  font-family: inherit;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.acc-tile svg {
+  color: var(--brown-600);
+}
+
+.acc-tile:hover {
+  border-color: var(--brown-500);
+  background: #faf8f3;
+}
+
+.acc-tile.is-on {
+  border-color: var(--brown-600);
+  background: #f2efe9;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--brown-600);
+}
+
+.acc-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.acc-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--brown-600);
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 6px 10px;
+  border-radius: 8px;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
   transition: background 0.2s ease;
 }
 
-.font-size-controls button:hover:not(:disabled) {
+.acc-reset-btn:hover {
   background: var(--brown-500);
-}
-
-.font-size-controls button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.font-size-controls span {
-  font-weight: 600;
-  color: var(--brown-700);
-}
-
-.reset-btn {
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-weight: 600;
-  margin-top: 10px;
-  transition: background 0.2s ease;
-}
-
-.reset-btn:hover {
-  background: #c82333;
 }
 
 /* Accessibility classes that get applied to body */
@@ -1917,18 +2127,131 @@ html[data-theme="dark"] {
   font-family: 'Arial', 'Helvetica', sans-serif !important;
 }
 
+/* ---- Accessibility effect classes (applied to body) ---- */
+
+.acc-highlight-headings h1,
+.acc-highlight-headings h2,
+.acc-highlight-headings h3,
+.acc-highlight-headings h4,
+.acc-highlight-headings h5,
+.acc-highlight-headings h6 {
+  background: rgba(178, 150, 125, 0.35) !important;
+  text-decoration: underline !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+}
+
+.acc-align-right p, .acc-align-right h1, .acc-align-right h2, .acc-align-right h3,
+.acc-align-right h4, .acc-align-right h5, .acc-align-right h6, .acc-align-right li,
+.acc-align-right label, .acc-align-right td, .acc-align-right blockquote {
+  text-align: right !important;
+}
+
+.acc-align-center p, .acc-align-center h1, .acc-align-center h2, .acc-align-center h3,
+.acc-align-center h4, .acc-align-center h5, .acc-align-center h6, .acc-align-center li,
+.acc-align-center label, .acc-align-center td, .acc-align-center blockquote {
+  text-align: center !important;
+}
+
+.acc-align-left p, .acc-align-left h1, .acc-align-left h2, .acc-align-left h3,
+.acc-align-left h4, .acc-align-left h5, .acc-align-left h6, .acc-align-left li,
+.acc-align-left label, .acc-align-left td, .acc-align-left blockquote {
+  text-align: left !important;
+}
+
+.acc-hide-images img,
+.acc-hide-images video,
+.acc-hide-images picture,
+.acc-hide-images figure,
+.acc-hide-images iframe[src*="youtube"],
+.acc-hide-images iframe[src*="vimeo"] {
+  visibility: hidden !important;
+}
+
+.acc-stop-anim *,
+.acc-stop-anim *::before,
+.acc-stop-anim *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+.acc-big-cursor,
+.acc-big-cursor * {
+  cursor: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 24 24'%3E%3Cpath d='M5 2.5l14.5 9.8-6.2 1.3 3.4 6-3.1 1.8-3.4-6.1L5 19.6z' fill='black' stroke='white' stroke-width='1.4'/%3E%3C/svg%3E") 4 2, auto !important;
+}
+
+.acc-kbd-nav a:focus,
+.acc-kbd-nav button:focus,
+.acc-kbd-nav input:focus,
+.acc-kbd-nav select:focus,
+.acc-kbd-nav textarea:focus,
+.acc-kbd-nav [tabindex]:focus {
+  outline: 3px solid var(--brown-500, #B2967D) !important;
+  outline-offset: 3px !important;
+  border-radius: 2px;
+}
+
+/* Counter-invert photos/videos when dark contrast flips the screen */
+.acc-invert-media img,
+.acc-invert-media video {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Full-screen filter overlay: filters everything painted beneath it
+   without breaking position:fixed layout (unlike filter on body) */
+.acc-screen-filter {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2000;
+}
+
+.acc-reading-guide {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 9px;
+  background: var(--brown-600, #4A3525);
+  border-top: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 2100;
+}
+
+.acc-focus-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: rgba(26, 20, 16, 0.6);
+  pointer-events: none;
+  z-index: 2050;
+}
+
+.acc-focus-mask-top {
+  top: 0;
+  height: calc(50% - 55px);
+}
+
+.acc-focus-mask-bottom {
+  top: calc(50% + 55px);
+  bottom: 0;
+  height: auto;
+}
+
 @media (max-width: 480px) {
   .accessibility-widget {
-    left: 12px;
-    width: 44px;
-    height: 44px;
-    font-size: 18px;
+    left: 0;
+    bottom: 90px;
   }
 
   .accessibility-panel {
-    left: 65px;
-    width: 250px;
+    left: 50px;
+    width: min(250px, calc(100vw - 60px));
     padding: 15px;
+    bottom: 90px;
   }
 }
 
@@ -1992,6 +2315,36 @@ html[data-theme="dark"] .hero-cta-button:hover { background: #D9C3A9; color: #1A
   flex-shrink: 0;
 }
 .theme-toggle:hover { background: var(--border); transform: rotate(15deg); }
+
+/* ═══════════ ANIM-6 START: קו תחתון בתפריט ═══════════
+   להסרה: מחק מכאן עד ANIM-6 END */
+.desktop-nav a {
+  position: relative;
+}
+
+.desktop-nav a::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--brown-500, #B2967D);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.3s ease;
+}
+
+.desktop-nav a:hover::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-nav a::after {
+    transition: none;
+  }
+}
+/* ═══════════ ANIM-6 END ═══════════ */
 
 
 /* ============================================================

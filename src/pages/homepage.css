@@ -425,3 +425,209 @@ footer .footer-brand {
     padding: 20px;
   }
 }
+
+/* ═══════════ ANIM-1 START: חשיפה בגלילה ═══════════
+   להסרה: מחק מכאן עד ANIM-1 END + הסר class "reveal" מ-HomePage.jsx */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+/* ═══════════ ANIM-1 END ═══════════ */
+
+/* ═══════════ ANIM-2 START: כניסת כותרת ראשית ═══════════
+   להסרה: מחק מכאן עד ANIM-2 END */
+@keyframes heroTitleIn {
+  from { opacity: 0; letter-spacing: 0.3em; }
+  to   { opacity: 1; letter-spacing: 0.01em; }
+}
+
+@keyframes heroLineIn {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.hero-title {
+  animation: heroTitleIn 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-subtitle-line {
+  transform-origin: center;
+  animation: heroLineIn 1.2s 0.6s ease both;
+}
+
+.hero-subtitle-text {
+  animation: heroFadeIn 1.2s 0.8s ease both;
+}
+
+.hero-cta-container {
+  animation: heroFadeIn 1s 1.2s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-title,
+  .hero-subtitle-line,
+  .hero-subtitle-text,
+  .hero-cta-container {
+    animation: none;
+  }
+}
+/* ═══════════ ANIM-2 END ═══════════ */
+
+/* ═══════════ ANIM-3 START: זום איטי + כיתוב בתמונות ═══════════
+   להסרה: מחק מכאן עד ANIM-3 END + הסר את ה-span.featured-caption מ-HomePage.jsx */
+.featured-image-item {
+  position: relative;
+}
+
+.featured-image-item img {
+  transition: transform 6s cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.featured-image-item:hover img {
+  transform: scale(1.08);
+}
+
+.featured-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(26, 18, 8, 0.78));
+  color: #F5F1EA;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 20px 12px 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+}
+
+.featured-image-item:hover .featured-caption {
+  opacity: 1;
+  transform: none;
+}
+/* ═══════════ ANIM-3 END ═══════════ */
+
+/* ═══════════ ANIM-4 START: ברק בכפתורים ═══════════
+   להסרה: מחק מכאן עד ANIM-4 END */
+@keyframes ctaShine {
+  0%, 55% { left: -60%; }
+  85%, 100% { left: 130%; }
+}
+
+.cta-button,
+.book-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.cta-button::after,
+.book-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: ctaShine 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-button::after,
+  .book-btn::after {
+    animation: none;
+    display: none;
+  }
+}
+/* ═══════════ ANIM-4 END ═══════════ */
+
+/* ═══════════ ANIM-5 START: ציור המפרידים ═══════════
+   להסרה: מחק מכאן עד ANIM-5 END + הסר class "reveal" מהמפרידים ב-HomePage.jsx */
+.ornamental-divider.reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.ornamental-divider.reveal::before,
+.ornamental-divider.reveal::after {
+  transform: scaleX(0);
+  transition: transform 1s ease 0.2s;
+}
+
+.ornamental-divider.reveal::before {
+  transform-origin: right center;
+}
+
+.ornamental-divider.reveal::after {
+  transform-origin: left center;
+}
+
+.ornamental-divider.reveal.is-revealed::before,
+.ornamental-divider.reveal.is-revealed::after {
+  transform: scaleX(1);
+}
+
+.ornamental-divider.reveal .ornamental-diamond {
+  opacity: 0;
+  transform: rotate(0deg) scale(0.4);
+  transition: opacity 0.7s ease 0.55s, transform 0.7s ease 0.55s;
+}
+
+.ornamental-divider.reveal.is-revealed .ornamental-diamond {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.ornamental-divider.reveal .ornamental-label {
+  opacity: 0;
+  transition: opacity 0.8s ease 0.7s;
+}
+
+.ornamental-divider.reveal.is-revealed .ornamental-label {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ornamental-divider.reveal::before,
+  .ornamental-divider.reveal::after {
+    transform: scaleX(1);
+    transition: none;
+  }
+  .ornamental-divider.reveal .ornamental-diamond {
+    opacity: 1;
+    transform: rotate(45deg) scale(1);
+    transition: none;
+  }
+  .ornamental-divider.reveal .ornamental-label {
+    opacity: 1;
+    transition: none;
+  }
+}
+/* ═══════════ ANIM-5 END ═══════════ */

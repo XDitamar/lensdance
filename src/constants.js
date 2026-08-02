@@ -1,24 +1,36 @@
 // Shared constants across the application
+//
+// No user-facing text lives here any more — only the stable ids that are
+// written to Firestore. The words come from src/locales/*.json so they follow
+// the visitor's language. The ids themselves are a data contract with existing
+// documents: renaming one orphans every record that already uses it.
 
+/** Riding disciplines. `users/{uid}.discipline` stores the id. */
 export const DISCIPLINES = [
-  { id: "jumping",      label: "קפיצות ראווה" },
-  { id: "dressage",     label: "דרסאז'" },
-  { id: "crosscountry", label: "קרוס קאנטרי" },
-  { id: "endurance",    label: "סבולת" },
-  { id: "driving",      label: "הרתמה" },
-  { id: "other",        label: "אחר" },
+  { id: "jumping" },
+  { id: "dressage" },
+  { id: "crosscountry" },
+  { id: "endurance" },
+  { id: "driving" },
+  { id: "other" },
 ];
+
+/** i18n key for a discipline id — falls back to the "no category" label. */
+export const disciplineKey = (id) =>
+  DISCIPLINES.some((d) => d.id === id) ? `disciplines.${id}` : "disciplines.none";
 
 export const ADMIN_EMAIL = "lensdance29@gmail.com";
 
-export const PACKAGE_LABELS = {
-  photos: "תמונות 60₪",
-  video:  "סרטון 150₪",
-  short:  "סרטון קצר 70₪",
-};
+/**
+ * Competition package ids, in display order. The labels (with prices) come
+ * from useGeoPrice → "pricing.packages" so they stay in step with
+ * src/config/pricing.js instead of being duplicated here.
+ */
+export const PACKAGE_IDS = ["photos", "video", "short"];
 
-export const PUBLISH_LABELS = {
-  yes:      "✓ מאשר פרסום",
-  no:       "✗ פרטי",
-  underage: "⚠ מתחת לגיל 16",
+/** Publish-permission answers on a registration. */
+export const PUBLISH_KEYS = {
+  yes: "registrations.publish.yes",
+  no: "registrations.publish.no",
+  underage: "registrations.publish.underage",
 };

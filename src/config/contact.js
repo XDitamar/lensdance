@@ -10,7 +10,9 @@ const CONTACT_CONFIG = {
     displayText: '052-507-8189'
   },
   
-  // Default WhatsApp message
+  // Fallback WhatsApp message, used only if i18n hasn't loaded. The message
+  // people actually get is "whatsapp.defaultMessage" in src/locales/*.json,
+  // so it arrives in the visitor's own language.
   defaultMessage: 'שלום! אני מעוניין/ת בצילומי סוסים ורכיבה. אשמח לקבל פרטים נוספים.',
   
   // Business hours for display
@@ -21,7 +23,7 @@ const CONTACT_CONFIG = {
     wednesday: '9:00-18:00',
     thursday: '9:00-18:00',
     friday: '9:00-14:00',
-    saturday: 'סגור'
+    saturday: 'closed' // translate at the call site with t("common.closed")
   }
 };
 

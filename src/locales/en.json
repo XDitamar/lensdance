@@ -1,0 +1,521 @@
+{
+  "siteName": "Lens Dance",
+  "nav": {
+    "gallery": "Gallery",
+    "pricing": "Pricing",
+    "about": "About Me",
+    "register": "Competition Sign-up",
+    "privateGallery": "Private Gallery",
+    "admin": "Admin",
+    "registrations": "Registrations",
+    "menu": "Menu"
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "signOut": "Sign out ({{name}})",
+    "settings": "Settings"
+  },
+  "settings": {
+    "changeName": "Change Name",
+    "changeDiscipline": "Change Category",
+    "changePassword": "Change Password",
+    "back": "← Back",
+    "eyebrow": "Settings"
+  },
+  "theme": {
+    "toLight": "Light mode",
+    "toDark": "Dark mode"
+  },
+  "language": {
+    "title": "Language",
+    "search": "Search language…",
+    "noMatches": "No matches",
+    "translatedNote": "Machine-translated"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "show": "Show",
+    "hide": "Hide",
+    "continue": "Continue",
+    "saving": "Saving…",
+    "updating": "Updating…",
+    "sending": "Sending…",
+    "backToLogin": "Back to sign in",
+    "genericError": "Something went wrong. Please try again.",
+    "errorWithCode": "Something went wrong: {{detail}}",
+    "closed": "Closed"
+  },
+  "disciplines": {
+    "jumping": "Show jumping",
+    "dressage": "Dressage",
+    "crosscountry": "Cross country",
+    "endurance": "Endurance",
+    "driving": "Carriage driving",
+    "other": "Other",
+    "none": "No category"
+  },
+  "whatsapp": {
+    "label": "Message us on WhatsApp",
+    "defaultMessage": "Hi! I'm interested in horse and riding photography. I'd love to hear more."
+  },
+  "maintenance": {
+    "title": "The site is under maintenance",
+    "alt": "The site is under maintenance"
+  },
+  "home": {
+    "heroAlt": "Professional horse and riding photography",
+    "heroCta": "To my gallery →",
+    "galleryCta": "See the full gallery →",
+    "captionJumping": "Show jumping",
+    "captionRiding": "Riding",
+    "captionPortrait": "Portrait",
+    "quote": "Every horse is a world of its own — I'm here to catch it at the decisive moment",
+    "quoteAuthor": "— Alina, Lens Dance Photography"
+  },
+  "gallery": {
+    "loadFailed": "The gallery failed to load.",
+    "loadingMedia": "Loading media…",
+    "noPhotos": "No photos found.",
+    "noVideos": "No videos found.",
+    "noItems": "No items found.",
+    "all": "All",
+    "prev": "Previous",
+    "next": "Next",
+    "photos": "Photos",
+    "videos": "Videos",
+    "total": "Total",
+    "itemAlt": "A photo from the Lens Dance gallery",
+    "lightbox": "Enlarged view"
+  },
+  "about": {
+    "eyebrow": "Field Notes · About Me",
+    "title": "About Me",
+    "portraitAlt": "Alina — Lens Dance",
+    "name": "Alina",
+    "role": "Equestrian photographer · Israel & Europe",
+    "bio1": "Lovely to meet you — I'm Alina, and my story with horses began long before I ever picked up a camera. As a former rider, I know the racing pulse before a round, the quiet bond with the horse and the drive for perfection in every movement.",
+    "bio2": "My military service put riding on hold for a while, but it only sharpened my need to stay connected to this world another way. Today I'm building Lens Dance from the angle I always looked for as a rider: clean, precise, uncompromising photography.",
+    "quote": "\"I'm not here to document an event, but to capture a moment in time — a feeling and a memory that last a lifetime\"",
+    "quoteAuthor": "— Alina, Lens Dance Photography",
+    "philosophy": "My focus is creativity, attention to the smallest details and a clean style — the kind that changes what a \"simple photo\" means and turns it into a work of art.",
+    "qaTitle": "Questions & Answers",
+    "qa": [
+      {
+        "q": "What do you most love to photograph?",
+        "a": "Show jumping — the moment between the horse and the fence is the purest there is. But also horse portraits: when they look straight at you, words become unnecessary."
+      },
+      {
+        "q": "What makes you different as an equestrian photographer?",
+        "a": "My background as a rider. I know the moment before it happens — I know when the horse is about to jump, when the rider locks in, and where the magic is."
+      },
+      {
+        "q": "Do you shoot abroad too?",
+        "a": "Yes, I work across Israel and Europe. Every competition abroad is a new adventure — another language, another climate — but the horses are always the same horses."
+      }
+    ],
+    "cta": "Book a shoot →"
+  },
+  "contact": {
+    "title": "Sign up for the next competition",
+    "subtitle": "We'd love to hear from you! Fill in the form below ✨",
+    "terms": "📜 Terms",
+    "loginRequired": "🔒 You need to sign in to continue",
+    "loginPrompt": "Please sign in to accept the terms and continue.",
+    "saveFailed": "Could not save your acceptance (check the Firestore permissions).",
+    "agreement": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the results to the client.\nBy ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance.\nPlease make sure the client's details, the horse's and rider's details, and the competition and class details are accurate and clearly communicated.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end of the competition.\nDelivery during an emergency: in the event of a national emergency (such as war, a military operation or a natural disaster) delivery may take longer. Delivery resumes once the emergency ends, plus a reasonable amount of time for processing. The client will be updated about any such change as soon as possible.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed.\nThe delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media.\nCredit must be given to the photographer when posting (for example a tag or a mention).\nPublication by the photographer: with the client's approval, the photographer may use photos and/or videos in which the client appears for self-promotion on social media or on the photographer's website.\nThe client's name should be mentioned when publishing, in order to credit them.\nCommercial use of the results is prohibited without explicit prior approval.\nOnce the client approves publication of their photos, the photographer may use them on social media and on the website.\n\n6. Payment:\nPayment details are agreed with the client before the shoot.\nPayment constitutes the client's final acceptance of these terms.\nIf the client wishes to cancel the order before the competition (10 hours before the class starts), they receive a full refund.\nIf a deposit was paid and the competition was cancelled for any reason, the deposit is refunded in full.\nIf the client requests a refund after receiving the photos/videos, no refund is given. A request can be submitted for the case to be reviewed on its merits, and the decision is at the photographer's discretion.\nIf a refund is approved, the client may not use the photos they received without the photographer's consent.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication.\nIf a client behaves disrespectfully or offensively, the photographer reserves the right to decline to provide services to that client in the future.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "read": "I have read the terms",
+    "agree": "I accept the terms",
+    "login": "Sign in"
+  },
+  "_pricingNote": "Wording only — the amounts are injected as {{price}} from src/config/pricing.js, so the currency follows the visitor's country while this text follows their language.",
+  "pricing": {
+    "sectionTitle": "Pricing & Packages",
+    "pageTitle": "Pricing",
+    "subtitle": "These are starting ranges — a custom quote is given after a personal consultation",
+    "footerNote": "Payment via PayPal or bank transfer",
+    "book": "Book Now",
+    "from": "From {{price}}",
+    "perEntry": {
+      "title": "Photos per entry",
+      "label": "{{price}} per person",
+      "extra": "{{extraPrice}} per additional horse",
+      "sub": "{{price}} per person · {{extraPrice}} per additional horse",
+      "from": "From {{price}}"
+    },
+    "perPhoto": {
+      "title": "Photos by selection",
+      "label": "{{price}} per photo",
+      "extra": "Access to all photos",
+      "sub": "Access to all photos · {{price}} per edited photo",
+      "from": "From {{price}}"
+    },
+    "videoPackage": {
+      "title": "Video package",
+      "label": "{{price}}",
+      "extra": "Custom Instagram Reel",
+      "sub": "Custom Instagram Reel",
+      "from": "{{price}}"
+    },
+    "shortVideo": {
+      "title": "Short video",
+      "label": "{{price}}",
+      "extra": "Up to 15 seconds",
+      "sub": "Video of up to 15 seconds",
+      "from": "{{price}}"
+    },
+    "custom": {
+      "title": "Custom package",
+      "label": "By consultation",
+      "extra": "Personal consultation",
+      "sub": "Personal consultation · Events & competitions",
+      "from": "By consultation"
+    },
+    "services": {
+      "event": {
+        "title": "Event Photography",
+        "desc": "Professional photography for special events",
+        "items": [
+          "4 hours of shooting",
+          "Professional editing",
+          "Digital gallery",
+          "50 edited photos"
+        ]
+      },
+      "portrait": {
+        "title": "Portrait Photography",
+        "desc": "Personal and family sessions",
+        "items": [
+          "2 hours of shooting",
+          "Professional editing",
+          "Digital gallery",
+          "25 edited photos"
+        ]
+      },
+      "product": {
+        "title": "Product Photography",
+        "desc": "Professional photography for products and businesses",
+        "items": [
+          "Up to 10 products",
+          "Professional editing",
+          "Clean white background",
+          "High-resolution files"
+        ]
+      }
+    },
+    "packages": {
+      "photos": "Photos — {{price}} per person",
+      "video": "Video — {{price}}",
+      "short": "Short video (max 15 seconds) — {{price}}"
+    }
+  },
+  "admin": {
+    "geo": {
+      "button": "View the site as another country",
+      "title": "Browse as country",
+      "auto": "Automatic (my real location)",
+      "active": "Forced: {{country}}",
+      "hint": "Admin only. Changes prices and currency, not the language."
+    },
+    "filterByDiscipline": "Filter by riding category",
+    "sort": "Sort",
+    "sortByName": "Sort by name",
+    "sortByDiscipline": "Sort by riding category",
+    "openGallery": "Open personal gallery",
+    "downloads": "📥 Photos this user downloaded",
+    "downloadsLoading": "Loading download history…",
+    "downloadsEmpty": "This user hasn't downloaded any photos yet.",
+    "file": "file",
+    "confirmDeleteAll": "Are you sure you want to delete all the media in this folder?\nThis cannot be undone!"
+  },
+  "testimonials": {
+    "title": "What Our Clients Say",
+    "subtitle": "Hear what riders and horse owners say about their experience with us",
+    "items": [
+      {
+        "quote": "The photos of my mare came out incredible! The photographer captured her free spirit perfectly. Every picture tells a story.",
+        "author": "Sarah Cohen",
+        "role": "Dressage rider"
+      },
+      {
+        "quote": "Professional service and results beyond expectations. The competition shots came out sharp and stunning — exactly what I was looking for for my memory album.",
+        "author": "Danny Levi",
+        "role": "Show jumping rider"
+      },
+      {
+        "quote": "After years of searching for a photographer who understands horses, I finally found one! The photos reflect the special bond between us.",
+        "author": "Michal Avraham",
+        "role": "Horse farm owner"
+      }
+    ]
+  },
+  "registrations": {
+    "publish": {
+      "yes": "✓ Publishing approved",
+      "no": "✗ Private",
+      "underage": "⚠ Under 16"
+    },
+    "untitled": "Untitled",
+    "back": "← Back to the sign-up page",
+    "competitions": "Competitions",
+    "signups": "{{count}} sign-ups",
+    "none": "No sign-ups yet",
+    "pick": "Choose a competition",
+    "search": "Search by name / horse / contact / email / username…",
+    "allCategories": "All categories",
+    "noResults": "No results",
+    "noAccount": "👤 Signed up without a linked account",
+    "receipt": "Receipt: {{value}}",
+    "submitted": "Signed up: {{date}}",
+    "yes": "yes",
+    "no": "no"
+  },
+  "errors": {
+    "userNotFound": "No account found with that email.",
+    "wrongPassword": "Wrong password.",
+    "invalidEmail": "That email address is not valid.",
+    "tooManyRequests": "Too many attempts. Please try again later.",
+    "network": "Network error. Check your connection and try again.",
+    "invalidCredentials": "Wrong email or password.",
+    "weakPassword": "That password is too weak (at least 6 characters).",
+    "passwordMismatch": "The passwords don't match.",
+    "nameRequired": "Please enter your full name.",
+    "usernameRequired": "Please choose a username.",
+    "usernameSpaces": "A username can't contain spaces.",
+    "passwordTooShort": "The password must be at least 6 characters.",
+    "loginToChangeName": "You need to be signed in to change your name.",
+    "loginToChangeDiscipline": "You need to be signed in to change your category.",
+    "disciplineRequired": "Please choose a riding category.",
+    "profileSaveFailed": "The account was created but saving your profile failed ({{detail}}). You can set your name and category from the settings menu.",
+    "currentPasswordWrong": "The current password is wrong.",
+    "resetLinkInvalid": "Invalid password reset link.",
+    "resetLinkExpired": "The reset link is invalid or has expired.",
+    "resetFailed": "The password couldn't be reset. The link may have expired.",
+    "emailRequired": "Please enter an email address.",
+    "emailInUse": "That email address is already in use."
+  },
+  "login": {
+    "title": "Sign in",
+    "welcome": "Welcome back",
+    "tagline": "Every horse is a world<br />of its own",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "forgot": "Forgot your password?",
+    "signupPrompt": "Sign up here",
+    "panelTitle": "Welcome back<br />to Lens Dance",
+    "panelQuote": "\"Every horse is a world<br />of its own\"",
+    "noAccount": "Don't have an account yet?"
+  },
+  "signup": {
+    "title": "Sign up",
+    "heading": "Create an account",
+    "perks": [
+      "✦ Access to your personal gallery",
+      "✦ Download photos in one click",
+      "✦ A history of every competition",
+      "✦ Prices matched to your location"
+    ],
+    "fullName": "Full name",
+    "fullNamePlaceholder": "First and last name",
+    "username": "Username",
+    "usernamePlaceholder": "username, no spaces",
+    "email": "Email",
+    "password": "Password",
+    "passwordPlaceholder": "At least 6 characters",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Repeat the password",
+    "discipline": "Riding category",
+    "submit": "Create account",
+    "submitting": "Creating your account…",
+    "loginPrompt": "Sign in here",
+    "panelTitle": "Welcome<br />to the Lens Dance family",
+    "panelBody": "Create a personal account — access to your private gallery, photo downloads, and a record of every competition you shoot.",
+    "haveAccount": "Already have an account?"
+  },
+  "sms": {
+    "title": "Sign in with SMS",
+    "subtitle": "Quick and secure sign-in",
+    "codeSent": "We've sent you a verification code by SMS.",
+    "sendFailed": "That phone number is invalid, or the message couldn't be sent.",
+    "success": "Signed in! Taking you through…",
+    "wrongCode": "Wrong verification code, please try again.",
+    "sendCode": "Send verification code",
+    "codePlaceholder": "Enter the code",
+    "verifying": "Verifying…",
+    "verify": "Verify and sign in",
+    "phone": "Phone number",
+    "codeLabel": "Verification code (6 digits)",
+    "changeNumber": "Change phone number"
+  },
+  "forgot": {
+    "title": "Reset password",
+    "heading": "Forgot your password?",
+    "email": "Email",
+    "submit": "Send reset link",
+    "panelTitle": "Password recovery",
+    "panelBody": "We'll send a password reset link to the email address registered on the account.",
+    "sent": "If an account exists for <strong>{{email}}</strong>, a reset link has been sent to it. Check your inbox (and the spam folder).",
+    "remembered": "Remembered your password?"
+  },
+  "reset": {
+    "title": "Reset password",
+    "heading": "Choose a new password",
+    "verifying": "Checking the link…",
+    "newPassword": "Set a new password",
+    "submit": "Set a new password",
+    "done": "Your password has been updated. You can sign in now.",
+    "goToLogin": "Go to sign in",
+    "requestNew": "Request a new reset link",
+    "resettingFor": "Resetting the password for <strong>{{email}}</strong>",
+    "newPasswordLabel": "New password",
+    "confirmLabel": "Confirm new password"
+  },
+  "changePassword": {
+    "title": "Change password",
+    "current": "Current password",
+    "currentPlaceholder": "Enter your current password",
+    "new": "New password",
+    "newPlaceholder": "At least 6 characters",
+    "confirm": "Confirm new password",
+    "confirmPlaceholder": "Repeat the new password",
+    "submit": "Update password",
+    "success": "Your password has been updated ✦"
+  },
+  "changeName": {
+    "title": "Change full name",
+    "label": "Full name",
+    "placeholder": "First and last name",
+    "submit": "Update name",
+    "success": "Your name has been updated ✦",
+    "hint": "Your full name is what the photographer sees, so she can match the right photos to you."
+  },
+  "changeDiscipline": {
+    "title": "Change category",
+    "label": "Riding category — pick the one that fits you",
+    "submit": "Save category",
+    "success": "Your category has been updated ✦"
+  },
+  "me": {
+    "title": "My gallery",
+    "checkingAuth": "Checking your sign-in…",
+    "loading": "Loading your gallery…",
+    "loadFailed": "Your private gallery failed to load.",
+    "notSignedIn": "You are not signed in.",
+    "yourGallery": "Your gallery",
+    "coverImage": "Cover image",
+    "changeCover": "✎ Change cover image",
+    "uploading": "Uploading…",
+    "editTitle": "Edit title",
+    "titleSaveFailed": "Saving the title failed: {{detail}}",
+    "coverUploadFailed": "Uploading the cover image failed: {{detail}}",
+    "photos": "Photos",
+    "videos": "Videos",
+    "date": "Date",
+    "signInPrompt": "Sign in to view your photos",
+    "personalGallery": "Personal gallery · {{year}}",
+    "addNameHint": "✦ Add your full name so the photographer can match your photos to you ←",
+    "countLine": "{{count}} photos · tap a photo to open it",
+    "selectAll": "Select all",
+    "downloadSelected": "Download selected",
+    "download": "Download",
+    "playVideo": "▶ Tap to play",
+    "coverAlt": "Cover image"
+  },
+  "a11y": {
+    "open": "Open accessibility menu",
+    "title": "Accessibility",
+    "panelTitle": "Accessibility settings",
+    "close": "Close accessibility menu",
+    "text": "Text",
+    "fontSize": "Font size",
+    "letterSpacing": "Letter spacing",
+    "lineHeight": "Line height",
+    "default": "Default",
+    "alignRight": "Right",
+    "alignCenter": "Center",
+    "alignLeft": "Left",
+    "display": "Display",
+    "readableFont": "Readable font",
+    "highlightHeadings": "Highlight headings",
+    "highlightLinks": "Highlight links",
+    "contrastDark": "Dark contrast",
+    "contrastLight": "Light contrast",
+    "contrastHigh": "High contrast",
+    "saturationHigh": "High saturation",
+    "monochrome": "Monochrome",
+    "hideImages": "Hide images",
+    "behaviour": "Help & behaviour",
+    "readingGuide": "Reading guide",
+    "focusMask": "Focus mask",
+    "stopAnimations": "Stop animations",
+    "muteSounds": "Mute sounds",
+    "bigCursor": "Big cursor",
+    "keyboardNav": "Keyboard navigation",
+    "reset": "Reset accessibility"
+  },
+  "competition": {
+    "terms": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the result. By ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance. Please make sure the client's details, the horse's and rider's details, and the competition and class details are accurate.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end. Delivery during an emergency: in the event of a national emergency (such as war or a military operation) the timing will be agreed separately.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed. The delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media. Credit must be given to the photographer when posting (a tag or a mention). Commercial use of the results is prohibited without explicit prior approval. Where publication is approved, the photographer may use the photos for marketing while naming the client.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Payment constitutes the client's final acceptance of these terms. Cancelling up to 10 hours before the competition — the deposit is refunded. Cancelling less than 10 hours before, or not showing up — the deposit is not refunded. Once the photos/videos have been received, no refund is given.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication. If a client behaves disrespectfully, the photographer reserves the right to decline the service.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "needAccountTitle": "You need an account to sign up",
+    "needAccountBody": "Signing up for a shoot requires an account — that's how your photos reach your personal gallery.<br />Sign in or create a new account to continue.",
+    "login": "Sign in",
+    "signup": "Create account",
+    "introA": "📋 If you'd like me to photograph you, you're welcome to fill in the form below.<br />",
+    "introB": "WhatsApp is the fastest way to reach me: <strong>0525078189</strong> — lens.dance, or via Instagram :)",
+    "depositNote": "Given the travel involved and the work that goes into editing each photo, securing your place requires a deposit.",
+    "warnings": "❗ Anyone who hasn't signed up won't be photographed on competition days<br />❗ Signing up requires a small deposit, given the distance<br />❗ No refunds once a photo has been delivered<br />",
+    "termsLabel": "Terms — please read before continuing",
+    "read": "I have read the terms",
+    "approve": "I accept the terms",
+    "continue": "Continue to the sign-up form →",
+    "successTitle": "Your sign-up has been received!",
+    "successBody": "Please note! Before you go, make sure you've read and agreed to the terms 😊<br />For package pricing, message me on the site / Instagram / WhatsApp.",
+    "successFooter": "We'll get back to you shortly to confirm ♡",
+    "dayLabel": "Which days are you competing? *",
+    "riderLabel": "Rider's name *",
+    "riderPlaceholder": "First and last name",
+    "horseLabel": "Horse's name and number *",
+    "horsePlaceholder": "Horse's name + class number if known",
+    "depositLabel": "Deposit + entry fee if applicable *",
+    "depositPlaceholder": "Deposit amount + entry fee if relevant",
+    "deliveryLabel": "Please note — sending by other means lowers the photo quality *",
+    "deliveryBody": "I deliver the photos through my website — to receive them you'll need to open an account here (if you get stuck, message me any time and I'll help). Note that I also send the photos to the jumping association and sometimes to the farm that hosted the competition.",
+    "contactLabel": "How can I reach you (phone/Instagram etc.) *",
+    "contactPlaceholder": "Phone / @instagram / WhatsApp",
+    "receiptLabel": "Would you like a receipt after payment? *",
+    "receiptYes": "Yes please",
+    "receiptNo": "No",
+    "publishLabel": "Publishing permission — do you allow me to post these photos on my Instagram / TikTok? *",
+    "publishNote": "*If you choose \"no\", you can be 100% sure I won't post them.<br />**If you're under 16, a parent's approval is required.",
+    "publishYes": "Yes, I approve publishing",
+    "publishNo": "No, I'd rather keep them private",
+    "publishUnderage": "I'm under 16 and approve publishing (in this case I'm required to get a parent's approval)",
+    "termsConfirmed": "✓ You read and accepted the terms in the previous step. Payment is the final confirmation.",
+    "submit": "Send sign-up ✦",
+    "submitting": "Sending your sign-up…",
+    "pageTitle": "Sign up for a shoot",
+    "editTitle": "Edit title (admin only)",
+    "viewRegistrations": "← View the sign-up lists",
+    "errors": {
+      "day": "Please choose a competition day.",
+      "rider": "Please enter the rider's name.",
+      "horse": "Please enter the horse's name and number.",
+      "deposit": "Please enter the deposit details.",
+      "packages": "Please choose at least one package.",
+      "contact": "Please enter your contact details.",
+      "receipt": "Please choose whether you'd like a receipt.",
+      "publish": "Please choose a publishing preference.",
+      "terms": "Please accept the terms.",
+      "needAccount": "You need to sign in to register. Please sign in and try again."
+    },
+    "days": {
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "wednesday": "Wednesday"
+    }
+  }
+}

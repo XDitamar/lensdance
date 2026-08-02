@@ -1,183 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
-import { auth } from '../firebase'; 
+import React, { useState } from "react";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "../firebase";
+import { Link } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 
-export default function SmsAuthComponent() {
+// Firebase error code → i18n key, so the message arrives in the visitor's language.
+const ERROR_KEYS = {
+  "auth/invalid-email":          "errors.invalidEmail",
+  "auth/user-not-found":         "errors.userNotFound",
+  "auth/missing-email":          "errors.emailRequired",
+  "auth/too-many-requests":      "errors.tooManyRequests",
+  "auth/network-request-failed": "errors.network",
+};
+
+export default function ForgotPasswordPage() {
+  const { t, i18n } = useTranslation();
+  const [email,   setEmail]   = useState("");
+  const [error,   setError]   = useState("");
+  const [sent,    setSent]    = useState(false);
   const [loading, setLoading] = useState(false);
-  const [countryCode, setCountryCode] = useState('+972');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [step, setStep] = useState(1);
-  const [confirmationResult, setConfirmationResult] = useState(null);
-  const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
-  
-  const navigate = useNavigate();
 
-  // מנגנון האבטחה - עכשיו עם פונקציית ניקיון מיוחדת שמונעת קריסות!
-  useEffect(() => {
-    // 1. קודם כל, מנקים שאריות של מנגנונים ישנים כדי למנוע את שגיאת ה-removed
-    if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
-      window.recaptchaVerifier = null;
-    }
-
-    // 2. יוצרים מנגנון חדש ונקי
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: () => {},
-      'expired-callback': () => {}
-    });
-
-    // 3. כשהקומפוננטה נסגרת או מתרעננת (Hot Reload), ננקה את המנגנון שוב
-    return () => {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
-    };
-  }, []);
-
-  const sendVerificationCode = async (e) => {
+  const doReset = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setErr('');
-    setMsg('');
-    
-    const appVerifier = window.recaptchaVerifier;
-
-    // מנקים את המספר מרווחים, מקפים וכל טקסט אחר
-    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-    // מחברים לקידומת ומורידים את ה-0 בהתחלה אם יש
-    const formattedPhoneNumber = countryCode + cleanPhone.replace(/^0/, '');
-
     try {
-      const result = await signInWithPhoneNumber(auth, formattedPhoneNumber, appVerifier);
-      setConfirmationResult(result);
-      setStep(2);
-      setMsg('שלחנו לך קוד אימות ב-SMS.');
-    } catch (error) {
-      console.error(error);
-      setErr('מספר טלפון לא תקין או שחלה שגיאה בשליחה.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyCode = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setErr('');
-    setMsg('');
-
-    try {
-      await confirmationResult.confirm(verificationCode);
-      setMsg('התחברת בהצלחה! מעביר אותך...');
-      
-      setTimeout(() => {
-        navigate('/'); 
-      }, 1500);
-
-    } catch (error) {
-      console.error(error);
-      setErr('קוד אימות שגוי, אנא נסה שוב.');
+      await sendPasswordResetEmail(auth, email.trim());
+      setSent(true);
+    } catch (err) {
+      // Note: for privacy Firebase may still succeed on unknown emails.
+      setError(ERROR_KEYS[err?.code] ? t(ERROR_KEYS[err.code]) : t("common.genericError"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="auth-wrap">
-      <div className="auth-card">
-        <div className="auth-header">
-          <p className="auth-subtitle">כניסה מהירה ובטוחה</p>
-          <h1 className="auth-title">התחברות עם SMS</h1>
+    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={i18n.dir()}>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", flex: 1 }}>
+
+        {/* ── Left dark panel ── */}
+        <div style={{
+          background: "#2C1E12", padding: "60px 44px",
+          display: "flex", flexDirection: "column", justifyContent: "center", gap: 20,
+        }}>
+          <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
+          <h2 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#F5F1EA", lineHeight: 1.4, margin: 0 }}>
+            {t("forgot.panelTitle")}
+          </h2>
+          <p style={{ fontFamily: "Arial, sans-serif", fontSize: 11, color: "rgba(255,255,255,.45)", lineHeight: 1.85, margin: 0 }}>
+            {t("forgot.panelBody")}
+          </p>
+          <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
+          <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em", color: "rgba(255,255,255,.25)" }}>
+            Lens Dance Photography
+          </span>
         </div>
 
-        <div id="recaptcha-container"></div>
+        {/* ── Right form ── */}
+        <div style={{ background: "#FDFAF5", padding: "60px 52px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <span style={s.eyebrow}>{t("forgot.heading")}</span>
+          <h1 style={s.title}>{t("forgot.title")}</h1>
 
-        {step === 1 && (
-          <form onSubmit={sendVerificationCode} className="auth-form">
-            <label className="auth-label" style={{ display: 'block', marginBottom: '8px' }}>
-              מספר טלפון
-            </label>
-            
-            <div style={{ display: 'flex', gap: '10px', direction: 'ltr', marginBottom: '15px' }}>
-              <select 
-                className="auth-input" 
-                value={countryCode} 
-                onChange={(e) => setCountryCode(e.target.value)}
-                style={{ width: '120px', padding: '10px', cursor: 'pointer' }}
-              >
-                <option value="+972">IL (+972)</option>
-                <option value="+1">US (+1)</option>
-                <option value="+44">UK (+44)</option>
-              </select>
-              
-              <input
-                className="auth-input"
-                type="tel"
-                placeholder="0501234567"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                required
-                autoFocus
-                style={{ flex: 1, padding: '10px' }} 
-              />
+          {sent ? (
+            <div>
+              <div style={{ ...s.error, background: "#F0F7F0", borderColor: "#C4E0C4", color: "#2A5A2A" }}>
+                <Trans i18nKey="forgot.sent" values={{ email }} components={{ strong: <strong /> }} />
+              </div>
+              <p style={{ marginTop: 22, textAlign: "center", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#8A7868" }}>
+                <Link to="/login" style={s.link}>{t("common.backToLogin")}</Link>
+              </p>
             </div>
-            
-            {err && <div className="auth-error">{err}</div>}
-            {msg && <div className="auth-success">{msg}</div>}
-            
-            <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "שולח..." : "שלח קוד אימות"}
-            </button>
-            
-            <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
-            </p>
-          </form>
-        )}
+          ) : (
+            <>
+              <form onSubmit={doReset} noValidate>
+                <Field label={t("forgot.email")}>
+                  <input
+                    style={{ ...s.input, direction: "ltr", textAlign: "left" }}
+                    type="email" value={email} placeholder="your@email.com"
+                    onChange={e => setEmail(e.target.value)}
+                    required autoComplete="email" autoFocus
+                  />
+                </Field>
 
-        {step === 2 && (
-          <form onSubmit={verifyCode} className="auth-form">
-            <label className="auth-label">
-              קוד אימות (6 ספרות)
-              <input
-                className="auth-input"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="הכנס את הקוד"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                required
-                autoFocus
-              />
-            </label>
-            
-            {err && <div className="auth-error">{err}</div>}
-            {msg && <div className="auth-success">{msg}</div>}
-            
-            <button className="auth-primary" type="submit" disabled={loading}>
-              {loading ? "מאמת..." : "אמת והיכנס"}
-            </button>
-            
-            <p className="auth-switch" style={{ marginTop: 12 }}>
-              <button
-                type="button"
-                className="auth-link"
-                onClick={() => { setStep(1); setErr(""); setMsg(""); }}
-              >
-                שנה מספר טלפון
-              </button>
-              {" · "}
-              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
-            </p>
-          </form>
-        )}
+                {error && <div style={s.error}>{error}</div>}
+
+                <button type="submit" disabled={loading} style={{ ...s.btn, opacity: loading ? 0.65 : 1 }}>
+                  {loading ? t("common.sending") : t("forgot.submit")}
+                </button>
+              </form>
+
+              <p style={{ marginTop: 22, textAlign: "center", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#8A7868" }}>
+                {t("forgot.remembered")}{" "}
+                <Link to="/login" style={s.link}>{t("common.backToLogin")}</Link>
+              </p>
+            </>
+          )}
+        </div>
       </div>
-    </main>
+
+      <div style={{ background: "#2C1E12", padding: "14px 36px", textAlign: "center" }}>
+        <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".1em", color: "#4A3A28" }}>
+          © 2025 Lens Dance Photography
+        </span>
+      </div>
+    </div>
   );
 }
+
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <label style={{ display: "block", fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "#B2967D", marginBottom: 8 }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const s = {
+  eyebrow: { fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 6 },
+  title:   { fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: "0 0 30px" },
+  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "inherit", boxSizing: "border-box" },
+  btn:     { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "13px 0", fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", cursor: "pointer", transition: "background .2s" },
+  link:    { color: "#4A3525", textDecoration: "none", borderBottom: "1px solid #B2967D", paddingBottom: 1, fontFamily: "Arial, sans-serif", fontSize: 11 },
+  error:   { background: "#FFF0EE", border: "1px solid #E8C4BC", color: "#8A2A1F", padding: "10px 14px", fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.6, marginBottom: 16 },
+};

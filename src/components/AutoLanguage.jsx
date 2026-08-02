@@ -1,44 +1,59 @@
+// src/components/AutoLanguage.jsx
+//
+// Picks the site's language on the first visit and keeps the two translation
+// layers in sync afterwards. The whole policy lives in src/lib/lang.js — read
+// the header comment there; this component only executes it.
+//
+// In short: the browser's language decides the target, i18next renders the DOM
+// in Hebrew or English, and Google Translate covers everything else so no text
+// is left in the wrong language.
+
 import { useEffect } from "react";
-import { detectCountry } from "../hooks/useGeoPrice";
-
-// On the first visit, switches the site to English (via the existing Google
-// Translate cookie mechanism) for visitors outside Israel. Israeli visitors
-// keep the native Hebrew site. A manual language choice from the floating
-// translate button always wins and is never overridden.
-
-const MANUAL_KEY = "ld_lang_manual"; // set by FloatingTranslateButton
-const AUTO_KEY = "ld_lang_auto_done"; // guards against reload loops
-
-function hasGoogTransCookie() {
-  return /(?:^|;\s*)googtrans=/.test(document.cookie);
-}
-
-/* Same cookie variants FloatingTranslateButton writes, so the two stay compatible */
-function setGoogTransCookie(target) {
-  const host = window.location.hostname;
-  const dotHost = host.startsWith(".") ? host : "." + host;
-  const forever = "Fri, 31 Dec 9999 23:59:59 GMT";
-  for (const v of [`/iw/${target}`, `/auto/${target}`]) {
-    document.cookie = `googtrans=${v}; expires=${forever}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${host}; expires=${forever}; path=/`;
-    document.cookie = `googtrans=${v}; domain=${dotHost}; expires=${forever}; path=/`;
-  }
-}
+import { useTranslation } from "react-i18next";
+import {
+  AUTO_DONE_KEY,
+  applyTarget,
+  cookieTarget,
+  i18nLangFor,
+  isManualChoice,
+  reloadForTranslation,
+  resolveTarget,
+  savedTarget,
+} from "../lib/lang";
 
 export default function AutoLanguage() {
-  useEffect(() => {
-    if (localStorage.getItem(MANUAL_KEY)) return; // user picked a language themselves
-    if (sessionStorage.getItem(AUTO_KEY)) return; // already decided this session
-    if (hasGoogTransCookie()) return; // a translation is already active
+  const { i18n } = useTranslation();
 
-    detectCountry().then(code => {
-      sessionStorage.setItem(AUTO_KEY, "1");
-      if (code !== "IL") {
-        setGoogTransCookie("en");
-        window.location.reload();
+  useEffect(() => {
+    const target = resolveTarget();
+
+    // 1. Render the DOM in the language Google translates best from (or in
+    //    Hebrew, when Hebrew is what the visitor wants). Always safe to run.
+    const lng = i18nLangFor(target);
+    if (i18n.language !== lng) i18n.changeLanguage(lng);
+
+    // 2. Turn Google Translate on/off to match. Only auto-decide once per
+    //    session, and never against an explicit choice by the visitor.
+    const decidedThisSession = (() => {
+      try {
+        return !!sessionStorage.getItem(AUTO_DONE_KEY);
+      } catch {
+        return false;
       }
-    });
-  }, []);
+    })();
+
+    const firstRun = !isManualChoice() && !savedTarget();
+    if (decidedThisSession && !firstRun) return;
+
+    try {
+      sessionStorage.setItem(AUTO_DONE_KEY, "1");
+    } catch {}
+
+    // Already in the right state? Then there is nothing to reload for.
+    if (cookieTarget() === target) return;
+
+    if (applyTarget(target, { manual: false })) reloadForTranslation();
+  }, [i18n]);
 
   return null;
 }

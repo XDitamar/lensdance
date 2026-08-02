@@ -1,66 +1,67 @@
 // src/i18n.js
+//
+// English is the site's source language: every UI string lives in
+// src/locales/en.json and is authored in English. Hebrew is a real translation
+// (src/locales/he.json), NOT a Google Translate pass — the two are the only
+// hand-maintained locales.
+//
+// i18next is only half the story. Whatever it does not cover — and any language
+// other than these two — is handled by Google Translate on top. The rule for
+// which of the two locales the DOM renders in, and when Google kicks in, lives
+// in src/lib/lang.js; do not duplicate that logic here.
+
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import LanguageDetector from "i18next-browser-languagedetector";
 
-// שפות RTL שנצטרך להפוך להן כיוון
-const RTL_LANGS = ["he", "ar", "fa", "ur"];
+import en from "./locales/en.json";
+import he from "./locales/he.json";
+import { i18nLangFor, resolveTarget } from "./lib/lang";
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    fallbackLng: "en",
-    supportedLngs: ["en", "he", "ru", "fr", "ar"],
-    // גילוי שפה: קודם מה-localStorage, אח"כ מ-querystring, ואז מהדפדפן
-    detection: {
-      order: ["localStorage", "querystring", "navigator"],
-      caches: ["localStorage"],
-    },
-    interpolation: { escapeValue: false },
-    react: { useSuspense: false }, // בלי Suspense כדי לא להסתבך
-    // אפשר להתחיל עם משאבים כאן, ובהמשך לפצל לקבצי JSON נפרדים
-    resources: {
-      en: {
-        common: {
-          siteName: "Lens Dance",
-          home: "Home",
-          gallery: "Gallery",
-          privateGallery: "Private Gallery",
-          contact: "Contact",
-          admin: "Admin",
-          login: "Log in",
-          logout: "Logout",
-          language: "Language",
-          menu: "Menu",
-        },
-      },
-      he: {
-        common: {
-          siteName: "Lens Dance",
-          home: "בית",
-          gallery: "גלריה",
-          privateGallery: "גלריה פרטית",
-          contact: "צור קשר",
-          admin: "ניהול",
-          login: "התחבר",
-          logout: "התנתק",
-          language: "שפה",
-          menu: "תפריט",
-        },
-      },
-    },
-    ns: ["common"],
-    defaultNS: "common",
-  });
+export const NATIVE_LANGS = ["en", "he"];
+const RTL_LANGS = ["he"];
+export const LANG_KEY = "ld_lang";
 
-// סנכרון dir/lang על ה-<html>
-function syncHtmlDir(lang = i18n.language) {
-  const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";
-  document.documentElement.setAttribute("dir", dir);
-  document.documentElement.setAttribute("lang", lang);
+/**
+ * The language to boot with. Derived from the resolved target (past choice →
+ * active translation → browser language) so a Hebrew-speaking visitor gets the
+ * hand-written Hebrew, and everyone else gets English for Google to work from.
+ * Resolved at import time to avoid a flash of the wrong language.
+ */
+function initialLang() {
+  try {
+    return i18nLangFor(resolveTarget());
+  } catch {
+    return "en";
+  }
 }
-i18n.on("languageChanged", syncHtmlDir);
+
+i18n.use(initReactI18next).init({
+  lng: initialLang(),
+  fallbackLng: "en",
+  supportedLngs: NATIVE_LANGS,
+  resources: {
+    en: { common: en },
+    he: { common: he },
+  },
+  ns: ["common"],
+  defaultNS: "common",
+  interpolation: { escapeValue: false },
+  react: { useSuspense: false },
+});
+
+/* Keep <html lang/dir> in step with the active language. */
+function syncHtmlDir(lang = i18n.language) {
+  const base = String(lang || "en").split("-")[0];
+  document.documentElement.setAttribute("lang", base);
+  document.documentElement.setAttribute("dir", RTL_LANGS.includes(base) ? "rtl" : "ltr");
+}
+i18n.on("languageChanged", (lng) => {
+  try { localStorage.setItem(LANG_KEY, lng); } catch {}
+  syncHtmlDir(lng);
+});
 syncHtmlDir();
+
+export const isRtlLang = (lang = i18n.language) =>
+  RTL_LANGS.includes(String(lang || "en").split("-")[0]);
 
 export default i18n;

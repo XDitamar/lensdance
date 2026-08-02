@@ -2,13 +2,17 @@
 // Returns the latest posts from the lens.dance Instagram account.
 //
 // Sources, in order of preference:
-//   1. INSTAGRAM_FEED_URL   — e.g. a Behold.so feed URL (most reliable, free)
-//   2. INSTAGRAM_ACCESS_TOKEN — long-lived Instagram Graph API token
+//   1. Instagram Graph API using the long-lived token kept in Firestore
+//      (secrets/instagram) and rotated by api/instagram-refresh.js. Seeded once
+//      from INSTAGRAM_ACCESS_TOKEN.
+//   2. INSTAGRAM_FEED_URL — a hosted JSON feed (e.g. Behold.so), if configured.
 //   3. Instagram's public web-profile endpoint (no credentials; best-effort —
 //      Instagram may rate-limit datacenter IPs, in which case we fall through)
 // If every source fails we return 503 and the site shows local fallback images.
 // Successful responses are cached on the Vercel CDN for 1 hour (+1 day stale),
 // so Instagram is hit at most ~once an hour regardless of traffic.
+
+import { getActiveToken } from "./_lib/instagramToken.js";
 
 const IG_USERNAME = "lens.dance";
 const GRAPH_URL = "https://graph.instagram.com/me/media";
@@ -78,10 +82,19 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
 
   const attempts = [];
+
+  // 1. Graph API with the auto-refreshed token (Firestore, seeded from env).
+  attempts.push(async () => {
+    const token = await getActiveToken();
+    if (!token) throw new Error("no token configured");
+    return fromGraphApi(token);
+  });
+
+  // 2. Hosted JSON feed, if one is configured.
   if (process.env.INSTAGRAM_FEED_URL)
     attempts.push(() => fromFeedUrl(process.env.INSTAGRAM_FEED_URL));
-  if (process.env.INSTAGRAM_ACCESS_TOKEN)
-    attempts.push(() => fromGraphApi(process.env.INSTAGRAM_ACCESS_TOKEN));
+
+  // 3. Last resort: the public web endpoint (often blocked from datacenter IPs).
   attempts.push(fromPublicProfile);
 
   for (const attempt of attempts) {

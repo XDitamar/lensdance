@@ -2,17 +2,20 @@ import React, { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-const ERROR_MAP = {
-  "auth/user-not-found":         'לא נמצא חשבון עם דוא"ל זה.',
-  "auth/wrong-password":         "סיסמה שגויה.",
-  "auth/invalid-email":          'כתובת הדוא"ל אינה תקינה.',
-  "auth/too-many-requests":      "יותר מדי ניסיונות. נסו שוב מאוחר יותר.",
-  "auth/network-request-failed": "שגיאת רשת. בדקו את החיבור ונסו שוב.",
-  "auth/invalid-credential":     "אימייל או סיסמה שגויים.",
+// Firebase error code → i18n key, so the message arrives in the visitor's language.
+const ERROR_KEYS = {
+  "auth/user-not-found":         "errors.userNotFound",
+  "auth/wrong-password":         "errors.wrongPassword",
+  "auth/invalid-email":          "errors.invalidEmail",
+  "auth/too-many-requests":      "errors.tooManyRequests",
+  "auth/network-request-failed": "errors.network",
+  "auth/invalid-credential":     "errors.invalidCredentials",
 };
 
 export default function LoginPage() {
+  const { t, i18n } = useTranslation();
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
   const [showPw,  setShowPw]  = useState(false);
@@ -28,14 +31,14 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, pw);
       navigate("/me");
     } catch (err) {
-      setError(ERROR_MAP[err?.code] || "אירעה שגיאה. נסו שוב.");
+      setError(ERROR_KEYS[err?.code] ? t(ERROR_KEYS[err.code]) : t("common.errorWithCode", { detail: err?.code || "unknown" }));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir="rtl">
+    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={i18n.dir()}>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", flex: 1 }}>
 
@@ -46,10 +49,10 @@ export default function LoginPage() {
         }}>
           <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
           <h2 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#F5F1EA", lineHeight: 1.4, margin: 0 }}>
-            ברוכים השבים<br />ל-Lens Dance
+            <span dangerouslySetInnerHTML={{ __html: t("login.panelTitle") }} />
           </h2>
           <p style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15, color: "rgba(255,255,255,.45)", lineHeight: 1.8, margin: 0 }}>
-            "כל סוס הוא עולם<br />בפני עצמו"
+            <span dangerouslySetInnerHTML={{ __html: t("login.panelQuote") }} />
           </p>
           <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
           <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em", color: "rgba(255,255,255,.25)" }}>
@@ -59,11 +62,11 @@ export default function LoginPage() {
 
         {/* ── Right form ── */}
         <div style={{ background: "#FDFAF5", padding: "60px 52px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <span style={s.eyebrow}>ברוכה השבה</span>
-          <h1 style={s.title}>כניסה לחשבון</h1>
+          <span style={s.eyebrow}>{t("login.welcome")}</span>
+          <h1 style={s.title}>{t("login.title")}</h1>
 
           <form onSubmit={doLogin} noValidate>
-            <Field label="אימייל">
+            <Field label={t("login.email")}>
               <input
                 style={{ ...s.input, direction: "ltr", textAlign: "left" }}
                 type="email" value={email} placeholder="your@email.com"
@@ -72,7 +75,7 @@ export default function LoginPage() {
               />
             </Field>
 
-            <Field label="סיסמה">
+            <Field label={t("login.password")}>
               <div style={{ position: "relative" }}>
                 <input
                   style={{ ...s.input, paddingLeft: 56 }}
@@ -91,25 +94,25 @@ export default function LoginPage() {
                     letterSpacing: ".1em", color: "#B2967D", padding: 0,
                   }}
                 >
-                  {showPw ? "הסתר" : "הצג"}
+                  {showPw ? t("common.hide") : t("common.show")}
                 </button>
               </div>
             </Field>
 
             <div style={{ textAlign: "left", marginTop: -10, marginBottom: 24 }}>
-              <Link to="/forgot-password" style={s.link}>שכחת סיסמה?</Link>
+              <Link to="/forgot-password" style={s.link}>{t("login.forgot")}</Link>
             </div>
 
             {error && <div style={s.error}>{error}</div>}
 
             <button type="submit" disabled={loading} style={{ ...s.btn, opacity: loading ? 0.65 : 1 }}>
-              {loading ? "מתחבר..." : "כניסה"}
+              {loading ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
 
           <p style={{ marginTop: 22, textAlign: "center", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#8A7868" }}>
-            אין לכם חשבון עדיין?{" "}
-            <Link to="/signup" style={s.link}>הירשמו כאן</Link>
+            {t("login.noAccount")}{" "}
+            <Link to="/signup" style={s.link}>{t("login.signupPrompt")}</Link>
           </p>
         </div>
       </div>
@@ -137,7 +140,7 @@ function Field({ label, children }) {
 const s = {
   eyebrow: { fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 6 },
   title:   { fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: "0 0 30px" },
-  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "rtl", boxSizing: "border-box" },
+  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "inherit", boxSizing: "border-box" },
   btn:     { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "13px 0", fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", cursor: "pointer", transition: "background .2s" },
   link:    { color: "#4A3525", textDecoration: "none", borderBottom: "1px solid #B2967D", paddingBottom: 1, fontFamily: "Arial, sans-serif", fontSize: 11 },
   error:   { background: "#FFF0EE", border: "1px solid #E8C4BC", color: "#8A2A1F", padding: "10px 14px", fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.6, marginBottom: 16 },

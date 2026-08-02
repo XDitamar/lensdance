@@ -1,6 +1,8 @@
 // src/pages/GalleryPage.jsx
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { getMainGalleryItems } from "../lib/galleryCache";
+import { isRtlLang } from "../i18n";
 import "../style.css";
 
 /* ---------------------------------------------
@@ -58,6 +60,7 @@ const isVideoExt = (e = "") =>
  * Page
  * ---------------------------------------------- */
 export default function GalleryPage() {
+	const { t, i18n } = useTranslation();
 	const [allItems, setAllItems] = useState([]);
 	const [loadingList, setLoadingList] = useState(true);
 	const [error, setError] = useState("");
@@ -103,7 +106,7 @@ export default function GalleryPage() {
 				if (!cancelled) setAllItems(items || []);
 			} catch (e) {
 				console.error(e);
-				if (!cancelled) setError("טעינת הגלריה נכשלה.");
+				if (!cancelled) setError(t("gallery.loadFailed"));
 			} finally {
 				if (!cancelled) setLoadingList(false);
 			}
@@ -111,7 +114,7 @@ export default function GalleryPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [t]);
 
 	const filteredItems = useMemo(() => {
 		return allItems.filter((r) => {
@@ -181,21 +184,21 @@ export default function GalleryPage() {
 	}, [modalOpen, closeModal]);
 
 	if (loadingList)
-		return <div className="gallery-container loading">טוען מדיה…</div>;
+		return <div className="gallery-container loading">{t("gallery.loadingMedia")}</div>;
 	if (error) return <div className="gallery-container error">{error}</div>;
 	if (filteredItems.length === 0)
 		return (
 			<div className="gallery-container no-media">
 				{filter === "images"
-					? "לא נמצאו תמונות."
+					? t("gallery.noPhotos")
 					: filter === "videos"
-					? "לא נמצאו סרטונים."
-					: "לא נמצאו פריטים."}
+					? t("gallery.noVideos")
+					: t("gallery.noItems")}
 			</div>
 		);
 
 	return (
-		<div style={{ background: "#F5F1EA", minHeight: "100vh", direction: "rtl" }}>
+		<div style={{ background: "#F5F1EA", minHeight: "100vh", direction: isRtlLang(i18n.language) ? "rtl" : "ltr" }}>
 
 			{/* STATS BAR */}
 			<div style={{
@@ -205,9 +208,9 @@ export default function GalleryPage() {
 				borderBottom: "1px solid #DDD8CF",
 			}}>
 				{[
-					["📸", allItems.filter((i) => !isVideoExt(i.ext)).length, "תמונות"],
-					["🎬", allItems.filter((i) => isVideoExt(i.ext)).length, "סרטונים"],
-					["✦", allItems.length, "סה״כ"],
+					["📸", allItems.filter((i) => !isVideoExt(i.ext)).length, t("gallery.photos")],
+					["🎬", allItems.filter((i) => isVideoExt(i.ext)).length, t("gallery.videos")],
+					["✦", allItems.length, t("gallery.total")],
 				].map(([icon, val, label], i) => (
 					<div key={i} style={{
 						padding: "14px 16px",
@@ -226,9 +229,9 @@ export default function GalleryPage() {
 
 			{/* FILTER BUTTONS */}
 			<div style={{ padding: "16px 24px 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
-				<button onClick={() => setFilter("all")} className={`filter-button ${filter === "all" ? "active" : ""}`}>הכל</button>
-				<button onClick={() => setFilter("images")} className={`filter-button ${filter === "images" ? "active" : ""}`}>תמונות</button>
-				<button onClick={() => setFilter("videos")} className={`filter-button ${filter === "videos" ? "active" : ""}`}>סרטונים</button>
+				<button onClick={() => setFilter("all")} className={`filter-button ${filter === "all" ? "active" : ""}`}>{t("gallery.all")}</button>
+				<button onClick={() => setFilter("images")} className={`filter-button ${filter === "images" ? "active" : ""}`}>{t("gallery.photos")}</button>
+				<button onClick={() => setFilter("videos")} className={`filter-button ${filter === "videos" ? "active" : ""}`}>{t("gallery.videos")}</button>
 			</div>
 
 			{/* TILE GRID — זהה לגלריה הפרטית: מיקום ומראה (תמונה רחבה בכל 5 אריחים) */}
@@ -290,7 +293,7 @@ export default function GalleryPage() {
 								) : (
 									<img
 										src={isWide ? (item.gridUrl || item.url) : (item.thumbUrl || item.gridUrl || item.url)}
-										alt=""
+										alt={item.name || t("gallery.itemAlt")}
 										loading="eager"
 										fetchpriority={index < 4 ? "high" : undefined}
 										decoding="async"
@@ -319,7 +322,7 @@ export default function GalleryPage() {
 							className="filter-button"
 							style={{ opacity: safePage === 1 ? 0.4 : 1, cursor: safePage === 1 ? "default" : "pointer" }}
 						>
-							‹ הקודם
+							‹ {t("gallery.prev")}
 						</button>
 
 						{Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
@@ -339,7 +342,7 @@ export default function GalleryPage() {
 							className="filter-button"
 							style={{ opacity: safePage === totalPages ? 0.4 : 1, cursor: safePage === totalPages ? "default" : "pointer" }}
 						>
-							הבא ›
+							{t("gallery.next")} ›
 						</button>
 					</div>
 				)}
@@ -361,7 +364,7 @@ export default function GalleryPage() {
 						) : (
 							/* Resized 1600px WebP instead of the original camera file — loads in a
 							   fraction of the time; the original stays available for download. */
-							<img src={selectedItem.modalUrl || selectedItem.url} alt="תצוגה מוגדלת" className="modal-media" />
+							<img src={selectedItem.modalUrl || selectedItem.url} alt={t("gallery.lightbox")} className="modal-media" />
 						)}
 					</div>
 				</div>

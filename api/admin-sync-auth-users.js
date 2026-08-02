@@ -48,11 +48,25 @@ export default async function handler(req, res) {
         continue;
       }
 
+      // Keep the users schema consistent with signup
+      // ({ name, username, email, discipline, role }) so admin views that read
+      // `username`/`name`/`discipline` work for sync-created users too.
+      const emailLc = user.email.toLowerCase();
+      const displayName = user.displayName || "";
+      const derivedName = displayName || emailLc.split("@")[0];
+      const derivedUsername = (displayName || emailLc.split("@")[0])
+        .replace(/\s+/g, "")
+        .toLowerCase();
+
       await ref.set({
         uid: user.uid,
-        email: user.email.toLowerCase(),
-        displayName: user.displayName || "",
+        email: emailLc,
+        name: derivedName,
+        username: derivedUsername,
+        displayName,
         photoURL: user.photoURL || "",
+        discipline: "other",
+        role: "client",
         createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 

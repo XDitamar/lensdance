@@ -2,9 +2,11 @@
 import React, { useEffect, useState } from "react";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 import { auth } from "../firebase";
+import { Trans, useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -20,7 +22,7 @@ export default function ResetPasswordPage() {
     setCode(oob);
 
     if (!oob) {
-      setError("קישור לא חוקי לאיפוס סיסמה.");
+      setError(t("errors.resetLinkInvalid"));
       setStatus("error");
       return;
     }
@@ -31,7 +33,7 @@ export default function ResetPasswordPage() {
         setEmail(restoredEmail);
         setStatus("ready");
       } catch {
-        setError("קישור האיפוס לא תקף או שפג תוקפו.");
+        setError(t("errors.resetLinkExpired"));
         setStatus("error");
       }
     })();
@@ -40,7 +42,7 @@ export default function ResetPasswordPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (pw !== pw2) {
-      setError("הסיסמאות אינן תואמות.");
+      setError(t("errors.passwordMismatch"));
       return;
     }
     setStatus("submitting");
@@ -52,7 +54,7 @@ export default function ResetPasswordPage() {
       // optional: navigate to login after a moment
       setTimeout(() => navigate("/login", { replace: true, state: { email } }), 800);
     } catch {
-      setError("לא ניתן לאפס את הסיסמה. ייתכן שהקישור פג תוקף.");
+      setError(t("errors.resetFailed"));
       setStatus("error");
     }
   };
@@ -61,20 +63,20 @@ export default function ResetPasswordPage() {
     <main className="auth-wrap">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="auth-subtitle">בחר סיסמה חדשה</p>
-          <h1 className="auth-title">איפוס סיסמה</h1>
+          <p className="auth-subtitle">{t("reset.heading")}</p>
+          <h1 className="auth-title">{t("reset.title")}</h1>
         </div>
 
-        {status === "verifying" && <div>מאמת קישור…</div>}
+        {status === "verifying" && <div>{t("reset.verifying")}</div>}
 
         {status === "ready" && (
           <form onSubmit={onSubmit} className="auth-form">
             <div className="auth-hint" style={{ marginBottom: 8 }}>
-              מאפס סיסמה עבור <strong>{email}</strong>
+              <Trans i18nKey="reset.resettingFor" values={{ email }} components={{ strong: <strong /> }} />
             </div>
 
             <label className="auth-label">
-              סיסמה חדשה
+              {t("reset.newPasswordLabel")}
               <input
                 className="auth-input"
                 type="password"
@@ -85,7 +87,7 @@ export default function ResetPasswordPage() {
             </label>
 
             <label className="auth-label">
-              אשר סיסמה חדשה
+              {t("reset.confirmLabel")}
               <input
                 className="auth-input"
                 type="password"
@@ -98,20 +100,20 @@ export default function ResetPasswordPage() {
             {error && <div className="auth-error">{error}</div>}
 
             <button className="auth-primary" type="submit" disabled={status === "submitting"}>
-              {status === "submitting" ? "מעדכן…" : "קבע סיסמה חדשה"}
+              {status === "submitting" ? t("common.updating") : t("reset.submit")}
             </button>
 
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">חזרה להתחברות</Link>
+              <Link to="/login" className="auth-link">{t("common.backToLogin")}</Link>
             </p>
           </form>
         )}
 
         {status === "done" && (
           <div className="auth-success">
-            <p>הסיסמה עודכנה. כעת תוכל להתחבר.</p>
+            <p>{t("reset.done")}</p>
             <p className="auth-switch" style={{ marginTop: 12 }}>
-              <Link to="/login" className="auth-link">עבור להתחברות</Link>
+              <Link to="/login" className="auth-link">{t("reset.goToLogin")}</Link>
             </p>
           </div>
         )}
@@ -120,7 +122,7 @@ export default function ResetPasswordPage() {
           <div>
             <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>
             <p className="auth-switch">
-              <Link to="/forgot-password" className="auth-link">בקש קישור איפוס חדש</Link>
+              <Link to="/forgot-password" className="auth-link">{t("reset.requestNew")}</Link>
             </p>
           </div>
         )}
