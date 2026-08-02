@@ -4,32 +4,30 @@
 // MAINTENANCE MODE — how to turn it on and off
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// TO TURN IT ON:   set  REACT_APP_MAINTENANCE = 1   in the Vercel project's
-//                  environment variables, then redeploy.
-// TO TURN IT OFF:  set it to 0 (or delete it) and redeploy.
+// TO TURN IT ON:   REACT_APP_MAINTENANCE=1  in .env (already committed), or in
+//                  the Vercel project's environment variables. Then deploy.
+// TO TURN IT OFF:  set it to 0 and deploy.
 //
-// It is deliberately an env var and not a code change, so the site can be put
-// behind the screen — and taken back out — without touching a single file.
+// While it is on, the deployed site is CLOSED. Every route renders the
+// maintenance screen instead — the home page, /gallery, /me, /admin, a shared
+// deep link, a bookmark, all of them. There is no password, no preview link and
+// no admin bypass: signing in as the admin on lens-dance.com shows the same
+// screen as everyone else. That is deliberate, so nothing can be reached by
+// accident while the site is unfinished.
 //
-// THREE THINGS ALWAYS GET THROUGH, by design:
+// THE ONE EXCEPTION IS LOCAL DEVELOPMENT.
+// localhost / 127.0.0.1 / a LAN address never sees this screen, so `npm start`
+// keeps working normally and phone testing over Wi-Fi still works. The check is
+// on the hostname rather than NODE_ENV on purpose: `npm run build` served
+// locally is a production build, and it should still be usable while testing.
 //
-//   1. localhost. Development never sees this screen, so work can continue on
-//      `npm start` while visitors see the maintenance image in production.
-//      (`npm run build` locally counts as production, hence the host check
-//      rather than a NODE_ENV check.)
-//   2. The admin, once signed in. Alina can review the live site normally.
-//   3. Anyone with ?preview=1 in the URL — a link that can be shared with
-//      someone who needs to see the work in progress. It is remembered for the
-//      rest of the session so navigation doesn't lose it.
-//
-// The API routes under /api are untouched: this is a client-side screen only,
-// not a lock. Don't rely on it to protect anything — Firestore rules do that.
+// SCOPE — this is a screen, not a lock. The serverless routes under /api stay
+// reachable, and Firestore is still governed by firestore.rules. Don't treat
+// this as a security boundary; it exists to keep visitors from using a site
+// that isn't ready.
 
-import React, { useEffect, useState } from "react";
-import useIsAdmin from "../hooks/useIsAdmin";
+import React, { useEffect } from "react";
 import MaintenancePage from "../pages/MaintenancePage";
-
-const PREVIEW_KEY = "ld_preview";
 
 /** True only when the env var is explicitly on. Anything else = off. */
 const MAINTENANCE_ENABLED = ["1", "true", "on", "yes"].includes(
@@ -47,37 +45,24 @@ function isLocalhost() {
     h === "0.0.0.0" ||
     h.endsWith(".local") ||
     /^192\.168\./.test(h) || // phone testing over the local network
-    /^10\./.test(h)
+    /^10\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h)
   );
 }
 
-function hasPreviewPass() {
-  try {
-    if (new URLSearchParams(window.location.search).get("preview") === "1") {
-      sessionStorage.setItem(PREVIEW_KEY, "1");
-      return true;
-    }
-    return sessionStorage.getItem(PREVIEW_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export default function MaintenanceGate({ children }) {
-  const isAdmin = useIsAdmin();
-  // Read once on mount: the URL doesn't change under us, and this keeps the
-  // first paint stable instead of flickering between the two screens.
-  const [preview] = useState(hasPreviewPass);
+  const blocked = MAINTENANCE_ENABLED && !isLocalhost();
 
-  const blocked = MAINTENANCE_ENABLED && !isLocalhost() && !isAdmin && !preview;
-
-  // Lock the page behind the image — no scrolling to the site underneath.
+  // Nothing behind the screen should be reachable — not even by scrolling.
   useEffect(() => {
     if (!blocked) return;
-    const previous = document.body.style.overflow;
+    const previousBody = document.body.style.overflow;
+    const previousHtml = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow = previousBody;
+      document.documentElement.style.overflow = previousHtml;
     };
   }, [blocked]);
 
