@@ -71,10 +71,11 @@
     "heroCta": "To my gallery →",
     "galleryCta": "See the full gallery →",
     "captionJumping": "Show jumping",
-    "captionRiding": "Riding",
+    "captionRiding": "Horse & rider",
     "captionPortrait": "Portrait",
     "quote": "Every horse is a world of its own — I'm here to catch it at the decisive moment",
-    "quoteAuthor": "— Alina, Lens Dance Photography"
+    "quoteAuthor": "— Alina, Lens Dance Photography",
+    "captionEquine": "Black & white portrait"
   },
   "gallery": {
     "loadFailed": "The gallery failed to load.",
@@ -126,7 +127,7 @@
     "loginRequired": "🔒 You need to sign in to continue",
     "loginPrompt": "Please sign in to accept the terms and continue.",
     "saveFailed": "Could not save your acceptance (check the Firestore permissions).",
-    "agreement": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the results to the client.\nBy ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance.\nPlease make sure the client's details, the horse's and rider's details, and the competition and class details are accurate and clearly communicated.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end of the competition.\nDelivery during an emergency: in the event of a national emergency (such as war, a military operation or a natural disaster) delivery may take longer. Delivery resumes once the emergency ends, plus a reasonable amount of time for processing. The client will be updated about any such change as soon as possible.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed.\nThe delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media.\nCredit must be given to the photographer when posting (for example a tag or a mention).\nPublication by the photographer: with the client's approval, the photographer may use photos and/or videos in which the client appears for self-promotion on social media or on the photographer's website.\nThe client's name should be mentioned when publishing, in order to credit them.\nCommercial use of the results is prohibited without explicit prior approval.\nOnce the client approves publication of their photos, the photographer may use them on social media and on the website.\n\n6. Payment:\nPayment details are agreed with the client before the shoot.\nPayment constitutes the client's final acceptance of these terms.\nIf the client wishes to cancel the order before the competition (10 hours before the class starts), they receive a full refund.\nIf a deposit was paid and the competition was cancelled for any reason, the deposit is refunded in full.\nIf the client requests a refund after receiving the photos/videos, no refund is given. A request can be submitted for the case to be reviewed on its merits, and the decision is at the photographer's discretion.\nIf a refund is approved, the client may not use the photos they received without the photographer's consent.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication.\nIf a client behaves disrespectfully or offensively, the photographer reserves the right to decline to provide services to that client in the future.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "agreement": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the results to the client.\nBy ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance.\nPlease make sure the client's details, the horse's and rider's details, and the competition and class details are accurate and clearly communicated.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end of the competition.\nDelivery during an emergency: in the event of a national emergency (such as war, a military operation or a natural disaster) delivery may take longer. Delivery resumes once the emergency ends, plus a reasonable amount of time for processing. The client will be updated about any such change as soon as possible.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed.\nThe delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media.\nCredit must be given to the photographer when posting (for example a tag or a mention).\nPublication by the photographer: with the client's approval, the photographer may use photos and/or videos in which the client appears for self-promotion on social media or on the photographer's website.\nThe client's name should be mentioned when publishing, in order to credit them.\nCommercial use of the results is prohibited without explicit prior approval.\nOnce the client approves publication of their photos, the photographer may use them on social media and on the website.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery.\nPayment constitutes the client's final acceptance of these terms.\nIf the client wishes to cancel the order before the competition (10 hours before the class starts), they receive a full refund.\nIf a deposit was paid and the competition was cancelled for any reason, the deposit is refunded in full.\nIf the client requests a refund after receiving the photos/videos, no refund is given. A request can be submitted for the case to be reviewed on its merits, and the decision is at the photographer's discretion.\nIf a refund is approved, the client may not use the photos they received without the photographer's consent.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication.\nIf a client behaves disrespectfully or offensively, the photographer reserves the right to decline to provide services to that client in the future.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
     "read": "I have read the terms",
     "agree": "I accept the terms",
     "login": "Sign in"
@@ -140,77 +141,175 @@
     "book": "Book Now",
     "from": "From {{price}}",
     "perEntry": {
-      "title": "Photos per entry",
+      "title": "Standard package",
       "label": "{{price}} per person",
       "extra": "{{extraPrice}} per additional horse",
-      "sub": "{{price}} per person · {{extraPrice}} per additional horse",
-      "from": "From {{price}}"
-    },
-    "perPhoto": {
-      "title": "Photos by selection",
-      "label": "{{price}} per photo",
-      "extra": "Access to all photos",
-      "sub": "Access to all photos · {{price}} per edited photo",
-      "from": "From {{price}}"
+      "sub": "From {{count}} photos · {{price}} per person",
+      "from": "From {{price}}",
+      "includes": [
+        "At least {{count}} edited photos",
+        "Your round",
+        "The warm-up arena",
+        "The podium, if you get there",
+        "{{extraPrice}} for each additional horse",
+        "Within 10 business days"
+      ]
     },
     "videoPackage": {
       "title": "Video package",
       "label": "{{price}}",
       "extra": "Custom Instagram Reel",
-      "sub": "Custom Instagram Reel",
-      "from": "{{price}}"
+      "sub": "45 seconds and up, cut two ways",
+      "from": "{{price}}",
+      "includes": [
+        "45 seconds and up",
+        "Course walk, warm-up and close-ups of you and the horse",
+        "The whole course",
+        "Edited with slow motion",
+        "Plus a second cut of the round with no slow motion",
+        "Vertical, ready for Instagram"
+      ]
     },
     "shortVideo": {
       "title": "Short video",
       "label": "{{price}}",
       "extra": "Up to 15 seconds",
-      "sub": "Video of up to 15 seconds",
-      "from": "{{price}}"
+      "sub": "Up to 25 seconds",
+      "from": "{{price}}",
+      "includes": [
+        "Up to 25 seconds",
+        "The course itself",
+        "Course walk or warm-up if it fits",
+        "Fewer fences, more atmosphere",
+        "Vertical, ready to post"
+      ]
     },
     "custom": {
       "title": "Custom package",
       "label": "By consultation",
       "extra": "Personal consultation",
       "sub": "Personal consultation · Events & competitions",
-      "from": "By consultation"
-    },
-    "services": {
-      "event": {
-        "title": "Event Photography",
-        "desc": "Professional photography for special events",
-        "items": [
-          "4 hours of shooting",
-          "Professional editing",
-          "Digital gallery",
-          "50 edited photos"
-        ]
-      },
-      "portrait": {
-        "title": "Portrait Photography",
-        "desc": "Personal and family sessions",
-        "items": [
-          "2 hours of shooting",
-          "Professional editing",
-          "Digital gallery",
-          "25 edited photos"
-        ]
-      },
-      "product": {
-        "title": "Product Photography",
-        "desc": "Professional photography for products and businesses",
-        "items": [
-          "Up to 10 products",
-          "Professional editing",
-          "Clean white background",
-          "High-resolution files"
-        ]
-      }
+      "from": "By consultation",
+      "includes": [
+        "Built around your event",
+        "Several riders or a whole yard",
+        "Photos, video or both",
+        "Quoted after a short conversation"
+      ]
     },
     "packages": {
       "photos": "Photos — {{price}} per person",
       "video": "Video — {{price}}",
-      "short": "Short video (max 15 seconds) — {{price}}"
-    }
+      "short": "Short video (max 15 seconds) — {{price}}",
+      "priority": "Priority delivery — {{price}} · within 48h",
+      "extended": "Extended package — {{price}} per person",
+      "obstacle": "One fence — {{price}}"
+    },
+    "includesTitle": "What's included",
+    "deposit": "{{percent}}% deposit holds the date · balance on delivery",
+    "priority": {
+      "title": "Priority delivery",
+      "label": "+{{price}}",
+      "sub": "Your photos within 48 hours instead of 10 business days",
+      "slots": "A limited number of places at each competition",
+      "addon": "Add-on to any package"
+    },
+    "groups": {
+      "competition": "At a competition",
+      "personal": "Personal photo day"
+    },
+    "groupHint": {
+      "competition": "I come to your show and shoot your rounds",
+      "personal": "A session booked just for you and your horse, away from the ring"
+    },
+    "extendedEntry": {
+      "title": "Extended package",
+      "label": "{{price}} per person",
+      "extra": "{{extraPrice}} per additional horse",
+      "sub": "{{count}} photos and up · the whole day, not just the round",
+      "from": "{{price}}",
+      "includes": [
+        "{{count}} edited photos and up",
+        "The round, the warm-up and the course walk",
+        "Close-ups of you and of the horse",
+        "Podium and victory lap, when there is one",
+        "The vet check, when one is held",
+        "{{extraPrice}} for each additional horse",
+        "Within 10 business days"
+      ]
+    },
+    "obstacleVideo": {
+      "title": "One fence",
+      "label": "{{price}}",
+      "sub": "Up to 15 seconds, a fence you choose",
+      "from": "{{price}}",
+      "includes": [
+        "Up to 15 seconds",
+        "One fence or combination, your choice",
+        "Shot from the angle that shows it best",
+        "Vertical, ready to post"
+      ]
+    },
+    "sessionHour": {
+      "title": "An hour with your horse",
+      "label": "{{price}}",
+      "sub": "One hour, one outfit, the two of you",
+      "from": "{{price}}",
+      "includes": [
+        "One hour",
+        "One horse and one rider",
+        "One outfit",
+        "15–25 edited photos",
+        "A gallery on the site with every edited photo",
+        "Print resolution, ready to hang",
+        "{{extraHorse}} for each additional horse",
+        "{{extraAnimal}} for another animal — a dog, say"
+      ]
+    },
+    "sessionTwoHour": {
+      "title": "The long session",
+      "label": "{{price}}",
+      "sub": "Two hours, three outfits, room to try things",
+      "from": "{{price}}",
+      "includes": [
+        "Two hours",
+        "Three outfits",
+        "25–35 edited photos",
+        "Every photo at print resolution",
+        "A gallery on the site with every edited photo",
+        "Can be the horse alone, if you prefer",
+        "{{extraHorse}} for each additional horse"
+      ]
+    },
+    "sessionBW": {
+      "title": "Black and white",
+      "label": "{{price}}",
+      "sub": "A short sitting, {{count}} finished portraits",
+      "from": "{{price}}",
+      "includes": [
+        "20–25 minutes",
+        "Several set-ups and poses",
+        "{{count}} finished black-and-white portraits",
+        "Deep retouching on each one — this is the slow work",
+        "Print resolution"
+      ]
+    },
+    "sessionTraining": {
+      "title": "In training",
+      "label": "{{price}}",
+      "sub": "A private lesson, photographed as it happens",
+      "from": "{{price}}",
+      "includes": [
+        "One hour to an hour and a quarter",
+        "The warm-up and the work",
+        "25–30 edited photos",
+        "Short clips from the session, up to 15 seconds each",
+        "A gallery on the site with every edited photo",
+        "Print resolution"
+      ]
+    },
+    "sessionsNote": "Every session is delivered within 10 days.",
+    "faqLink": "Questions before you book →"
   },
   "admin": {
     "geo": {
@@ -271,7 +370,14 @@
     "receipt": "Receipt: {{value}}",
     "submitted": "Signed up: {{date}}",
     "yes": "yes",
-    "no": "no"
+    "no": "no",
+    "paid": "Deposit paid",
+    "unpaid": "Deposit not paid",
+    "markPaid": "Mark as paid",
+    "markUnpaid": "Mark as unpaid",
+    "prioritySlots": "Priority: {{used}} of {{total}} places taken",
+    "priorityFull": "Priority is full for this competition",
+    "updateFailed": "Could not update: {{detail}}"
   },
   "errors": {
     "userNotFound": "No account found with that email.",
@@ -459,7 +565,7 @@
     "reset": "Reset accessibility"
   },
   "competition": {
-    "terms": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the result. By ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance. Please make sure the client's details, the horse's and rider's details, and the competition and class details are accurate.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end. Delivery during an emergency: in the event of a national emergency (such as war or a military operation) the timing will be agreed separately.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed. The delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media. Credit must be given to the photographer when posting (a tag or a mention). Commercial use of the results is prohibited without explicit prior approval. Where publication is approved, the photographer may use the photos for marketing while naming the client.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Payment constitutes the client's final acceptance of these terms. Cancelling up to 10 hours before the competition — the deposit is refunded. Cancelling less than 10 hours before, or not showing up — the deposit is not refunded. Once the photos/videos have been received, no refund is given.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication. If a client behaves disrespectfully, the photographer reserves the right to decline the service.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "terms": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the result. By ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance. Please make sure the client's details, the horse's and rider's details, and the competition and class details are accurate.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end. Delivery during an emergency: in the event of a national emergency (such as war or a military operation) the timing will be agreed separately.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed. The delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media. Credit must be given to the photographer when posting (a tag or a mention). Commercial use of the results is prohibited without explicit prior approval. Where publication is approved, the photographer may use the photos for marketing while naming the client.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery. Payment constitutes the client's final acceptance of these terms. Cancelling up to 10 hours before the competition — the deposit is refunded. Cancelling less than 10 hours before, or not showing up — the deposit is not refunded. Once the photos/videos have been received, no refund is given.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication. If a client behaves disrespectfully, the photographer reserves the right to decline the service.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
     "needAccountTitle": "You need an account to sign up",
     "needAccountBody": "Signing up for a shoot requires an account — that's how your photos reach your personal gallery.<br />Sign in or create a new account to continue.",
     "login": "Sign in",
@@ -510,12 +616,111 @@
       "receipt": "Please choose whether you'd like a receipt.",
       "publish": "Please choose a publishing preference.",
       "terms": "Please accept the terms.",
-      "needAccount": "You need to sign in to register. Please sign in and try again."
+      "needAccount": "You need to sign in to register. Please sign in and try again.",
+      "priorityTaken": "The last priority place went while you were filling this in. Choose \"No\" and send the sign-up — everything else is saved."
     },
     "days": {
       "thursday": "Thursday",
       "friday": "Friday",
       "wednesday": "Wednesday"
-    }
+    },
+    "depositHint": "A {{percent}}% deposit of the package secures your place. The balance is due when the photos are delivered.",
+    "priorityLabel": "Priority delivery — a limited number of places *",
+    "priorityYes": "Yes, add priority delivery",
+    "priorityNo": "No, the standard 10 business days is fine",
+    "priorityRemaining": "{{remaining}} of {{total}} places still open for this competition",
+    "priorityFull": "All priority places for this competition have been taken"
+  },
+  "quote": {
+    "cta": "Request a quote",
+    "title": "Tell me about your shoot",
+    "intro": "A few details and I'll come back with a price. Everything goes straight to my WhatsApp.",
+    "name": "Your name",
+    "namePlaceholder": "First and last name",
+    "contact": "Instagram (optional)",
+    "contactPlaceholder": "@yourhandle",
+    "location": "Where is the shoot?",
+    "locationPlaceholder": "Venue, city, country",
+    "date": "Date",
+    "datePlaceholder": "Or roughly when",
+    "type": "What do you need?",
+    "typeCompetition": "Competition",
+    "typePortrait": "Portrait session",
+    "typeEvent": "Event",
+    "typeOther": "Something else",
+    "details": "Anything else I should know",
+    "detailsPlaceholder": "How many riders and horses, how long, video as well…",
+    "send": "Send on WhatsApp",
+    "cancel": "Cancel",
+    "required": "Please fill in your name and where the shoot is.",
+    "opening": "Opening WhatsApp — tap send there to deliver it.",
+    "msgHeader": "New quote request from the website",
+    "msgName": "Name",
+    "msgContact": "Instagram",
+    "msgLocation": "Location",
+    "msgDate": "Date",
+    "msgType": "Type",
+    "msgDetails": "Details"
+  },
+  "faq": {
+    "eyebrow": "Before you book",
+    "title": "Common questions",
+    "subtitle": "What riders ask before their first shoot. If yours isn't here, message me — I answer faster than this page updates.",
+    "stillStuck": "Still not sure about something? Send me a message on WhatsApp. There is no question too small, and I would rather answer it now than on the morning of the competition.",
+    "backToPricing": "← Back to pricing",
+    "items": [
+      {
+        "q": "Do I have to sign up before the competition?",
+        "a": "<p><strong>Yes — riders who haven't signed up aren't photographed.</strong> I plan where I stand and when I shoot around the list of riders I have, so if you aren't on it I won't know to look for you.</p><p>Sign up through <a href=\"/register\">the form</a>. It takes two minutes and asks for your class, your horse and how to reach you.</p>"
+      },
+      {
+        "q": "How should I prepare for a personal session?",
+        "a": "<p>My sessions are deliberately unhurried — a relaxed horse photographs better than a perfectly turned-out nervous one. Prepare as you would for a show: a clean horse, clean tack, everything sitting where it should.</p><p>Bring someone with you if you can. An extra pair of hands to hold the horse, catch an ear or shake a bag at the right moment is worth more than any lens I own.</p><p>Braiding is lovely and completely optional. It photographs beautifully, but nobody has ever looked at a picture and thought less of it for a loose mane.</p>"
+      },
+      {
+        "q": "What should I wear?",
+        "a": "<p>Wear something you're comfortable in — you'll be moving, and it shows when you aren't.</p><p>Colour is the one thing worth planning. Pick something that works with your horse's coat and your tack, and keep <strong>one</strong> stand-out colour in the frame at most: a white saddle pad with a bright blue top works, a white pad and a red top and green boots does not. Everything else in neutrals — grey, black, navy, cream.</p><p>Bright colours carry better on grey days. Bring a couple of options and we'll decide on the spot against the light we actually have.</p><p>The two-hour session includes three outfits, so bring a riding look and something casual if you'd like the change. The one-hour session is one outfit.</p>"
+      },
+      {
+        "q": "Anything different for the black & white session?",
+        "a": "<p>A little, yes. That session is shot dark and close, so the setup matters more than usual.</p><ul><li>Take the reins off and clip a lead rope to the bridle — you keep control of your horse, and the rope comes out in editing.</li><li>Turn the lights off and find a clean stretch of aisle near an open door. The floor shows up in some frames.</li><li>Bring a friend. Keeping a horse's ears forward for twenty minutes is a two-person job.</li></ul><p>It's the shortest session I offer and the slowest to edit — five finished portraits, each one worked properly.</p>"
+      },
+      {
+        "q": "How do I pay, and what is the deposit?",
+        "a": "<p><strong>40% of the package price up front holds your place; the balance is due on delivery.</strong> The deposit is what makes travelling to a competition possible at all, which is why I ask for it rather than taking bookings on trust.</p><p>Payment by PayPal or bank transfer. We agree the details before the shoot, and paying the deposit is what confirms the booking.</p>"
+      },
+      {
+        "q": "What if I need to cancel?",
+        "a": "<p>Cancel more than 10 hours before the competition and the deposit comes back to you, no questions asked.</p><p>Cancel inside 10 hours, or don't turn up, and the deposit isn't refunded — by that point the travel is booked and the day is held for you.</p><p>Once the photos have been delivered there's no refund. You've seen exactly what you're paying for before the balance is due.</p>"
+      },
+      {
+        "q": "Do you charge for travel?",
+        "a": "<p>Within Israel, travel is included in the price you see.</p><p>For competitions abroad, travel is part of what we agree before booking — I'll tell you the number up front, and it never appears as a surprise line afterwards. Ask through the <strong>custom package</strong> button on the pricing page and I'll come back with a figure.</p>"
+      },
+      {
+        "q": "How and when do I get my photos?",
+        "a": "<p>Through your own gallery on this site. Once the balance is paid I'll upload your photos to <a href=\"/me\">your personal gallery</a> — sign in with the account you registered with and download them, one at a time or all at once.</p><p><strong>Standard delivery is within 10 business days</strong> of the competition or session. If you'd rather not wait, see the next question.</p><p>Files come at full print resolution. I don't send photos over WhatsApp or email — messaging apps compress images badly enough that you'd be printing something noticeably worse than what I shot.</p>"
+      },
+      {
+        "q": "What is priority delivery?",
+        "a": "<p>Your photos within <strong>48 hours</strong> instead of 10 business days, for half the price of the photo package.</p><p>There are only a few places at each competition, and the cap is real rather than a sales tactic — a rush edit means an all-night session, and there's a limit to how many of those fit into one weekend. You'll see how many places are left when you fill in <a href=\"/register\">the sign-up form</a>, and the number goes down as riders take them.</p>"
+      },
+      {
+        "q": "Can I print the photos?",
+        "a": "<p>Yes. Every file you get is at print resolution — hang it on a wall, put it in an album, take it to any print shop you like.</p><p>Ordering prints through the site isn't something I offer yet. If it's something you'd want, tell me: it's on the list, and knowing people actually want it is what moves it up.</p>"
+      },
+      {
+        "q": "Can I post the photos on social media?",
+        "a": "<p>Please do — seeing your rounds turn up on my feed is one of the better parts of this job. Personal use, including social media, is exactly what the photos are for.</p><p>The one thing I ask is credit: tag <a href=\"https://www.instagram.com/lens.dance29/\" target=\"_blank\" rel=\"noreferrer\">@lens.dance29</a> on Instagram or <a href=\"https://www.tiktok.com/@lensdance_photography\" target=\"_blank\" rel=\"noreferrer\">@lensdance_photography</a> on TikTok. Commercial use — a sponsor's post, an advert, anything being sold — needs to be agreed with me first.</p>"
+      },
+      {
+        "q": "Can I get more photos than the package includes?",
+        "a": "<p>Yes. The number in each package is a floor, not a ceiling — it's what I commit to, not what I stop at.</p><p>If you see more in your gallery that you want, or you want more from a round than the package covers, message me and we'll agree a price for the extras. It's cheaper than booking a second package.</p>"
+      },
+      {
+        "q": "Do you shoot things that aren't on the pricing page?",
+        "a": "<p>Often. Stable shoots, a whole team at one competition, a horse being sold, a foal's first week, an event that doesn't fit any of the boxes.</p><p>Use the <strong>custom package</strong> button on the <a href=\"/pricing\">pricing page</a> — tell me what you have in mind and where, and I'll come back with a price. It reaches me on WhatsApp, so it usually gets an answer the same day.</p>"
+      }
+    ]
   }
 }

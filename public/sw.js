@@ -6,7 +6,10 @@
  * בפעם הבאה נטענת מהדיסק המקומי ב-0ms
  * ============================================================ */
 
-const CACHE_NAME = "lensdance-images-v2"; // v2: new thumb/modal URL scheme
+// v3: the fetch filter used to swallow Storage LIST responses as well as image
+// downloads, so a gallery kept showing its old contents long after the photos
+// were replaced. Bumping the name evicts every stale v2 entry on activate.
+const CACHE_NAME = "lensdance-images-v3";
 
 // כמה זמן לשמור תמונה (7 ימים)
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -39,9 +42,22 @@ self.addEventListener("fetch", (event) => {
   // רק GET
   if (event.request.method !== "GET") return;
 
-  // רק תמונות מ-Firebase Storage או /api/image
+  /* Only ever cache the bytes of a single image.
+   *
+   * This used to match ANY firebasestorage.googleapis.com URL, which also
+   * caught the two calls that ask Storage what a folder CONTAINS:
+   *   .../o?prefix=MainGallery%2F&delimiter=%2F   (listAll)
+   *   .../o/<path>                                (metadata, no alt=media)
+   * Those were served cache-first for 7 days, so after the gallery was
+   * replaced visitors kept getting the previous directory listing — the app
+   * asked for the new photos and the worker answered with the old ones, and
+   * the admin's delete loop tried to remove files that no longer existed.
+   *
+   * A real image download always carries `alt=media`, so require it. Listings
+   * and metadata now go straight to the network and stay fresh. */
   const isFirebaseImage =
     url.includes("firebasestorage.googleapis.com") &&
+    url.includes("alt=media") &&
     !url.includes(".mp4") &&
     !url.includes(".mov") &&
     !url.includes(".avi") &&

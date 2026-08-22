@@ -31,7 +31,39 @@ service cloud.firestore {
     match /registrations/{docId} {
       allow create: if request.auth != null;
       allow read:   if isAdmin();
-      allow update, delete: if false;
+      // The admin marks the 40% deposit as paid from /admin/registrations.
+      // Narrowed to that one field on purpose: a sign-up is a record of what
+      // the rider submitted and must not become editable after the fact, so
+      // nobody — admin included — can quietly rewrite a name, a package or a
+      // publishing permission. Deleting stays closed.
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['depositPaid', 'depositPaidAt']);
+      allow delete: if false;
+    }
+
+    // ---- priorityCounts (priority delivery places taken, per competition) ----
+    // One document per competition holding a single number. It exists so the
+    // sign-up form can show "2 of 5 places left" without giving riders read
+    // access to `registrations`, which holds everyone else's name, contact
+    // details and publishing choice.
+    //
+    // A signed-in rider may claim a place: create the tally at 1, or move `used`
+    // up by exactly one, never past the cap. That cap is duplicated from
+    // PRIORITY_SLOTS in src/config/pricing.js — the two must be changed
+    // together, and the rule is the one that actually enforces it.
+    match /priorityCounts/{competitionKey} {
+      allow read:  if true;
+      allow write: if isAdmin();
+
+      allow create: if request.auth != null
+                    && request.resource.data.used == 1;
+
+      allow update: if request.auth != null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['used', 'updatedAt'])
+                    && request.resource.data.used == resource.data.used + 1
+                    && request.resource.data.used <= 5;
     }
 
     // ---- agreements ----

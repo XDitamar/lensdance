@@ -1,0 +1,236 @@
+/* src/pages/faq-page.css
+ *
+ * Scoped with its own `faq-` prefix, for the same reason pricing-page.css uses
+ * `pp-`: the shared class names in style.css are styled more than once across
+ * the codebase and whichever stylesheet loads last wins. A page-local prefix is
+ * what keeps this one predictable.
+ *
+ * Direction-agnostic on purpose — the page renders RTL in Hebrew and Arabic and
+ * LTR in English and Russian, so spacing uses logical properties
+ * (margin-inline, padding-inline, text-align: start) rather than left/right.
+ */
+
+.faq-root {
+  background: #f5f1ea;
+  min-height: 100vh;
+  padding: 0 0 60px;
+}
+
+.faq-head {
+  text-align: center;
+  padding: 48px 24px 8px;
+}
+
+.faq-eyebrow {
+  display: block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin-bottom: 10px;
+}
+
+.faq-title {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: #2c1e12;
+  margin: 0 0 10px;
+}
+
+.faq-rule {
+  height: 1px;
+  width: 34px;
+  background: #b2967d;
+  margin: 0 auto 14px;
+}
+
+.faq-sub {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #8a7868;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ── The accordion ──────────────────────────────────────────────────────── */
+
+.faq-list {
+  list-style: none;
+  margin: 36px auto 0;
+  padding: 0;
+  max-width: 720px;
+  width: 100%;
+  padding-inline: 24px;
+  box-sizing: border-box;
+}
+
+.faq-item {
+  border-bottom: 1px solid #e2d9ce;
+}
+
+.faq-item:first-child {
+  border-top: 1px solid #e2d9ce;
+}
+
+/* The whole row is the button, so the tap target is the full width rather than
+   just the words — this page gets read on phones at the barn. */
+.faq-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: none;
+  border: none;
+  padding: 18px 4px;
+  cursor: pointer;
+  text-align: start;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #2c1e12;
+  transition: color 0.2s;
+}
+
+.faq-q:hover {
+  color: #6b4b2a;
+}
+
+.faq-item.is-open .faq-q {
+  color: #6b4b2a;
+}
+
+.faq-q-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.faq-q-mark {
+  flex-shrink: 0;
+  font-family: Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1;
+  color: #b2967d;
+}
+
+.faq-a {
+  font-family: Arial, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: #4a3525;
+  padding: 0 4px 22px;
+  max-width: 62ch;
+  animation: faq-open 0.24s ease;
+}
+
+.faq-a p {
+  margin: 0 0 12px;
+}
+
+.faq-a p:last-child {
+  margin-bottom: 0;
+}
+
+.faq-a strong {
+  color: #2c1e12;
+  font-weight: 600;
+}
+
+.faq-a a {
+  color: #6b4b2a;
+  text-decoration: none;
+  border-bottom: 1px solid #b2967d;
+}
+
+.faq-a ul {
+  margin: 0 0 12px;
+  padding-inline-start: 18px;
+}
+
+.faq-a li {
+  margin-bottom: 6px;
+}
+
+@keyframes faq-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-a {
+    animation: none;
+  }
+}
+
+/* ── Foot ───────────────────────────────────────────────────────────────── */
+
+.faq-foot {
+  text-align: center;
+  margin-top: 44px;
+  padding-inline: 24px;
+}
+
+.faq-foot-note {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #8a7868;
+  max-width: 440px;
+  margin: 0 auto 20px;
+}
+
+.faq-foot-links {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.faq-foot-link {
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6b4b2a;
+  text-decoration: none;
+  border-bottom: 1px solid #b2967d;
+  padding-bottom: 2px;
+}
+
+.faq-book {
+  display: inline-block;
+  background: #4a3525;
+  color: #f5f1ea;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 13px 34px;
+  transition: background 0.2s;
+}
+
+.faq-book:hover {
+  background: #2c1e12;
+}
+
+@media (max-width: 600px) {
+  .faq-title {
+    font-size: 24px;
+  }
+
+  .faq-q {
+    font-size: 14px;
+    padding: 16px 2px;
+  }
+}

@@ -809,91 +809,70 @@ export default function MePage() {
       </div>
 
       {/* ══════════════════════════════════════
-          PHOTO / VIDEO GRID
+          PHOTO / VIDEO GRID — masonry
+          Same layout as the public gallery: every frame is shown WHOLE. Tiles
+          share a column width and take their height from the media itself, so
+          a vertical clip stands tall next to a landscape still and neither is
+          cropped. Column count lives in style.css (.gallery-masonry).
       ══════════════════════════════════════ */}
       <div style={{ padding: "16px 22px 40px", background: "#FAFAF8" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 8,
-          gridAutoFlow: "dense",
-        }}>
+        <div className="gallery-masonry">
           {mediaItems.map((item, index) => {
-            const isWide  = index === 0 || index === 5 || index === 10; // first of each group = wide
             const isVideo = item.isVideo;
             const isLoaded = loaded[item.id];
+            const isSelected = selectedItems?.includes(item.id);
 
             return (
               <div
                 key={item.id || index}
+                className={`gallery-tile${isLoaded ? " is-loaded" : ""}`}
                 onClick={() => handleOpenModal(item)}
-                style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  gridColumn: isWide ? "1 / -1" : "span 1",
-                  height: isWide ? 220 : undefined,
-                  aspectRatio: isWide ? undefined : "4/3",
-                  background: "#1A1208",
-                  cursor: "pointer",
-                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleOpenModal(item)}
               >
-                {/* Image or video thumbnail */}
                 {isVideo ? (
                   <>
                     <video
                       src={item.gridUrl || item.url}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", opacity: .65, display: "block" }}
+                      className="gallery-tile-media"
                       muted playsInline preload="metadata"
+                      onLoadedMetadata={() => setLoaded((l) => ({ ...l, [item.id]: true }))}
                     />
-                    {/* Play button */}
-                    <div style={{
-                      position: "absolute", inset: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <div style={{
-                        width: 42, height: 42, borderRadius: "50%",
-                        background: "rgba(255,255,255,.18)",
-                        border: "1.5px solid rgba(255,255,255,.6)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <div style={{
-                          width: 0, height: 0,
-                          borderTop: "7px solid transparent",
-                          borderBottom: "7px solid transparent",
-                          borderLeft: "12px solid rgba(255,255,255,.85)",
-                          marginRight: -3,
-                        }} />
-                      </div>
-                    </div>
+                    <span className="gallery-tile-play" aria-hidden="true" />
                   </>
                 ) : (
                   <img
-                    src={isWide ? (item.gridUrl || item.url) : (item.thumbUrl || item.gridUrl || item.url)}
+                    src={item.thumbUrl || item.gridUrl || item.url}
                     alt=""
+                    className="gallery-tile-media"
                     loading={index < 4 ? "eager" : "lazy"}
                     fetchpriority={index < 2 ? "high" : undefined}
                     decoding="async"
-                    onLoad={() => setLoaded((l) => ({ ...l, [item.id]: true }))}
-                    style={{
-                      width: "100%", height: "100%", objectFit: "cover", display: "block",
-                      opacity: isLoaded ? 1 : 0, transition: "opacity .4s ease",
+                    onLoad={(e) => {
+                      /* Lock the tile to the real ratio as soon as it is known,
+                         so the columns stop reflowing as later photos arrive. */
+                      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+                      if (w && h) e.currentTarget.parentElement.style.aspectRatio = `${w} / ${h}`;
+                      setLoaded((l) => ({ ...l, [item.id]: true }));
                     }}
                   />
                 )}
 
-                {/* Selection checkbox circle */}
+                {/* Selection checkbox — sits above the media, and stops the
+                    click from also opening the lightbox. */}
                 <div
                   onClick={e => { e.stopPropagation(); handleToggleSelect(item); }}
                   style={{
-                    position: "absolute", top: 8, right: 8,
+                    position: "absolute", top: 8, right: 8, zIndex: 2,
                     width: 20, height: 20, borderRadius: "50%",
-                    border: `1.5px solid rgba(255,255,255,${selectedItems?.includes(item.id) ? 0 : .6})`,
-                    background: selectedItems?.includes(item.id) ? "#B2967D" : "rgba(0,0,0,.2)",
+                    border: `1.5px solid rgba(255,255,255,${isSelected ? 0 : .6})`,
+                    background: isSelected ? "#B2967D" : "rgba(0,0,0,.2)",
                     cursor: "pointer", transition: "all .15s",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}
                 >
-                  {selectedItems?.includes(item.id) && (
+                  {isSelected && (
                     <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>
                   )}
                 </div>

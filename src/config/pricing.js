@@ -50,76 +50,198 @@ export function formatMoney(amount, currencyKey) {
 // Every set MUST define every key below, otherwise that price renders empty.
 // The keys are referenced by name in src/hooks/useGeoPrice.js.
 //
-//   entryPerson    photos per competition entry, per rider
+//   entryPerson    standard photo package — PHOTOS_STANDARD edited photos
+//   extendedEntry  extended photo package — PHOTOS_EXTENDED and up
 //   extraHorse     surcharge for each additional horse on the same entry
-//   perPhoto       single edited photo, when buying by selection
-//   videoPackage   the full Instagram-Reel package
-//   shortVideo     clip of up to 15 seconds
-//   eventShoot     /pricing — event photography, starting price
-//   portraitShoot  /pricing — portrait session, starting price
-//   productShoot   /pricing — product photography, starting price
+//   videoPackage   the full edit: 45s+, slow motion, plus a clean second cut
+//   shortVideo     up to 25 seconds — the round, atmosphere over detail
+//   obstacleVideo  up to 15 seconds — one fence or combination
+//   sessionHour     personal session, one hour, horse + rider
+//   sessionTwoHour  personal session, two hours, three outfits
+//   sessionBW       black-and-white portrait sitting — PHOTOS_BW finished
+//                   images. Fewest deliverables of any session but the most
+//                   editing time per image, which is why the per-photo rate
+//                   looks high next to the others.
+//   sessionTraining a private training session, photos + short clips
+//   extraHorseSession   each additional horse on a personal session
+//   extraAnimal     another animal on the shoot — a dog, say
+//   eventShoot      /pricing — event photography, starting price
+//   productShoot    /pricing — kept for now, not shown anywhere
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOW THESE NUMBERS WERE SET (reviewed August 2026)
+//
+// Each overseas set is benchmarked against what local equestrian photographers
+// publish, and deliberately sits AT OR BELOW that line. The benchmarks:
+//
+//   US   $15–40 per horse/rider just for show coverage; $17–25 per digital
+//        image; $225 per division incl. 10 images; $150 day rate incl. 50
+//        images; $375–450 for a studio/portrait session.
+//   UK   £30 per rider for a yard session, £180 minimum half day;
+//        £275 for two hours of event coverage, £110 each further hour.
+//   EU   €38 + VAT per competition image (established press rate);
+//        €200–250 average for a shoot; €75 for a basic package.
+//
+// STRATEGY: volume, not margin per rider. These sit well under every local
+// benchmark on purpose — the aim is that most riders at a competition order
+// rather than a handful paying a premium. Undercutting the market is the whole
+// pitch for a visiting photographer nobody there has heard of yet.
+//
+// TRAVEL. A competition abroad costs roughly ₪1,600–2,000 all in — return
+// flights out of Tel Aviv run ₪496 in February to ₪841 in August, plus two
+// nights and ground transport. That is about €400.
+//
+//   7 riders  × €60  = €420   → the trip is paid for
+//   15 riders × €60  = €900   → ~€500 clear
+//
+// Seven orders is a modest weekend, which is the point: the price is low
+// enough that hitting that number is the normal case rather than a good one.
+// If a competition realistically yields fewer than about seven orders, the
+// economics come from raising the count, not the price.
+//
+// ISRAEL is left where Alina had it. No Israeli equestrian photographer
+// publishes a rate — they quote by phone — so there is nothing honest to
+// benchmark against, and raising a home market on guesswork risks the client
+// base she already has. Worth revisiting with her directly.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const PRICE_SETS = {
   IL: {
     currency: "ILS",
     amounts: {
       entryPerson: 60,
+      extendedEntry: 120,
       extraHorse: 30,
-      perPhoto: 6,
       videoPackage: 150,
-      shortVideo: 70,
+      shortVideo: 80,
+      obstacleVideo: 70,
       eventShoot: 1500,
-      portraitShoot: 800,
+      sessionHour: 800,
+      sessionTwoHour: 1450,
+      sessionBW: 600,
+      sessionTraining: 1200,
+      extraHorseSession: 120,
+      extraAnimal: 70,
       productShoot: 600,
     },
   },
 
-  // Rest of the world / anywhere without a dedicated set.
+  // United States and the rest of the world.
+  // The per-entry bundle is under a third of the $225-per-division benchmark,
+  // and that benchmark only includes 10 images — the same count we give.
   INTL: {
     currency: "USD",
     amounts: {
-      entryPerson: 100,
-      extraHorse: 50,
-      perPhoto: 15,
-      videoPackage: 350,
-      shortVideo: 150,
-      eventShoot: 450,
-      portraitShoot: 250,
-      productShoot: 180,
+      entryPerson: 65,
+      extendedEntry: 130,
+      extraHorse: 30,
+      videoPackage: 220,
+      shortVideo: 90,
+      obstacleVideo: 75,
+      eventShoot: 300,      // vs $375–450 for a local studio session
+      sessionHour: 190,
+      sessionTwoHour: 350,
+      sessionBW: 145,
+      sessionTraining: 290,
+      extraHorseSession: 30,
+      extraAnimal: 20,
+      productShoot: 130,
     },
   },
 
-  // Continental Europe. Amounts are the INTL prices re-cut in euros — adjust
-  // them freely, they are NOT auto-converted from USD.
+  // Continental Europe. €60 for ten edited photos works out under €6 each
+  // against a €38 German press rate per image — she is a visiting
+  // photographer, not an established local name, and the price says so.
   EU: {
     currency: "EUR",
     amounts: {
-      entryPerson: 90,
-      extraHorse: 45,
-      perPhoto: 14,
-      videoPackage: 320,
-      shortVideo: 140,
-      eventShoot: 420,
-      portraitShoot: 230,
-      productShoot: 170,
+      entryPerson: 60,
+      extendedEntry: 120,
+      extraHorse: 28,
+      videoPackage: 200,
+      shortVideo: 85,
+      obstacleVideo: 70,
+      eventShoot: 280,      // vs the €200–250 average for local shoots, which
+      sessionHour: 175,     // carry no travel
+      sessionTwoHour: 320,
+      sessionBW: 130,
+      sessionTraining: 265,
+      extraHorseSession: 28,
+      extraAnimal: 18,
+      productShoot: 120,
     },
   },
 
-  // United Kingdom.
+  // United Kingdom. eventShoot lands well under the £275/two-hour going rate.
   UK: {
     currency: "GBP",
     amounts: {
-      entryPerson: 80,
-      extraHorse: 40,
-      perPhoto: 12,
-      videoPackage: 280,
-      shortVideo: 120,
-      eventShoot: 360,
-      portraitShoot: 200,
-      productShoot: 150,
+      entryPerson: 55,
+      extendedEntry: 110,
+      extraHorse: 25,
+      videoPackage: 180,
+      shortVideo: 75,
+      obstacleVideo: 65,
+      eventShoot: 200,
+      sessionHour: 150,
+      sessionTwoHour: 270,
+      sessionBW: 115,
+      sessionTraining: 225,
+      extraHorseSession: 25,
+      extraAnimal: 15,
+      productShoot: 105,
     },
   },
 };
+
+/* ── Package contents and add-ons ───────────────────────────────────────── */
+
+/**
+ * Minimum edited photos in the standard package — the round, the warm-up
+ * arena, and the podium if the rider gets there.
+ *
+ * This replaced the old "6₪ per selected photo" option, which was dropped
+ * because it wasn't worth the editing time. It is a MINIMUM, not a cap, and it
+ * is also what Alina commits to per rider: raising it raises her workload at
+ * an unchanged price.
+ */
+export const PHOTOS_STANDARD = 8;
+
+/**
+ * The extended package: everything around the round as well — the course walk,
+ * close-ups, the podium and the vet check when there is one. "and up" is
+ * deliberate: it is a floor, not a quota, because how many keepers a round
+ * yields isn't something either side can promise in advance.
+ */
+export const PHOTOS_EXTENDED = 15;
+
+/** Finished portraits in the black-and-white sitting. */
+export const PHOTOS_BW = 5;
+
+/**
+ * "Priority" add-on: edited and delivered within 48 hours instead of the
+ * standard 10 business days, charged as a share of the package price.
+ *
+ * 0.5 = +50%. It is deliberately not a flat fee — the surcharge should scale
+ * with how much work is being pulled forward.
+ */
+export const PRIORITY_RATE = 0.5;
+
+/**
+ * How many riders can take Priority at any one competition.
+ *
+ * The cap does two jobs: it stops a weekend turning into an all-night edit,
+ * and scarcity makes the add-on worth having. /admin/registrations counts the
+ * priority requests per competition so Alina can see when it is full.
+ */
+export const PRIORITY_SLOTS = 5;
+
+/**
+ * Share of the price taken up front to hold the booking. The rest is due on
+ * delivery. Referenced by the pricing cards, the sign-up form and the terms,
+ * so there is exactly one number to change.
+ */
+export const DEPOSIT_RATE = 0.4;
 
 /** Used for any country missing from COUNTRY_SETS. */
 export const DEFAULT_SET = "INTL";

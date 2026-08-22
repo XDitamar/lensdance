@@ -4,12 +4,23 @@
 // it beats the browser-language auto-detection for good. All the cookie and
 // i18next mechanics live in src/lib/lang.js; this file is only the menu.
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import icon from "../translate.png"; // your custom icon at src/translate.png
 import { findLanguage, searchLanguages } from "../lib/languages";
-import { applyTarget, reloadForTranslation, resolveTarget } from "../lib/lang";
+import {
+  applyTarget,
+  isNativeTarget,
+  reloadForTranslation,
+  resolveTarget,
+} from "../lib/lang";
 
 // The four pinned defaults, always shown at the top of the menu.
 // Codes are Google's (Hebrew is "iw", not "he").
+//
+// These are exactly the four we have hand-written locale files for, which is
+// why they are pinned: picking one of them gives the visitor real prose rather
+// than a Google pass. Anything found through the search box below is machine
+// translated, and the menu says so.
 const PINNED = ["iw", "en", "ru", "ar"];
 
 /* Case-insensitive comparison that treats he/iw as the same language. */
@@ -19,6 +30,7 @@ const sameLang = (a, b) => {
 };
 
 export default function FloatingTranslateButton() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const current = useMemo(resolveTarget, []);
@@ -65,6 +77,9 @@ export default function FloatingTranslateButton() {
   // One row in either list — kept identical to the original item styling.
   const LangItem = ({ lang }) => {
     const active = sameLang(current, lang.code);
+    // Everything outside the pinned four is served by Google Translate. Saying
+    // so up front is fairer than letting someone discover it from the prose.
+    const machine = !isNativeTarget(lang.code) && lang.code !== "en";
     return (
       <li>
         <button
@@ -90,11 +105,26 @@ export default function FloatingTranslateButton() {
         >
           <span
             className="translate-item-label"
-            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              minWidth: 0,
+            }}
           >
             {lang.native}
           </span>
-          {active && <span className="translate-check" aria-hidden>✓</span>}
+          <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {machine && (
+              <span
+                className="translate-machine-note"
+                style={{ fontSize: ".7rem", color: "#a09788", fontWeight: 400 }}
+              >
+                {t("language.translatedNote")}
+              </span>
+            )}
+            {active && <span className="translate-check" aria-hidden>✓</span>}
+          </span>
         </button>
       </li>
     );
@@ -105,8 +135,8 @@ export default function FloatingTranslateButton() {
       {/* Floating icon-only button (no circle) */}
       <button
         className="translate-fab"
-        aria-label="Change language"
-        title="Translate"
+        aria-label={t("language.title")}
+        title={t("language.title")}
         onClick={() => setOpen((v) => !v)}
         type="button"
         style={{
@@ -122,7 +152,7 @@ export default function FloatingTranslateButton() {
       >
         <img
           src={icon}
-          alt="Translate"
+          alt={t("language.title")}
           style={{ width: 36, height: 36, display: "block" }}
         />
       </button>
@@ -130,12 +160,10 @@ export default function FloatingTranslateButton() {
       {/* Popover */}
       {open && (
         <div
-          /* notranslate: language names must stay in their own script — we
-             don't want Google rewriting "Русский" into the active language. */
-          className="translate-popover notranslate"
+          className="translate-popover"
           ref={popRef}
           role="dialog"
-          aria-label="Language menu"
+          aria-label={t("language.title")}
           style={{
             position: "fixed",
             right: 18,
@@ -153,10 +181,15 @@ export default function FloatingTranslateButton() {
             className="translate-popover-title"
             style={{ fontWeight: 700, color: "var(--brown-700)", margin: "2px 6px 8px" }}
           >
-            Translate
+            {t("language.title")}
           </div>
-          {/* The four defaults, always visible */}
-          <ul className="translate-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {/* The four defaults, always visible.
+              notranslate: language names must stay in their own script — we
+              don't want Google rewriting "Русский" into the active language. */}
+          <ul
+            className="translate-list notranslate"
+            style={{ listStyle: "none", margin: 0, padding: 0 }}
+          >
             {pinned.map((lang) => (
               <LangItem key={lang.code} lang={lang} />
             ))}
@@ -169,8 +202,8 @@ export default function FloatingTranslateButton() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search language…"
-              aria-label="Search language"
+              placeholder={t("language.search")}
+              aria-label={t("language.search")}
               className="translate-search notranslate"
               dir="ltr"
               style={{
@@ -190,7 +223,7 @@ export default function FloatingTranslateButton() {
           {/* Results appear only while typing, so the menu keeps its usual size */}
           {query.trim() !== "" && (
             <ul
-              className="translate-list translate-results"
+              className="translate-list translate-results notranslate"
               style={{
                 listStyle: "none",
                 margin: "6px 0 0",
@@ -210,7 +243,7 @@ export default function FloatingTranslateButton() {
                     textAlign: "center",
                   }}
                 >
-                  No matches
+                  {t("language.noMatches")}
                 </li>
               )}
             </ul>

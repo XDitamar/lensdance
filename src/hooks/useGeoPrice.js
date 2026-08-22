@@ -19,6 +19,12 @@ import {
   PRICE_SETS,
   DEFAULT_SET,
   LOADING_SET,
+  PHOTOS_STANDARD,
+  PHOTOS_EXTENDED,
+  PHOTOS_BW,
+  PRIORITY_RATE,
+  PRIORITY_SLOTS,
+  DEPOSIT_RATE,
   formatMoney,
   priceSetFor,
   setNameFor,
@@ -96,10 +102,12 @@ function buildPrices(t, setName) {
     extra: t(`pricing.${key}.extra`, vars),
     sub: t(`pricing.${key}.sub`, vars),
     from: t(`pricing.${key}.from`, vars),
+    // The bullet list under the card. `returnObjects` gives back the array
+    // from the locale file with {{count}} / {{extraPrice}} already filled in.
+    includes: t(`pricing.${key}.includes`, { ...vars, returnObjects: true }),
   });
 
   const person = m("entryPerson");
-  const photo = m("perPhoto");
 
   return {
     setName,
@@ -108,34 +116,88 @@ function buildPrices(t, setName) {
     amounts: set.amounts,
     money: m,
 
-    perEntry: card("perEntry", { price: person, extraPrice: m("extraHorse") }),
-    perPhoto: card("perPhoto", { price: photo }),
+    /* AT A COMPETITION — Alina's own definitions. The standard package covers
+       the round and the warm-up; the extended one follows the whole day. */
+    perEntry: card("perEntry", {
+      price: person,
+      extraPrice: m("extraHorse"),
+      count: PHOTOS_STANDARD,
+    }),
+    extendedEntry: card("extendedEntry", {
+      price: m("extendedEntry"),
+      extraPrice: m("extraHorse"),
+      count: PHOTOS_EXTENDED,
+    }),
     videoPackage: card("videoPackage", { price: m("videoPackage") }),
     shortVideo: card("shortVideo", { price: m("shortVideo") }),
+    obstacleVideo: card("obstacleVideo", { price: m("obstacleVideo") }),
     custom: card("custom", {}),
 
-    // /pricing — the three studio services
-    services: [
+    /* A PERSONAL SESSION — booked time rather than coverage of a round the
+       rider was already going to ride. That is why these are priced per
+       session, carry deeper retouching, and quote the two add-ons (another
+       horse, another animal) that only make sense when the shoot is yours. */
+    sessionHour: card("sessionHour", {
+      price: m("sessionHour"),
+      extraHorse: m("extraHorseSession"),
+      extraAnimal: m("extraAnimal"),
+    }),
+    sessionTwoHour: card("sessionTwoHour", {
+      price: m("sessionTwoHour"),
+      extraHorse: m("extraHorseSession"),
+    }),
+    sessionBW: card("sessionBW", { price: m("sessionBW"), count: PHOTOS_BW }),
+    sessionTraining: card("sessionTraining", { price: m("sessionTraining") }),
+    sessionsNote: t("pricing.sessionsNote"),
+
+    /* Priority is an add-on rather than a package: a share of the entry price
+       for a 48-hour turnaround, capped so a weekend can't become unworkable. */
+    priority: {
+      title: t("pricing.priority.title"),
+      label: t("pricing.priority.label", {
+        price: formatMoney(Math.round(set.amounts.entryPerson * PRIORITY_RATE), set.currency),
+      }),
+      sub: t("pricing.priority.sub"),
+      slots: t("pricing.priority.slots", { count: PRIORITY_SLOTS }),
+      addon: t("pricing.priority.addon"),
+      amount: Math.round(set.amounts.entryPerson * PRIORITY_RATE),
+    },
+
+    /* One deposit line, reused by the cards, the sign-up form and the terms. */
+    deposit: t("pricing.deposit", { percent: Math.round(DEPOSIT_RATE * 100) }),
+    depositPercent: Math.round(DEPOSIT_RATE * 100),
+    includesTitle: t("pricing.includesTitle"),
+
+    /* The two things a visitor is choosing between before any price matters:
+       "you come to my show" or "we book a day". The pricing pages render this
+       as a pair of tabs — see PricingPage.jsx / HomePage.jsx.
+       TO REVERT: delete this array and go back to rendering the four
+       competition cards directly. */
+    groups: [
       {
-        id: "event",
-        title: t("pricing.services.event.title"),
-        desc: t("pricing.services.event.desc"),
-        price: t("pricing.from", { price: m("eventShoot") }),
-        items: t("pricing.services.event.items", { returnObjects: true }),
+        id: "competition",
+        label: t("pricing.groups.competition"),
+        hint: t("pricing.groupHint.competition"),
+        cardKeys: [
+          "perEntry",
+          "extendedEntry",
+          "videoPackage",
+          "shortVideo",
+          "obstacleVideo",
+          "custom",
+        ],
       },
       {
-        id: "portrait",
-        title: t("pricing.services.portrait.title"),
-        desc: t("pricing.services.portrait.desc"),
-        price: t("pricing.from", { price: m("portraitShoot") }),
-        items: t("pricing.services.portrait.items", { returnObjects: true }),
-      },
-      {
-        id: "product",
-        title: t("pricing.services.product.title"),
-        desc: t("pricing.services.product.desc"),
-        price: t("pricing.from", { price: m("productShoot") }),
-        items: t("pricing.services.product.items", { returnObjects: true }),
+        id: "personal",
+        label: t("pricing.groups.personal"),
+        hint: t("pricing.groupHint.personal"),
+        cardKeys: [
+          "sessionHour",
+          "sessionTwoHour",
+          "sessionBW",
+          "sessionTraining",
+          "custom",
+        ],
       },
     ],
 
@@ -144,7 +206,19 @@ function buildPrices(t, setName) {
     packages: [
       { id: "photos", label: t("pricing.packages.photos", { price: person }) },
       { id: "video", label: t("pricing.packages.video", { price: m("videoPackage") }) },
+      { id: "extended", label: t("pricing.packages.extended", { price: m("extendedEntry") }) },
       { id: "short", label: t("pricing.packages.short", { price: m("shortVideo") }) },
+      { id: "obstacle", label: t("pricing.packages.obstacle", { price: m("obstacleVideo") }) },
+      {
+        // How many places are left is deliberately NOT in this label: the
+        // sign-up form shows a live count next to the field (see
+        // src/lib/priority.js), and a hardcoded "only 5 places" beside it
+        // would contradict the real number as soon as one was taken.
+        id: "priority",
+        label: t("pricing.packages.priority", {
+          price: formatMoney(Math.round(set.amounts.entryPerson * PRIORITY_RATE), set.currency),
+        }),
+      },
     ],
   };
 }

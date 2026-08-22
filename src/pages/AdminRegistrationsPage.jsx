@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, orderBy, query, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ADMIN_EMAIL, DISCIPLINES, PUBLISH_KEYS, disciplineKey } from "../constants";
+import { PRIORITY_SLOTS } from "../config/pricing";
+import { PRIORITY_PACKAGE_ID, syncPriorityCount } from "../lib/priority";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 
 export default function AdminRegistrationsPage() {
@@ -13,6 +15,33 @@ export default function AdminRegistrationsPage() {
   // what the rider was actually shown on the sign-up form.
   const { prices } = useGeoPrice();
   const packageLabel = (id) => prices.packages.find((x) => x.id === id)?.label || id;
+
+  /* Deposit tracking. firestore.rules lets the admin change only these two
+     fields on a registration — the rest of a sign-up stays immutable, so a
+     name or a publishing permission can't be rewritten after the fact. */
+  const [saving, setSaving] = useState(null);
+  const [saveError, setSaveError] = useState("");
+
+  const toggleDeposit = async (reg) => {
+    const next = !reg.depositPaid;
+    setSaving(reg.id);
+    setSaveError("");
+    try {
+      await updateDoc(doc(db, "registrations", reg.id), {
+        depositPaid: next,
+        depositPaidAt: next ? serverTimestamp() : null,
+      });
+      // Update in place rather than refetching the whole list — one field
+      // changed and the admin is usually mid-scroll through a competition.
+      setAllRegs((list) =>
+        list.map((x) => (x.id === reg.id ? { ...x, depositPaid: next } : x))
+      );
+    } catch (e) {
+      setSaveError(t("registrations.updateFailed", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setSaving(null);
+    }
+  };
   const [user, loadingAuth] = useAuthState(auth);
   const navigate = useNavigate();
 
@@ -88,6 +117,25 @@ export default function AdminRegistrationsPage() {
         setCompetitions(list);
         if (list.length > 0) setSelected(list[0].title); // auto-select latest
         setLoading(false);
+
+        /* Repair the public priority tally.
+           The sign-up form reads priorityCounts/{competition} to show riders
+           how many places are left, and riders increment it themselves when
+           they claim one. That can drift — a claim whose registration never
+           landed, a sign-up removed since. The registrations are the truth, and
+           this page is the only place that can read them, so recount here and
+           write the real number back. Nothing to await: it is a background
+           repair and the list is already on screen. */
+        Object.values(map).forEach(({ title: comp }) => {
+          const used = docs.filter(
+            (r) =>
+              (r.competitionTitle || t("registrations.untitled")) === comp &&
+              (r.packages || []).includes(PRIORITY_PACKAGE_ID)
+          ).length;
+          syncPriorityCount(comp, used).catch((err) =>
+            console.warn("Priority count sync failed for", comp, err)
+          );
+        });
       } catch (err) {
         console.error("Failed to load data:", err);
         setLoading(false);
@@ -191,10 +239,41 @@ export default function AdminRegistrationsPage() {
             <h1 style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 400, color: "#2C1E12", marginBottom: 6 }}>
               {selected || t("registrations.pick")}
             </h1>
+            {saveError && (
+              <div style={{
+                background: "#FFF0EE", border: "1px solid #E8C4BC", color: "#8A2A1F",
+                padding: "8px 12px", fontFamily: "Arial,sans-serif", fontSize: 11, marginBottom: 10,
+              }}>
+                {saveError}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
               <span style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D" }}>
                 {t("registrations.signups", { count: filteredRegs.length })}
               </span>
+              {/* Priority is capped per competition, so the count has to be
+                  visible here — this is the only place she can tell whether
+                  the next request can still be accepted. Counted across the
+                  whole competition, not the filtered view. */}
+              {(() => {
+                const used = allRegs.filter(
+                  (r) => r.competitionTitle === selected && (r.packages || []).includes("priority")
+                ).length;
+                const full = used >= PRIORITY_SLOTS;
+                return (
+                  <span style={{
+                    fontFamily: "Arial,sans-serif", fontSize: 10,
+                    color: full ? "#8A2A1F" : "#3B6D11",
+                    background: full ? "#FFF0EE" : "#EAF3DE",
+                    border: `1px solid ${full ? "#E8C4BC" : "#C0DD97"}`,
+                    padding: "3px 10px",
+                  }}>
+                    {full
+                      ? t("registrations.priorityFull")
+                      : t("registrations.prioritySlots", { used, total: PRIORITY_SLOTS })}
+                  </span>
+                );
+              })()}
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -260,6 +339,23 @@ export default function AdminRegistrationsPage() {
                       {(r.packages || []).map(p => (
                         <span key={p} style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(p)}</span>
                       ))}
+                      {/* Deposit state, and the control to change it, in one
+                          place — she is usually looking at this list while the
+                          money lands. */}
+                      <button
+                        type="button"
+                        onClick={() => toggleDeposit(r)}
+                        disabled={saving === r.id}
+                        title={r.depositPaid ? t("registrations.markUnpaid") : t("registrations.markPaid")}
+                        style={{
+                          ...tagStyle(r.depositPaid ? "#EAF3DE" : "#FFF0EE", r.depositPaid ? "#3B6D11" : "#8A2A1F"),
+                          border: `1px solid ${r.depositPaid ? "#C0DD97" : "#E8C4BC"}`,
+                          cursor: saving === r.id ? "wait" : "pointer",
+                          opacity: saving === r.id ? 0.6 : 1,
+                        }}
+                      >
+                        {r.depositPaid ? `✓ ${t("registrations.paid")}` : `○ ${t("registrations.unpaid")}`}
+                      </button>
                     </div>
                   </div>
 

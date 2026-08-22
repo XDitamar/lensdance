@@ -19,10 +19,13 @@
 .hero-fallback-image {
   position: absolute;
   top: 50%; left: 50%;
-  min-width: 100%; min-height: 100%;
+  width: 100%; height: 100%;
   transform: translate(-50%, -50%);
   object-fit: cover;
-  z-index: -2;
+  /* Was z-index: -2, which pushed the photo behind the page background and
+     left the hero looking like an empty grey block. 0 keeps it under the
+     gradient overlay (z-index 0, painted later) and the text (z-index 1). */
+  z-index: 0;
 }
 
 .video-overlay {
@@ -171,18 +174,371 @@
   transform: none;
 }
 
-.featured-img-main {
+/* One row height drives everything, instead of each tile carrying its own
+   pixel value that has to be kept in sync by hand. The lead tile and the
+   stacked column are both exactly --row-h tall, so the row can never end up
+   taller than the photo inside it — which is what left a picture stranded at
+   the top of a half-empty box. */
+.featured-images-grid {
+  --row-h: 300px;
+  align-items: stretch;
+}
+
+.featured-images-grid > .featured-image-item,
+.featured-column {
+  height: var(--row-h);
+}
+
+/* The two stacked tiles split the row between them, minus the gap. */
+.featured-column .featured-image-item {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Every image fills its tile. `cover` keeps the aspect ratio and crops the
+   overflow — it never stretches the picture. */
+.featured-img-main,
+.featured-img-sub,
+.featured-img-tall {
   width: 100%;
-  height: 220px;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.featured-img-sub {
+@media (max-width: 768px) {
+  /* Single column: a shared row height would squash the stacked pair into two
+     thin strips, so each tile gets its own comfortable height instead. */
+  .featured-images-grid > .featured-image-item,
+  .featured-column {
+    height: auto;
+  }
+  .featured-images-grid > .featured-image-item { height: 240px; }
+  .featured-column .featured-image-item { height: 200px; flex: none; }
+}
+
+/* ── Competition / personal-shoot switch ────────────────────────────────── */
+
+.pricing-tabs {
+  display: inline-flex;
+  border: 1px solid #c8b8a4;
+  margin: 18px auto 0;
+  background: #fdfaf5;
+}
+
+.pricing-tab {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a7868;
+  background: transparent;
+  border: none;
+  padding: 11px 20px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.pricing-tab + .pricing-tab {
+  border-inline-start: 1px solid #e2d9ce;
+}
+
+.pricing-tab:hover { color: #4a3525; }
+
+.pricing-tab.is-active {
+  background: #4a3525;
+  color: #f5f1ea;
+}
+
+/* One line explaining what the selected tab actually means — the labels alone
+   ("At a competition" / "Personal photo day") are short enough to be guessed
+   wrong. */
+.pricing-tab-hint {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #a89684;
+  margin: 12px auto 0;
+  max-width: 420px;
+}
+
+@media (max-width: 420px) {
+  .pricing-tab { padding: 10px 13px; font-size: 9px; letter-spacing: 0.1em; }
+}
+
+/* ── Package contents, deposit line, priority add-on ────────────────────── */
+
+.price-includes-title {
+  font-family: Arial, sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin: 16px 0 8px;
+}
+
+.price-includes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: start;
+}
+
+/* Flex rather than an absolutely-positioned marker: the diamond stays glued to
+   its line whatever the text direction or alignment around it, instead of
+   drifting to the far edge of the card. */
+.price-includes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: start;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.75;
+  color: #6b5a49;
+}
+
+/* A small diamond rather than a bullet, to match the ornamental dividers.
+   Selector is deliberately long: style.css carries `.price-card li::before`
+   with an absolutely-positioned ✓ for the older feature list, which is more
+   specific than a bare `.price-includes li::before` and would otherwise stamp
+   a checkmark into this 4px box. `position: static` undoes its positioning so
+   the marker sits in the flex row. */
+.price-card ul.price-includes li::before {
+  content: "";
+  position: static;
+  flex: 0 0 auto;
+  width: 4px;
+  height: 4px;
+  margin-top: 7px;
+  border: 1px solid #b2967d;
+  transform: rotate(45deg);
+}
+
+.price-deposit {
+  font-family: Arial, sans-serif;
+  font-size: 9.5px;
+  line-height: 1.6;
+  color: #a89684;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ece5db;
+}
+
+.priority-addon {
+  max-width: 520px;
+  margin: 26px auto 0;
+  padding: 16px 22px;
+  background: #f5f0e8;
+  border: 1px solid #e2d9ce;
+  text-align: center;
+}
+
+.priority-addon-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
+.priority-addon-title {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  color: #2c1e12;
+}
+
+.priority-addon-price {
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  color: #4a3525;
+}
+
+.priority-addon-sub {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #8a7868;
+  margin: 6px 0 8px;
+}
+
+/* The cap is the point of the add-on, so it reads as a badge, not fine print. */
+.priority-addon-slots {
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a2a1f;
+  background: #fff0ee;
+  border: 1px solid #e8c4bc;
+  padding: 4px 12px;
+}
+
+/* ── Custom-package quote form ──────────────────────────────────────────── */
+
+/* The "request a quote" control on the pricing card. Styled as a button rather
+   than the flat price text the other cards show, because this one is the only
+   card you can act on. */
+.price-quote-btn {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #f5f1ea;
+  background: #4a3525;
+  border: none;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.price-quote-btn:hover { background: #2c1e12; }
+
+.quote-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(20, 10, 4, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.quote-modal {
+  background: #fdfaf5;
+  border: 1px solid #e2d9ce;
   width: 100%;
-  height: 100px;
-  object-fit: cover;
+  max-width: 440px;
+  padding: 30px 30px 26px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.quote-close {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 14px;   /* follows RTL/LTR without a second rule */
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: #b2967d;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.quote-title {
+  font-family: Georgia, serif;
+  font-size: 21px;
+  font-weight: 400;
+  color: #2c1e12;
+  margin: 0 0 6px;
+}
+
+.quote-intro {
+  font-family: Arial, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #8a7868;
+  margin: 0 0 20px;
+}
+
+.quote-label {
   display: block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin-bottom: 16px;
+}
+
+.quote-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 7px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #d7c9b8;
+  padding: 8px 0;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: #2c1e12;
+  outline: none;
+  direction: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.quote-input:focus { border-bottom-color: #b2967d; }
+
+.quote-textarea { resize: vertical; min-height: 60px; }
+
+/* Date and type sit together — neither needs a full row. */
+.quote-row { display: flex; gap: 16px; }
+.quote-row .quote-label { flex: 1; min-width: 0; }
+
+.quote-error {
+  background: #fff0ee;
+  border: 1px solid #e8c4bc;
+  color: #8a2a1f;
+  padding: 9px 12px;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.quote-note {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  color: #a89684;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+.quote-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.quote-btn {
+  background: #4a3525;
+  color: #f5f1ea;
+  border: none;
+  padding: 12px 22px;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.quote-btn:hover { background: #2c1e12; }
+
+.quote-btn-ghost {
+  background: transparent;
+  border: none;
+  color: #8a7868;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 12px 8px;
+}
+
+@media (max-width: 480px) {
+  .quote-modal { padding: 26px 20px 22px; }
+  .quote-row { flex-direction: column; gap: 0; }
 }
 
 /* Section ornamental divider */
@@ -248,7 +604,11 @@
 .pricing-container {
   background: #EDE8DF;
   padding: 10px 36px 40px;
-  direction: rtl;
+  /* Was hardcoded `rtl` from when the site was Hebrew-only. That made the
+     pricing block a right-to-left island inside an otherwise left-to-right
+     page, which is what threw the bullet markers to the far side of their
+     text. Following the document keeps it correct in both languages. */
+  direction: inherit;
 }
 
 .pricing-subtitle {
@@ -410,10 +770,38 @@ footer .footer-brand {
   }
   .hero-content {
     padding: 0 0 36px 24px;
+    /* The desktop cap of 320px forces the subtitle to wrap on a phone, but it
+       still has to stop short of the CTA in the opposite corner. */
+    max-width: calc(100% - 150px);
+    padding-right: 12px;
+  }
+  /* Keeps the eyebrow to "Photography · Equestrian" on a phone. The full line
+     runs straight into the CTA button on a narrow screen. */
+  .hero-subtitle-tail {
+    display: none;
+  }
+  /* 14px under a 2.2rem title reads as crowded on a small screen — the title
+     and the eyebrow line below it end up almost touching. */
+  .hero-title {
+    margin-bottom: 22px;
+  }
+  /* The 120deg overlay puts its dark end in the TOP-left corner. On a wide
+     desktop hero that sits right behind the title, but the phone hero is a
+     tall narrow box, so the title ends up on the bright lower half and the
+     subtitle becomes unreadable. Darken from the bottom up instead. */
+  .video-overlay {
+    background: linear-gradient(
+      to top,
+      rgba(20, 10, 4, 0.82) 0%,
+      rgba(20, 10, 4, 0.3) 34%,
+      rgba(20, 10, 4, 0.05) 62%,
+      transparent 100%
+    );
   }
   .hero-cta-container {
     right: 24px;
-    bottom: 28px;
+    /* Sits on the same baseline as the eyebrow line across the hero. */
+    bottom: 34px;
   }
   .ornamental-divider {
     padding: 0 20px;
@@ -631,3 +1019,22 @@ footer .footer-brand {
   }
 }
 /* ═══════════ ANIM-5 END ═══════════ */
+/* Link out to /faq from under the pricing block — same treatment as the one on
+   /pricing (see pricing-page.css). Quieter than the book button by design. */
+.pricing-faq-link {
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brown-600, #8a7868);
+  text-decoration: none;
+  border-bottom: 1px solid var(--brown-300, #d7c9b8);
+  padding-bottom: 2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.pricing-faq-link:hover {
+  color: var(--brown-700, #6b4b2a);
+  border-color: var(--brown-500, #b2967d);
+}

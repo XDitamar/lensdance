@@ -1,0 +1,301 @@
+/* src/pages/pricing-page.css
+ *
+ * Scoped to the /pricing page with its own `pp-` prefix on purpose. The shared
+ * `.price-card` class is styled twice in the codebase — as a flat row in
+ * homepage.css and as a white box in style.css — and whichever loaded last won.
+ * Not reusing that class is what keeps this page stable.
+ */
+
+.pp-root {
+  background: #f5f1ea;
+  min-height: 100vh;
+  padding: 0 0 60px;
+}
+
+.pp-head {
+  text-align: center;
+  padding: 48px 24px 8px;
+}
+
+.pp-title {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: #2c1e12;
+  margin: 0 0 10px;
+}
+
+.pp-rule {
+  height: 1px;
+  width: 34px;
+  background: #b2967d;
+  margin: 0 auto 14px;
+}
+
+.pp-sub {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #8a7868;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.pp-section-label {
+  display: block;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin: 44px 0 18px;
+}
+
+/* Competition / personal-shoot switch */
+.pp-tabs {
+  display: flex;
+  justify-content: center;
+  margin: 6px auto 0;
+}
+
+.pp-tabs > .pp-tab:first-child { border-inline-end: none; }
+
+.pp-tab {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a7868;
+  background: #fdfaf5;
+  border: 1px solid #c8b8a4;
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.pp-tab:hover { color: #4a3525; }
+
+.pp-tab.is-active {
+  background: #4a3525;
+  color: #f5f1ea;
+  border-color: #4a3525;
+}
+
+.pp-tab-hint {
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #a89684;
+  max-width: 440px;
+  margin: 14px auto 30px;
+  padding: 0 24px;
+}
+
+@media (max-width: 420px) {
+  .pp-tab { padding: 11px 14px; font-size: 9px; letter-spacing: 0.1em; }
+}
+
+/* Packages: equal-height cards, so the price and the deposit line stay on one
+   baseline however long the contents list runs. */
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+  align-items: stretch;
+}
+
+.pp-card {
+  background: #fdfaf5;
+  border: 1px solid #e2d9ce;
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pp-card h3 {
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: #2c1e12;
+  margin: 0 0 6px;
+}
+
+.pp-card-sub {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #8a7868;
+  margin: 0 0 14px;
+}
+
+.pp-includes-title {
+  font-family: Arial, sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin-bottom: 8px;
+}
+
+.pp-includes {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.pp-includes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.75;
+  color: #6b5a49;
+}
+
+.pp-includes li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 4px;
+  height: 4px;
+  margin-top: 7px;
+  border: 1px solid #b2967d;
+  transform: rotate(45deg);
+}
+
+/* Pushes the price block to the bottom so cards line up regardless of how many
+   bullet points each package has. */
+.pp-card-foot { margin-top: auto; }
+
+.pp-price {
+  font-family: Georgia, serif;
+  font-size: 20px;
+  color: #2c1e12;
+}
+
+.pp-deposit {
+  font-family: Arial, sans-serif;
+  font-size: 9.5px;
+  line-height: 1.6;
+  color: #a89684;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ece5db;
+}
+
+.pp-quote-btn {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #f5f1ea;
+  background: #4a3525;
+  border: none;
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  width: 100%;
+}
+
+.pp-quote-btn:hover { background: #2c1e12; }
+
+/* Priority add-on */
+.pp-priority {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 24px;
+  background: #ede8df;
+  border: 1px solid #ddd8cf;
+  text-align: center;
+}
+
+.pp-priority-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pp-priority-title { font-family: Georgia, serif; font-size: 16px; color: #2c1e12; }
+.pp-priority-price { font-family: Arial, sans-serif; font-size: 13px; color: #4a3525; }
+
+.pp-priority-sub {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #8a7868;
+  margin: 6px 0 10px;
+}
+
+.pp-priority-slots {
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a2a1f;
+  background: #fff0ee;
+  border: 1px solid #e8c4bc;
+  padding: 4px 12px;
+}
+
+.pp-foot {
+  text-align: center;
+  margin-top: 40px;
+  padding: 0 24px;
+}
+
+.pp-book {
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #4a3525;
+  border: 1px solid #b2967d;
+  padding: 13px 30px;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.pp-book:hover { background: #4a3525; color: #f5f1ea; }
+
+.pp-foot-note {
+  font-family: Arial, sans-serif;
+  font-size: 10.5px;
+  color: #a89684;
+  line-height: 1.8;
+  margin-top: 16px;
+}
+
+@media (max-width: 520px) {
+  .pp-title { font-size: 25px; }
+  .pp-grid { padding: 0 16px; }
+}
+
+/* Link out to /faq. Understated on purpose: it sits under the book button and
+   must not compete with it — someone ready to book should book. */
+.pp-faq-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a7868;
+  text-decoration: none;
+  border-bottom: 1px solid #d7c9b8;
+  padding-bottom: 2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.pp-faq-link:hover {
+  color: #6b4b2a;
+  border-color: #b2967d;
+}

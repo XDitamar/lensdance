@@ -23,6 +23,10 @@ import SignupPage from "./pages/SignupPage";
 import AdminPage from "./pages/AdminPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import PricingPage from "./pages/PricingPage";
+// Reached only from the pricing block (on /pricing and on the home page) —
+// deliberately not in the nav, because it answers questions that come up while
+// someone is reading a price, not questions people go looking for.
+import FaqPage from "./pages/FaqPage";
 // import AboutPage from "./pages/AboutPage";
 import ChangeName from "./pages/ChangeName";
 import ChangeDiscipline from "./pages/ChangeDiscipline";
@@ -63,6 +67,7 @@ export default function App() {
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/faq" element={<FaqPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/register" element={<CompetitionPage />} />
 

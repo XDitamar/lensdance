@@ -338,22 +338,14 @@ html[data-theme="dark"] {
   
   /* =========================================
      Featured images (Home)
+     Removed — this was an older version of the portfolio grid and it fought
+     with the current one in src/pages/homepage.css. `.featured-image-item img`
+     is more specific than `.featured-img-main`, so its fixed height won on
+     specificity no matter the import order: every tile was forced to one
+     height while the grid track stayed taller, which left a photo sitting at
+     the top of a half-empty box. The rules live in homepage.css only.
   ========================================= */
-  .featured-images-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(300px,1fr));
-    gap:25px; margin-top:40px;
-  }
-  .featured-image-item{
-    background:#fff; border-radius:8px; overflow:hidden;
-    box-shadow:0 4px 12px rgba(0,0,0,.1);
-    transition:transform .2s ease;
-  }
-  .featured-image-item:hover{ transform:translateY(-8px) }
-  .featured-image-item img{
-    width:100%; height:280px; object-fit:cover; display:block;
-  }
-  
+
   /* =========================================
      Services & Pricing (Home)
   ========================================= */
@@ -1191,6 +1183,98 @@ html[data-theme="dark"] {
   .whatsapp-fab {
     bottom: 35px;
   }
+}
+
+/* =========================================
+   Public gallery — masonry
+   Photos and videos are shown WHOLE: no crop, no stretch. Each tile keeps its
+   own aspect ratio and the columns absorb the different heights, which is what
+   lets a vertical reel sit beside a landscape still without either one being
+   cut or floating in empty letterbox bars.
+   CSS multi-column is used rather than a fixed grid because the media's
+   dimensions aren't known until it loads — the browser reflows the columns for
+   us, with no layout maths and no JavaScript.
+========================================= */
+.gallery-masonry {
+  column-count: 2;
+  column-gap: 10px;
+}
+
+@media (min-width: 700px) {
+  .gallery-masonry { column-count: 3; }
+}
+
+@media (min-width: 1300px) {
+  .gallery-masonry { column-count: 4; }
+}
+
+/* Phones keep two columns: it shows more of the shoot per screen and lets a
+   vertical reel stand next to a landscape frame, which is the whole point of
+   the masonry. Only genuinely narrow devices drop to one. */
+@media (max-width: 360px) {
+  .gallery-masonry { column-count: 1; }
+}
+
+.gallery-tile {
+  break-inside: avoid;        /* never split a photo across two columns */
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;   /* older WebKit */
+  position: relative;
+  display: block;
+  margin: 0 0 10px;
+  cursor: pointer;
+  overflow: hidden;
+  /* Warm placeholder while the image arrives — reads as part of the page
+     rather than as a black hole. */
+  background: #EDE8DF;
+  transition: opacity 0.25s ease;
+}
+
+.gallery-tile:focus-visible {
+  outline: 2px solid var(--brown-500, #B2967D);
+  outline-offset: 2px;
+}
+
+.gallery-tile-media {
+  width: 100%;
+  height: auto;              /* the whole point: natural height, never cropped */
+  display: block;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.45s ease;
+}
+
+.gallery-tile.is-loaded .gallery-tile-media { opacity: 1; }
+
+/* Hover lifts the image very slightly. `overflow: hidden` on the tile keeps the
+   scale from nudging the neighbouring columns. */
+@media (hover: hover) {
+  .gallery-tile:hover .gallery-tile-media { transform: scale(1.03); }
+}
+
+/* Play badge for video tiles */
+.gallery-tile-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+  backdrop-filter: blur(1px);
+}
+
+.gallery-tile-play::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-46%, -50%);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 12px solid rgba(255, 255, 255, 0.9);
 }
 
 /* =========================================

@@ -5,6 +5,12 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { useTranslation } from "react-i18next";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 import { ADMIN_EMAIL } from "../constants";
+import {
+  PRIORITY_FULL,
+  PRIORITY_PACKAGE_ID,
+  claimPrioritySlot,
+  watchPrioritySlots,
+} from "../lib/priority";
 
 // The packages come from useGeoPrice: amounts/currency per the visitor's
 // country (src/config/pricing.js), wording per their language
@@ -27,7 +33,11 @@ export default function CompetitionPage() {
   const [user, authLoading] = useAuthState(auth);
   const isAdmin = user?.email === ADMIN_EMAIL;
   const { prices } = useGeoPrice();
-  const packages = prices.packages;
+  // Priority is not a package you tick alongside the others — it is capped per
+  // competition, so it gets its own field below with a live count of what is
+  // left. Everything else stays a plain checkbox list.
+  const packages = prices.packages.filter((pkg) => pkg.id !== PRIORITY_PACKAGE_ID);
+  const priorityPackage = prices.packages.find((pkg) => pkg.id === PRIORITY_PACKAGE_ID);
 
   // Competition title state
   const [title, setTitle] = useState("…");
@@ -51,9 +61,15 @@ export default function CompetitionPage() {
     publishPermission: "",
     underAge: false,
   });
+  const [wantsPriority, setWantsPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // How many priority places this competition has left. Null until the first
+  // snapshot arrives, so the field can stay quiet rather than flash "5 left"
+  // and correct itself a moment later.
+  const [slots, setSlots] = useState(null);
 
   // Load competition title from Firestore
   useEffect(() => {
@@ -64,6 +80,20 @@ export default function CompetitionPage() {
       }
     });
   }, [t]);
+
+  // Live priority count for the competition on screen. A subscription rather
+  // than a one-off read: someone else can take the last place while this form
+  // is open, and the rider should see that before they submit, not after.
+  useEffect(() => {
+    if (!title || title === "…") return undefined;
+    return watchPrioritySlots(title, setSlots);
+  }, [title]);
+
+  // Places ran out while the box was ticked — untick it rather than let the
+  // rider submit something that is going to be refused.
+  useEffect(() => {
+    if (slots?.full) setWantsPriority(false);
+  }, [slots?.full]);
 
   // Admin: save new title
   const saveTitle = async () => {
@@ -100,8 +130,38 @@ export default function CompetitionPage() {
     if (err) { setError(err); return; }
     setLoading(true);
     try {
+      // Take the priority place FIRST. The transaction is what stops two riders
+      // being promised the same last slot, and claiming before writing means a
+      // failure leaves a place held rather than double-booked. The admin page
+      // recounts from the registrations and repairs any drift — see
+      // src/lib/priority.js.
+      if (wantsPriority) {
+        try {
+          await claimPrioritySlot(title);
+        } catch (claimErr) {
+          if (claimErr?.message === PRIORITY_FULL) {
+            setWantsPriority(false);
+            setError(t("competition.errors.priorityTaken"));
+            setLoading(false);
+            return;
+          }
+          // Anything else — the counter collection unreachable, rules not
+          // deployed, network — is a bookkeeping problem, not the rider's.
+          // Let the sign-up through: the registration is what matters, and
+          // /admin/registrations recomputes the tally from the registrations
+          // themselves. Failing here instead would lose a booking over a
+          // number only the admin ever acts on.
+          console.warn("Priority slot claim failed, continuing:", claimErr);
+        }
+      }
+
       await addDoc(collection(db, "registrations"), {
         ...form,
+        // Priority is stored as a package id like any other, so the admin list
+        // and the deposit maths keep working unchanged.
+        packages: wantsPriority
+          ? [...form.packages, PRIORITY_PACKAGE_ID]
+          : form.packages,
         competitionTitle: title,
         userId: user?.uid || null,
         userEmail: user?.email || null,
@@ -282,6 +342,12 @@ export default function CompetitionPage() {
           <input style={s.input} type="text" value={form.deposit}
             placeholder={t("competition.depositPlaceholder")}
             onChange={set("deposit")} required />
+          {/* The rate lives in src/config/pricing.js and reaches here through
+              useGeoPrice, so the form, the pricing cards and the terms can
+              never quote three different numbers. */}
+          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", lineHeight: 1.7, marginTop: 8 }}>
+            {t("competition.depositHint", { percent: prices.depositPercent })}
+          </p>
         </Field>
 
         {/* Package selection */}
@@ -296,6 +362,57 @@ export default function CompetitionPage() {
                 onChange={() => togglePkg(pkg.id)}
                 style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
               {pkg.label}
+            </label>
+          ))}
+        </Field>
+
+        {/* Priority — its own field, because unlike the packages above there is
+            a limited number of them and the rider needs to see how many are
+            left before they choose. The count is live: it drops as other
+            riders claim places. */}
+        <Field label={t("competition.priorityLabel")}>
+          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", marginBottom: 10, lineHeight: 1.65 }}>
+            {priorityPackage?.label || prices.priority.sub}
+          </p>
+
+          {slots && (
+            <div style={{
+              fontFamily: "Arial,sans-serif", fontSize: 10, lineHeight: 1.6,
+              color: slots.full ? "#8A2A1F" : "#3B6D11",
+              background: slots.full ? "#FFF0EE" : "#F2F7EA",
+              border: `1px solid ${slots.full ? "#E8C4BC" : "#C0DD97"}`,
+              padding: "8px 12px", marginBottom: 10, alignSelf: "flex-start",
+            }}>
+              {slots.full
+                ? t("competition.priorityFull")
+                : t("competition.priorityRemaining", {
+                    remaining: slots.remaining,
+                    total: slots.total,
+                  })}
+            </div>
+          )}
+
+          {[
+            { v: true,  l: t("competition.priorityYes") },
+            { v: false, l: t("competition.priorityNo") },
+          ].map((o) => (
+            <label
+              key={String(o.v)}
+              style={{
+                ...s.radioLabel,
+                opacity: o.v && slots?.full ? 0.45 : 1,
+                cursor: o.v && slots?.full ? "not-allowed" : "pointer",
+              }}
+            >
+              <input
+                type="radio"
+                name="priority"
+                checked={wantsPriority === o.v}
+                disabled={o.v && slots?.full}
+                onChange={() => setWantsPriority(o.v)}
+                style={{ accentColor: "#B2967D" }}
+              />
+              {o.l}
             </label>
           ))}
         </Field>

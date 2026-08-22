@@ -234,74 +234,54 @@ export default function GalleryPage() {
 				<button onClick={() => setFilter("videos")} className={`filter-button ${filter === "videos" ? "active" : ""}`}>{t("gallery.videos")}</button>
 			</div>
 
-			{/* TILE GRID — זהה לגלריה הפרטית: מיקום ומראה (תמונה רחבה בכל 5 אריחים) */}
+			{/* MASONRY GRID
+			    Every item is shown WHOLE — no cropping, no stretching. Each tile keeps
+			    the media's own aspect ratio (the /api/image thumbnails are resized by
+			    width only, so they are the full frame, just smaller) and the columns
+			    absorb the different heights. That is what lets portrait video sit next
+			    to landscape stills without either being cut or letterboxed.
+			    Column count is set in style.css so it can follow the viewport. */}
 			<div style={{ padding: "16px 22px 40px", background: "#FAFAF8" }}>
-				<div style={{
-					display: "grid",
-					gridTemplateColumns: "repeat(2, 1fr)",
-					gap: 8,
-					gridAutoFlow: "dense",
-				}}>
+				<div className="gallery-masonry">
 					{pageItems.map((item, index) => {
 						const isVideo = item.isVideo;
-						const isWide = index % 5 === 0; // הראשון בכל קבוצה = רחב
 						const isLoaded = loaded[item.fullPath];
 						return (
 							<div
 								key={item.fullPath}
+								className={`gallery-tile${isLoaded ? " is-loaded" : ""}`}
 								onClick={() => openModal(item)}
-								style={{
-									position: "relative",
-									overflow: "hidden",
-									gridColumn: isWide ? "1 / -1" : "span 1",
-									height: isWide ? 220 : undefined,
-									aspectRatio: isWide ? undefined : "4/3",
-									background: "#1A1208",
-									cursor: "pointer",
-								}}
+								role="button"
+								tabIndex={0}
+								onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openModal(item)}
 							>
 								{isVideo ? (
 									<>
 										<video
 											src={item.gridUrl || item.url}
-											style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.65, display: "block" }}
+											className="gallery-tile-media"
 											muted
 											playsInline
 											preload="metadata"
+											/* A vertical clip simply makes a tall tile — nothing is cut. */
+											onLoadedMetadata={() => setLoaded((l) => ({ ...l, [item.fullPath]: true }))}
 										/>
-										<div style={{
-											position: "absolute", inset: 0,
-											display: "flex", alignItems: "center", justifyContent: "center",
-											pointerEvents: "none",
-										}}>
-											<div style={{
-												width: 42, height: 42, borderRadius: "50%",
-												background: "rgba(255,255,255,.18)",
-												border: "1.5px solid rgba(255,255,255,.6)",
-												display: "flex", alignItems: "center", justifyContent: "center",
-											}}>
-												<div style={{
-													width: 0, height: 0,
-													borderTop: "7px solid transparent",
-													borderBottom: "7px solid transparent",
-													borderLeft: "12px solid rgba(255,255,255,.85)",
-													marginRight: -3,
-												}} />
-											</div>
-										</div>
+										<span className="gallery-tile-play" aria-hidden="true" />
 									</>
 								) : (
 									<img
-										src={isWide ? (item.gridUrl || item.url) : (item.thumbUrl || item.gridUrl || item.url)}
+										src={item.thumbUrl || item.gridUrl || item.url}
 										alt={item.name || t("gallery.itemAlt")}
+										className="gallery-tile-media"
 										loading="eager"
 										fetchpriority={index < 4 ? "high" : undefined}
 										decoding="async"
-										onLoad={() => setLoaded((l) => ({ ...l, [item.fullPath]: true }))}
-										style={{
-											width: "100%", height: "100%", objectFit: "cover", display: "block",
-											opacity: isLoaded ? 1 : 0,
-											transition: "opacity .4s ease",
+										onLoad={(e) => {
+											/* Pin the tile to the real ratio the moment it is known, so
+											   the column stops reflowing as later images arrive. */
+											const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+											if (w && h) e.currentTarget.parentElement.style.aspectRatio = `${w} / ${h}`;
+											setLoaded((l) => ({ ...l, [item.fullPath]: true }));
 										}}
 									/>
 								)}

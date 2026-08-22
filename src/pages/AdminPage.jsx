@@ -362,13 +362,24 @@ export default function AdminPage() {
 
       const itemsToDelete = mediaItems.filter((it) => it.name !== ".placeholder");
 
+      const failed = [];
       for (const item of itemsToDelete) {
         try {
-          const fileRef = ref(storage, item.id);
-          await deleteObject(fileRef);
+          await deleteObject(ref(storage, item.id));
         } catch (e) {
+          // "object-not-found" is not a failure: the goal is for the file to be
+          // gone, and it already is. This shows up when the listing the page is
+          // working from is older than the bucket.
+          if (e?.code === "storage/object-not-found") continue;
+          failed.push(item.name);
           console.error("Failed to delete", item.id, e);
         }
+      }
+
+      // Say so rather than silently leaving files behind — the grid refreshes
+      // either way, so without this the leftovers just look like a glitch.
+      if (failed.length) {
+        setError(`${failed.length} file(s) could not be deleted: ${failed.join(", ")}`);
       }
 
       await fetchMediaInFolder(currentFolder);

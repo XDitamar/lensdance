@@ -6,21 +6,30 @@
 //
 // The site has two translation layers and they cover different things:
 //
-//   1. i18next (src/locales/en.json, he.json) — hand-written, perfect quality,
+//   1. i18next (src/locales/en, he, ru, ar) — hand-written, perfect quality,
 //      but it only covers the strings that have actually been migrated into it.
 //   2. Google Translate — covers EVERY text node on the page, including the
 //      Hebrew still hardcoded in the JSX, but it is machine quality.
 //
 // The rule that gets full coverage in every language:
 //
-//   target === "iw" (Hebrew)  → i18next "he", Google Translate OFF.
-//                               The DOM is already Hebrew end to end.
+//   target is a NATIVE_TARGET     → i18next renders that locale, Google
+//   ("iw", "ru", "ar")              Translate OFF. The hand-written file is
+//                                   better than anything Google would produce,
+//                                   and layering Google on top of it would only
+//                                   re-translate good text into worse text.
 //
-//   any other target          → i18next "en", Google Translate ON with source
-//                               "auto". i18next renders its own strings in
-//                               English, Google then translates the whole page
-//                               — the English from i18next AND the leftover
-//                               hardcoded Hebrew — into the target language.
+//   any other target              → i18next "en", Google Translate ON with
+//                                   source "auto". i18next renders its own
+//                                   strings in English, Google then translates
+//                                   the whole page — the English from i18next
+//                                   AND the leftover hardcoded Hebrew — into
+//                                   the target language.
+//
+// Adding a language to NATIVE_TARGETS is a two-step change: write the locale
+// file (all 458 keys, see src/i18n.js) and add the Google code here. Adding it
+// here alone turns Google off for a language i18next cannot actually render,
+// which leaves the visitor looking at English.
 //
 // Why source "auto" and not "en" or "iw": the DOM is a mix of both languages,
 // so a fixed source makes Google mistranslate half the page. "auto" lets it
@@ -46,6 +55,13 @@ export const TARGET_KEY = "ld_lang_target";
 export const AUTO_DONE_KEY = "ld_lang_auto_done";
 
 export const HEBREW = "iw"; // Google's legacy code for Hebrew
+
+/**
+ * The targets i18next serves from a hand-written locale file. Google codes —
+ * hence "iw" rather than "he". Must stay in step with NATIVE_LANGS in
+ * src/i18n.js, which is the same list in i18next's code space.
+ */
+export const NATIVE_TARGETS = [HEBREW, "ru", "ar"];
 
 /* ── Code normalisation ─────────────────────────────────────────────────── */
 
@@ -122,10 +138,16 @@ export function resolveTarget() {
 }
 
 /** Whether this target is served natively by i18next instead of Google. */
-export const isNativeTarget = (target) => target === HEBREW;
+export const isNativeTarget = (target) =>
+  NATIVE_TARGETS.includes(String(target || "").toLowerCase());
 
-/** Google code → the i18next language to render the DOM in. */
-export const i18nLangFor = (target) => (isNativeTarget(target) ? "he" : "en");
+/**
+ * Google code → the i18next language to render the DOM in. Native targets map
+ * to their own locale ("iw" → "he"); everything else renders in English and
+ * lets Google translate the result.
+ */
+export const i18nLangFor = (target) =>
+  isNativeTarget(target) ? toI18nCode(target) : "en";
 
 /* ── The googtrans cookie ───────────────────────────────────────────────── */
 //
