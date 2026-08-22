@@ -106,27 +106,34 @@ export default function HomePage() {
       <div className="section-container">
         {/* The grid is `3fr 2fr 2fr` (see homepage.css) — a wide lead image and
             two stacked columns. Until now only two of the three tracks were
-            filled, leaving an empty column on the right. Equine portraiture
-            takes the lead slot and Show jumping moves into the third track. */}
+            filled, leaving an empty column on the right. The black-and-white
+            portrait takes the lead slot and Show jumping moves into the third
+            track.
+
+            The width/height on each <img> are the files' real pixel dimensions.
+            They are not sizing the picture — CSS does that — they tell the
+            browser the aspect ratio up front, so on mobile (where tiles take
+            the shape of the photo rather than a fixed height) the page reserves
+            the right space instead of reflowing as each file lands. */}
         <div className="featured-images-grid">
           {/* ANIM-1 (reveal) + ANIM-3 (featured-caption) */}
           <div className="featured-image-item reveal">
-            <img src="/pics/kip2.webp" alt={t("home.captionEquine")} className="featured-img-main" loading="lazy" decoding="async" />
+            <img src="/pics/kip2.webp" width="1400" height="788" alt={t("home.captionEquine")} className="featured-img-main" loading="lazy" decoding="async" />
             <span className="featured-caption">{t("home.captionEquine")}</span>
           </div>
           <div className="featured-column">
             <div className="featured-image-item reveal" style={{ transitionDelay: "0.15s" }}>
-              <img src="/pics/pic2.webp" alt={t("home.captionRiding")} className="featured-img-sub" loading="lazy" decoding="async" />
+              <img src="/pics/pic2.webp" width="1400" height="933" alt={t("home.captionRiding")} className="featured-img-sub" loading="lazy" decoding="async" />
               <span className="featured-caption">{t("home.captionRiding")}</span>
             </div>
             <div className="featured-image-item reveal" style={{ transitionDelay: "0.3s" }}>
-              <img src="/pics/pic3.webp" alt={t("home.captionPortrait")} className="featured-img-sub" loading="lazy" decoding="async" />
+              <img src="/pics/pic3.webp" width="1400" height="933" alt={t("home.captionPortrait")} className="featured-img-sub" loading="lazy" decoding="async" />
               <span className="featured-caption">{t("home.captionPortrait")}</span>
             </div>
           </div>
           <div className="featured-column">
             <div className="featured-image-item reveal" style={{ transitionDelay: "0.45s" }}>
-              <img src="/pics/pic1.webp" alt={t("home.captionJumping")} className="featured-img-tall" loading="lazy" decoding="async" />
+              <img src="/pics/pic1.webp" width="1400" height="1459" alt={t("home.captionJumping")} className="featured-img-tall" loading="lazy" decoding="async" />
               <span className="featured-caption">{t("home.captionJumping")}</span>
             </div>
           </div>

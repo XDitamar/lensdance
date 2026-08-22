@@ -546,7 +546,12 @@ html[data-theme="dark"] {
     .hero-content p{ font-size:.9em }
     .cta-button{ padding:10px 20px; font-size:.9em }
     .section-title{ font-size:2em }
-    .featured-image-item img{ height:200px }
+    /* `.featured-image-item img{ height:200px }` was here — the last survivor of
+       the old portfolio grid removed above (see "Featured images (Home)").
+       Same bug, hiding in a narrower breakpoint: two classes plus an element
+       beat `.featured-img-main`, so under 480px every photo was pinned to 200px
+       inside a 240px tile and the tile's near-black background showed as a band
+       under each picture. Portfolio sizing lives in homepage.css only. */
     .auth-card{ padding:20px }
     .auth-title{ font-size:1.7rem }
   }

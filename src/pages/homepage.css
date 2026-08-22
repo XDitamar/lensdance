@@ -207,14 +207,37 @@
 }
 
 @media (max-width: 768px) {
-  /* Single column: a shared row height would squash the stacked pair into two
-     thin strips, so each tile gets its own comfortable height instead. */
+  /* Single column, and every tile takes the shape of the photo inside it
+     instead of a height picked here.
+     The desktop grid crops to fill its tracks, which is right when tiles have
+     to line up in a row. Stacked on a phone nothing has to line up, so there is
+     no reason to crop — and cropping cost the most on the jumping shot, a
+     portrait photo (1400x1459) squeezed into a landscape box. Now each picture
+     is whole and the rhythm comes from the photos themselves.
+     The width/height attributes on the <img> tags in HomePage.jsx let the
+     browser reserve the right space before the file arrives, so the page does
+     not jump as they load. */
   .featured-images-grid > .featured-image-item,
-  .featured-column {
+  .featured-column,
+  .featured-column .featured-image-item {
+    height: auto;
+    flex: none;
+  }
+
+  .featured-img-main,
+  .featured-img-sub,
+  .featured-img-tall {
     height: auto;
   }
-  .featured-images-grid > .featured-image-item { height: 240px; }
-  .featured-column .featured-image-item { height: 200px; flex: none; }
+}
+
+/* Captions are a hover reveal, and a phone has no hover — without this they
+   would never appear on the devices most people browse from. */
+@media (hover: none) {
+  .featured-caption {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ── Competition / personal-shoot switch ────────────────────────────────── */
