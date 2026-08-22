@@ -2,6 +2,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+// Vercel Web Analytics. The "/react" entry point, not "/next" — this is a
+// Create React App project, and the Next.js import would fail to resolve.
+// It only reports anything on the deployed site: in development the component
+// renders nothing and sends nothing, so `npm start` stays clean.
+import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import "./i18n";
@@ -30,6 +35,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <AuthProvider>
       <App />
+      {/* Renders nothing — it injects Vercel's insights script, which patches
+          the History API itself and so records client-side navigations without
+          any help from react-router. No `route` prop on purpose: passing one
+          turns auto-tracking off, and every route here is a fixed path
+          (/pricing, /faq, /register) with no dynamic segments to group. */}
+      <Analytics />
     </AuthProvider>
   </BrowserRouter>
 );

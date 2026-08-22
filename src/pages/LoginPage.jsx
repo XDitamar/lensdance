@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+// Layout lives in CSS because it has to change at a breakpoint, and inline
+// styles cannot carry media queries. See the header comment in that file.
+import "./auth-page.css";
 
 // Firebase error code → i18n key, so the message arrives in the visitor's language.
 const ERROR_KEYS = {
@@ -38,74 +41,76 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={i18n.dir()}>
+    <div className="auth-root" dir={i18n.dir()}>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", flex: 1 }}>
+      <div className="auth-split is-login">
 
-        {/* ── Left dark panel ── */}
-        <div style={{
-          background: "#2C1E12", padding: "60px 44px",
-          display: "flex", flexDirection: "column", justifyContent: "center", gap: 20,
-        }}>
-          <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
-          <h2 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#F5F1EA", lineHeight: 1.4, margin: 0 }}>
+        {/* ── Dark brand panel. Beside the form on a desktop, a short header
+               strip on a phone — see auth-page.css. ── */}
+        <div className="auth-panel">
+          <div className="auth-panel-rule" />
+          <h2 className="auth-panel-title">
             <span dangerouslySetInnerHTML={{ __html: t("login.panelTitle") }} />
           </h2>
-          <p style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15, color: "rgba(255,255,255,.45)", lineHeight: 1.8, margin: 0 }}>
+          <p className="auth-panel-quote">
             <span dangerouslySetInnerHTML={{ __html: t("login.panelQuote") }} />
           </p>
-          <div style={{ width: 36, height: 1, background: "rgba(255,255,255,.2)" }} />
-          <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em", color: "rgba(255,255,255,.25)" }}>
-            Lens Dance Photography
-          </span>
+          <div className="auth-panel-rule" />
+          <span className="auth-panel-sig">Lens Dance Photography</span>
         </div>
 
-        {/* ── Right form ── */}
-        <div style={{ background: "#FDFAF5", padding: "60px 52px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {/* ── Form ── */}
+        <div className="auth-form-side">
           <span style={s.eyebrow}>{t("login.welcome")}</span>
           <h1 style={s.title}>{t("login.title")}</h1>
 
           <form onSubmit={doLogin} noValidate>
             <Field label={t("login.email")}>
-              <input
-                style={{ ...s.input, direction: "ltr", textAlign: "left" }}
-                type="email" value={email} placeholder="your@email.com"
-                onChange={e => setEmail(e.target.value)}
-                required autoComplete="email"
-              />
+              {(id) => (
+                <input
+                  id={id}
+                  className="auth-input"
+                  style={{ direction: "ltr", textAlign: "left" }}
+                  type="email" value={email} placeholder="your@email.com"
+                  onChange={e => setEmail(e.target.value)}
+                  required autoComplete="email"
+                  inputMode="email"
+                />
+              )}
             </Field>
 
             <Field label={t("login.password")}>
-              <div style={{ position: "relative" }}>
-                <input
-                  style={{ ...s.input, paddingLeft: 56 }}
-                  type={showPw ? "text" : "password"} value={pw}
-                  placeholder="••••••••"
-                  onChange={e => setPw(e.target.value)}
-                  required autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  style={{
-                    position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                    background: "none", border: "none", cursor: "pointer",
-                    fontFamily: "Arial, sans-serif", fontSize: 9,
-                    letterSpacing: ".1em", color: "#B2967D", padding: 0,
-                  }}
-                >
-                  {showPw ? t("common.hide") : t("common.show")}
-                </button>
-              </div>
+              {(id) => (
+                <div style={{ position: "relative" }}>
+                  <input
+                    id={id}
+                    className="auth-input"
+                    style={{ paddingInlineStart: 56 }}
+                    type={showPw ? "text" : "password"} value={pw}
+                    placeholder="••••••••"
+                    onChange={e => setPw(e.target.value)}
+                    required autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="auth-toggle"
+                    onClick={() => setShowPw(v => !v)}
+                  >
+                    {showPw ? t("common.hide") : t("common.show")}
+                  </button>
+                </div>
+              )}
             </Field>
 
-            <div style={{ textAlign: "left", marginTop: -10, marginBottom: 24 }}>
+            <div style={{ textAlign: "start", marginTop: -10, marginBottom: 24 }}>
               <Link to="/forgot-password" style={s.link}>{t("login.forgot")}</Link>
             </div>
 
-            {error && <div style={s.error}>{error}</div>}
+            {/* role=alert so a screen reader announces the failure instead of
+                leaving someone waiting for a page that already answered. */}
+            {error && <div style={s.error} role="alert">{error}</div>}
 
-            <button type="submit" disabled={loading} style={{ ...s.btn, opacity: loading ? 0.65 : 1 }}>
+            <button type="submit" disabled={loading} className="auth-submit" style={{ opacity: loading ? 0.65 : 1 }}>
               {loading ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
@@ -117,7 +122,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div style={{ background: "#2C1E12", padding: "14px 36px", textAlign: "center" }}>
+      <div className="auth-foot">
         <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".1em", color: "#4A3A28" }}>
           © 2025 Lens Dance Photography
         </span>
@@ -126,13 +131,21 @@ export default function LoginPage() {
   );
 }
 
+/**
+ * A labelled field.
+ *
+ * `children` is a function that receives a generated id, so the <label> can
+ * point at the input with htmlFor. Previously the label and the input were
+ * siblings with nothing tying them together: a screen reader read "edit text,
+ * blank" with no idea which field it was on, and tapping the label — a large,
+ * obvious target on a phone — did nothing.
+ */
 function Field({ label, children }) {
+  const id = useId();
   return (
-    <div style={{ marginBottom: 22 }}>
-      <label style={{ display: "block", fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "#B2967D", marginBottom: 8 }}>
-        {label}
-      </label>
-      {children}
+    <div className="auth-field">
+      <label className="auth-label" htmlFor={id}>{label}</label>
+      {children(id)}
     </div>
   );
 }
@@ -140,8 +153,6 @@ function Field({ label, children }) {
 const s = {
   eyebrow: { fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "#B2967D", display: "block", marginBottom: 6 },
   title:   { fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, color: "#2C1E12", margin: "0 0 30px" },
-  input:   { width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #D7C9B8", padding: "10px 0", fontFamily: "Georgia, serif", fontSize: 13, color: "#2C1E12", outline: "none", direction: "inherit", boxSizing: "border-box" },
-  btn:     { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "13px 0", fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", cursor: "pointer", transition: "background .2s" },
   link:    { color: "#4A3525", textDecoration: "none", borderBottom: "1px solid #B2967D", paddingBottom: 1, fontFamily: "Arial, sans-serif", fontSize: 11 },
   error:   { background: "#FFF0EE", border: "1px solid #E8C4BC", color: "#8A2A1F", padding: "10px 14px", fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.6, marginBottom: 16 },
 };
