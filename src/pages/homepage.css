@@ -149,17 +149,14 @@
 }
 
 /* ── Portfolio grid ── */
+/* Two columns of 16:9 tiles. Three of the four photographs are 16:9 and the
+   fourth is 3:2, so tiles of that shape crop almost nothing — which is the
+   whole point after the tall-slot layout was retired (see HomePage.jsx). */
 .featured-images-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr 2fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 24px;
-}
-
-.featured-column {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .featured-image-item {
@@ -174,25 +171,12 @@
   transform: none;
 }
 
-/* One row height drives everything, instead of each tile carrying its own
-   pixel value that has to be kept in sync by hand. The lead tile and the
-   stacked column are both exactly --row-h tall, so the row can never end up
-   taller than the photo inside it — which is what left a picture stranded at
-   the top of a half-empty box. */
-.featured-images-grid {
-  --row-h: 300px;
-  align-items: stretch;
-}
-
-.featured-images-grid > .featured-image-item,
-.featured-column {
-  height: var(--row-h);
-}
-
-/* The two stacked tiles split the row between them, minus the gap. */
-.featured-column .featured-image-item {
-  flex: 1;
-  min-height: 0;
+/* Every tile is the same 16:9 box, so the two rows line up without anyone
+   having to keep pixel heights in sync by hand. `aspect-ratio` also means the
+   tile is never taller than the picture inside it — which is what used to leave
+   a photo stranded at the top of a half-empty box. */
+.featured-images-grid > .featured-image-item {
+  aspect-ratio: 16 / 9;
 }
 
 /* Every image fills its tile. `cover` keeps the aspect ratio and crops the
@@ -208,20 +192,21 @@
 
 @media (max-width: 768px) {
   /* Single column, and every tile takes the shape of the photo inside it
-     instead of a height picked here.
-     The desktop grid crops to fill its tracks, which is right when tiles have
-     to line up in a row. Stacked on a phone nothing has to line up, so there is
-     no reason to crop — and cropping cost the most on the jumping shot, a
-     portrait photo (1400x1459) squeezed into a landscape box. Now each picture
-     is whole and the rhythm comes from the photos themselves.
+     rather than a box shape chosen here.
+     The desktop grid crops to a shared 16:9 so the two rows line up. Stacked on
+     a phone nothing has to line up, so there is no reason to crop at all — the
+     3:2 portrait keeps its extra height and the rhythm comes from the
+     photographs themselves.
      The width/height attributes on the <img> tags in HomePage.jsx let the
      browser reserve the right space before the file arrives, so the page does
      not jump as they load. */
-  .featured-images-grid > .featured-image-item,
-  .featured-column,
-  .featured-column .featured-image-item {
+  .featured-images-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .featured-images-grid > .featured-image-item {
+    aspect-ratio: auto;
     height: auto;
-    flex: none;
   }
 
   .featured-img-main,
