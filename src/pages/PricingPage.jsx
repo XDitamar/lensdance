@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 import QuoteRequestModal from "../components/QuoteRequestModal";
+import { bookingPath, sessionById } from "../lib/sessions";
 import { isRtlLang } from "../i18n";
 import "./pricing-page.css";
 
@@ -57,6 +58,10 @@ export default function PricingPage() {
           // The custom package has no price to print — it opens the enquiry
           // form instead.
           const isCustom = key === "custom";
+          // Personal sessions are booked directly: each has its own page at
+          // /book/<slug>. Competition packages are not — those go through the
+          // one sign-up form for the whole event.
+          const session = sessionById(key);
           return (
             <div className="pp-card" key={key}>
               <h3>{card.title}</h3>
@@ -86,6 +91,11 @@ export default function PricingPage() {
                   <div className="pp-price">{card.from}</div>
                 )}
                 <div className="pp-deposit">{p.deposit}</div>
+                {session && (
+                  <Link to={bookingPath(session.id)} className="pp-card-book">
+                    {t("pricing.book")}
+                  </Link>
+                )}
               </div>
             </div>
           );
@@ -110,7 +120,12 @@ export default function PricingPage() {
       )}
 
       <div className="pp-foot">
-        <Link to="/register" className="pp-book">{t("pricing.book")}</Link>
+        {/* /register is the competition sign-up, so it only belongs under the
+            competition tab. Personal sessions are booked from their own cards
+            above — a single button here could not know which one you meant. */}
+        {group === "competition" && (
+          <Link to="/register" className="pp-book">{t("pricing.book")}</Link>
+        )}
         <p className="pp-foot-note">{t("pricing.footerNote")}</p>
         {/* The FAQ hangs off the pricing block rather than the nav: the
             questions it answers — deposit, delivery, what to wear, travel —

@@ -11,6 +11,13 @@ import {
   claimPrioritySlot,
   watchPrioritySlots,
 } from "../lib/priority";
+import {
+  competitionLabel,
+  fetchCompetitions,
+  formatRange,
+  visibleCompetitions,
+} from "../lib/competitions";
+import { detectCountry } from "../hooks/useGeoPrice";
 
 // The packages come from useGeoPrice: amounts/currency per the visitor's
 // country (src/config/pricing.js), wording per their language
@@ -50,7 +57,9 @@ export default function CompetitionPage() {
   const [showForm, setShowForm] = useState(false);
 
   // Form state
+  const [comps, setComps] = useState([]);
   const [form, setForm] = useState({
+    competitionId: "",
     day: "",
     riderName: "",
     horseName: "",
@@ -81,13 +90,45 @@ export default function CompetitionPage() {
     });
   }, [t]);
 
+  /* The competitions this visitor can actually sign up to.
+     Filtered to their country and to dates that have not passed — see
+     visibleCompetitions() in src/lib/competitions.js, which deliberately shows
+     everything rather than nothing when the country lookup fails. */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [all, country] = await Promise.all([fetchCompetitions(), detectCountry()]);
+        if (!alive) return;
+        const list = visibleCompetitions(all, country);
+        setComps(list);
+        // One option is not a choice — preselect it so nobody has to click a
+        // dropdown with a single entry.
+        if (list.length === 1) setForm((f) => ({ ...f, competitionId: list[0].id }));
+      } catch (err) {
+        console.warn("Failed to load competitions:", err);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  /** The competition record the rider picked, if any exist to pick from. */
+  const chosenComp = comps.find((c) => c.id === form.competitionId);
+  /* What the sign-up is filed under, and what the priority tally is keyed on.
+     A chosen competition wins; otherwise fall back to the single title in
+     settings/competition, which is how every registration was filed before
+     competitions became records of their own.
+     Declared above the effects below because they read it — a `const` used
+     before its line throws rather than reading as undefined. */
+  const filedUnder = chosenComp ? competitionLabel(chosenComp) : title;
+
   // Live priority count for the competition on screen. A subscription rather
   // than a one-off read: someone else can take the last place while this form
   // is open, and the rider should see that before they submit, not after.
   useEffect(() => {
-    if (!title || title === "…") return undefined;
-    return watchPrioritySlots(title, setSlots);
-  }, [title]);
+    if (!filedUnder || filedUnder === "…") return undefined;
+    return watchPrioritySlots(filedUnder, setSlots);
+  }, [filedUnder]);
 
   // Places ran out while the box was ticked — untick it rather than let the
   // rider submit something that is going to be refused.
@@ -111,6 +152,7 @@ export default function CompetitionPage() {
   }));
 
   const validate = () => {
+    if (comps.length > 0 && !form.competitionId) return t("competition.errors.choose");
     if (!form.day)            return t("competition.errors.day");
     if (!form.riderName.trim()) return t("competition.errors.rider");
     if (!form.horseName.trim()) return t("competition.errors.horse");
@@ -137,7 +179,7 @@ export default function CompetitionPage() {
       // src/lib/priority.js.
       if (wantsPriority) {
         try {
-          await claimPrioritySlot(title);
+          await claimPrioritySlot(filedUnder);
         } catch (claimErr) {
           if (claimErr?.message === PRIORITY_FULL) {
             setWantsPriority(false);
@@ -162,7 +204,11 @@ export default function CompetitionPage() {
         packages: wantsPriority
           ? [...form.packages, PRIORITY_PACKAGE_ID]
           : form.packages,
-        competitionTitle: title,
+        // The title is what the admin list groups by, and it is written once
+        // at submit time so the archive keeps reading correctly even after the
+        // competition itself is removed from the list.
+        competitionTitle: filedUnder,
+        competitionCountry: chosenComp?.country || null,
         userId: user?.uid || null,
         userEmail: user?.email || null,
         userName: user?.displayName || null,
@@ -308,6 +354,27 @@ export default function CompetitionPage() {
         saveTitle={saveTitle} />
 
       <form onSubmit={handleSubmit} noValidate style={{ direction: i18n.dir() }}>
+
+        {/* Which competition. Only shown once there are real competition
+            records — before that the page is about the single event named in
+            settings/competition, and a dropdown with nothing in it would be
+            worse than no dropdown. */}
+        {comps.length > 0 && (
+          <Field label={t("competition.chooseLabel")}>
+            <select
+              style={{ ...s.input, background: "transparent" }}
+              value={form.competitionId}
+              onChange={set("competitionId")}
+            >
+              <option value="">—</option>
+              {comps.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {[competitionLabel(c), formatRange(c)].filter(Boolean).join(" · ")}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         {/* Day */}
         <Field label={t("competition.dayLabel")}>

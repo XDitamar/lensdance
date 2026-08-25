@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 import { getWhatsAppInternational } from "../config/contact";
 import QuoteRequestModal from "../components/QuoteRequestModal";
+import { bookingPath, sessionById } from "../lib/sessions";
 import "./homepage.css";
 
 /* Footer social links. The WhatsApp number comes from src/config/contact.js so
@@ -221,6 +222,9 @@ export default function HomePage() {
             // "by consultation" label it gets a button that opens the enquiry
             // form. It is always the last card in this list.
             const isCustom = key === "custom";
+            // Personal sessions each have their own booking page; competition
+            // packages go through the single sign-up form for the event.
+            const session = sessionById(key);
             return (
               /* ANIM-1: staggered reveal for price cards */
               <div className="price-card reveal" style={{ transitionDelay: `${i * 0.12}s` }} key={key}>
@@ -255,6 +259,11 @@ export default function HomePage() {
                   <div className="price-range-text">{card.from}</div>
                 )}
                 <div className="price-deposit">{p.deposit}</div>
+                {session && (
+                  <Link to={bookingPath(session.id)} className="price-card-book">
+                    {t("pricing.book")}
+                  </Link>
+                )}
               </div>
             );
           })}
@@ -275,8 +284,13 @@ export default function HomePage() {
         <div className="book-btn-container">
           {/* /register is the actual sign-up form. /contact is the embedded
               Google form behind a terms popup, which is not where someone who
-              just picked a package expects to land. */}
-          <Link to="/register" className="book-btn">{t("pricing.book")}</Link>
+              just picked a package expects to land.
+              Competition tab only: personal sessions are booked from their own
+              cards, and one button here could not know which session you
+              meant. */}
+          {group === "competition" && (
+            <Link to="/register" className="book-btn">{t("pricing.book")}</Link>
+          )}
         </div>
         <p className="pricing-footer-text">{t("pricing.footerNote")}</p>
         {/* Sits under the prices on purpose — see PricingPage.jsx. It is the

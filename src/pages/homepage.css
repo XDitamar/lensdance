@@ -1046,3 +1046,24 @@ footer .footer-brand {
   color: var(--brown-700, #6b4b2a);
   border-color: var(--brown-500, #b2967d);
 }
+
+/* Per-card booking link for the personal sessions — see the matching rule in
+   pricing-page.css. */
+.price-card-book {
+  display: block;
+  margin-top: 12px;
+  background: var(--brown-700, #4a3525);
+  color: #f5f1ea;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  padding: 12px 10px;
+  transition: background 0.2s;
+}
+
+.price-card-book:hover {
+  background: #2c1e12;
+}

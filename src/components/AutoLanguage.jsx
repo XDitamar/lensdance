@@ -16,6 +16,7 @@ import {
   cookieTarget,
   i18nLangFor,
   isManualChoice,
+  isNativeTarget,
   reloadForTranslation,
   resolveTarget,
   savedTarget,
@@ -32,8 +33,26 @@ export default function AutoLanguage() {
     const lng = i18nLangFor(target);
     if (i18n.language !== lng) i18n.changeLanguage(lng);
 
-    // 2. Turn Google Translate on/off to match. Only auto-decide once per
-    //    session, and never against an explicit choice by the visitor.
+    // 2. Turn Google Translate on/off to match.
+
+    // Already in the right state? Then there is nothing to do, whatever else
+    // is true. Checked first because it is the common case and the cheapest.
+    if (cookieTarget() === target) return;
+
+    // The cookie disagrees with the target. When the target is one i18next
+    // serves natively, that disagreement is actively harmful — the DOM is
+    // already Hebrew (or Russian, or Arabic) and a leftover googtrans cookie
+    // sets Google translating it into something else, so the visitor reads a
+    // machine translation of a page that was hand-written for them. Repair it
+    // regardless of the once-per-session guard below, which exists to stop
+    // auto-detection nagging, not to preserve a broken state.
+    if (isNativeTarget(target)) {
+      if (applyTarget(target, { manual: isManualChoice() })) reloadForTranslation();
+      return;
+    }
+
+    // Otherwise only auto-decide once per session, and never against an
+    // explicit choice by the visitor.
     const decidedThisSession = (() => {
       try {
         return !!sessionStorage.getItem(AUTO_DONE_KEY);
@@ -48,9 +67,6 @@ export default function AutoLanguage() {
     try {
       sessionStorage.setItem(AUTO_DONE_KEY, "1");
     } catch {}
-
-    // Already in the right state? Then there is nothing to reload for.
-    if (cookieTarget() === target) return;
 
     if (applyTarget(target, { manual: false })) reloadForTranslation();
   }, [i18n]);

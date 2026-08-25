@@ -27,6 +27,9 @@ import PricingPage from "./pages/PricingPage";
 // deliberately not in the nav, because it answers questions that come up while
 // someone is reading a price, not questions people go looking for.
 import FaqPage from "./pages/FaqPage";
+// One component, four public URLs — see the header comment in the file and the
+// session catalogue in src/lib/sessions.js.
+import SessionBookingPage from "./pages/SessionBookingPage";
 // import AboutPage from "./pages/AboutPage";
 import ChangeName from "./pages/ChangeName";
 import ChangeDiscipline from "./pages/ChangeDiscipline";
@@ -68,6 +71,10 @@ export default function App() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/faq" element={<FaqPage />} />
+        {/* Personal sessions. The slugs are public links people get sent, so
+            they are spelled out here rather than hidden behind a param — see
+            SESSIONS in src/lib/sessions.js, which must stay in step. */}
+        <Route path="/book/:slug" element={<SessionBookingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/register" element={<CompetitionPage />} />
 

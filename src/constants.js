@@ -5,19 +5,33 @@
 // the visitor's language. The ids themselves are a data contract with existing
 // documents: renaming one orphans every record that already uses it.
 
-/** Riding disciplines. `users/{uid}.discipline` stores the id. */
+/**
+ * Riding disciplines offered when someone signs up or changes their category.
+ * `users/{uid}.discipline` stores the id.
+ */
 export const DISCIPLINES = [
   { id: "jumping" },
   { id: "dressage" },
-  { id: "crosscountry" },
-  { id: "endurance" },
-  { id: "driving" },
-  { id: "other" },
+  { id: "reining" },
+  { id: "cutting" },
 ];
+
+/**
+ * Ids that are no longer offered but may still be stored on older accounts.
+ *
+ * They are deliberately not deleted outright: `disciplineKey` still resolves
+ * them, so an existing rider whose profile says "endurance" keeps reading as
+ * Endurance on the admin pages instead of silently collapsing to "no category".
+ * The words stay in src/locales/*.json for the same reason. Nobody can pick
+ * these any more — that is what removing them from DISCIPLINES does.
+ */
+export const RETIRED_DISCIPLINES = ["crosscountry", "endurance", "driving", "other"];
 
 /** i18n key for a discipline id — falls back to the "no category" label. */
 export const disciplineKey = (id) =>
-  DISCIPLINES.some((d) => d.id === id) ? `disciplines.${id}` : "disciplines.none";
+  DISCIPLINES.some((d) => d.id === id) || RETIRED_DISCIPLINES.includes(id)
+    ? `disciplines.${id}`
+    : "disciplines.none";
 
 export const ADMIN_EMAIL = "lensdance29@gmail.com";
 

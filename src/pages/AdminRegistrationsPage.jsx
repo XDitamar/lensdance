@@ -7,6 +7,9 @@ import { useTranslation } from "react-i18next";
 import { ADMIN_EMAIL, DISCIPLINES, PUBLISH_KEYS, disciplineKey } from "../constants";
 import { PRIORITY_SLOTS } from "../config/pricing";
 import { PRIORITY_PACKAGE_ID, syncPriorityCount } from "../lib/priority";
+import { SESSIONS as SESSIONS_FOR_ADMIN, SESSION_BOOKINGS, sessionById } from "../lib/sessions";
+import { fetchCompetitions } from "../lib/competitions";
+import AdminCompetitionsPanel from "../components/AdminCompetitionsPanel";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 
 export default function AdminRegistrationsPage() {
@@ -27,7 +30,9 @@ export default function AdminRegistrationsPage() {
     setSaving(reg.id);
     setSaveError("");
     try {
-      await updateDoc(doc(db, "registrations", reg.id), {
+      // Sessions live in their own collection; the deposit field and the rule
+      // that guards it are identical, so only the collection name differs.
+      await updateDoc(doc(db, reg.__session ? SESSION_BOOKINGS : "registrations", reg.id), {
         depositPaid: next,
         depositPaidAt: next ? serverTimestamp() : null,
       });
@@ -44,6 +49,29 @@ export default function AdminRegistrationsPage() {
   };
   const [user, loadingAuth] = useAuthState(auth);
   const navigate = useNavigate();
+
+  /* Which side of the business is on screen: the competitions and their
+     sign-ups, or bookings for personal sessions. They are different
+     collections with different shapes, so this is a mode rather than a
+     filter. */
+  const [mode, setMode] = useState("competition");
+  /** Which session type is selected in session mode; null = all of them. */
+  const [selectedSession, setSelectedSession] = useState(null);
+
+  /* Real competition records (name, farm, dates, country) — created and
+     removed from the panel in the sidebar. Separate from `competitions`
+     below, which is still derived from the sign-ups themselves so that
+     events created before this existed keep showing their archive. */
+  const [comps, setComps] = useState([]);
+  const [sessionBookings, setSessionBookings] = useState([]);
+
+  const reloadCompetitions = React.useCallback(async () => {
+    try {
+      setComps(await fetchCompetitions());
+    } catch (e) {
+      console.warn("Failed to load competitions:", e);
+    }
+  }, []);
 
   const [allRegs, setAllRegs]         = useState([]);
   const [competitions, setCompetitions] = useState([]); // unique competition names sorted by date
@@ -71,6 +99,19 @@ export default function AdminRegistrationsPage() {
         const snap = await getDocs(q);
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setAllRegs(docs);
+
+        // Competitions and personal-session bookings, in parallel. Marked with
+        // __session so the shared row renderer knows which collection a record
+        // came from when the deposit is toggled.
+        await reloadCompetitions();
+        try {
+          const sSnap = await getDocs(
+            query(collection(db, SESSION_BOOKINGS), orderBy("submittedAt", "desc"))
+          );
+          setSessionBookings(sSnap.docs.map(d => ({ id: d.id, __session: true, ...d.data() })));
+        } catch (e) {
+          console.warn("Failed to load session bookings:", e);
+        }
 
         // Load account info (discipline, email, username, name) for registered users
         const userIds = [...new Set(docs.map(r => r.userId).filter(Boolean))];
@@ -143,7 +184,7 @@ export default function AdminRegistrationsPage() {
     };
 
     loadData();
-  }, [user, t]);
+  }, [user, t, reloadCompetitions]);
 
   if (loadingAuth || loading) {
     return (
@@ -155,10 +196,17 @@ export default function AdminRegistrationsPage() {
     );
   }
 
-  const filteredRegs = allRegs
-    .filter(r => r.competitionTitle === selected)
+  /* One filter pipeline for both modes. In competition mode the rows are
+     sign-ups for the selected event; in session mode they are bookings for the
+     selected session type. The search and discipline filters are identical
+     either way, so they are applied once here rather than duplicated. */
+  const rows = mode === "session"
+    ? sessionBookings.filter(b => !selectedSession || b.sessionId === selectedSession)
+    : allRegs.filter(r => r.competitionTitle === selected);
+
+  const filteredRegs = rows
     .filter(r => !search || [
-      r.riderName, r.horseName, r.contact,
+      r.riderName, r.horseName, r.contact, r.location,
       r.userEmail || userInfo[r.userId]?.email,
       userInfo[r.userId]?.username,
     ].filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase()))
@@ -188,11 +236,82 @@ export default function AdminRegistrationsPage() {
 
       <div className="admin-regs-layout" style={{ display: "grid", gridTemplateColumns: "260px 1fr", flex: 1, minHeight: "calc(100vh - 48px)" }}>
 
-        {/* LEFT — Competition list */}
-        <div className="admin-regs-sidebar" style={{ background: "#EDE8DF", borderLeft: "1px solid #DDD8CF", padding: "24px 0", overflowY: "auto" }}>
-          <div style={{ padding: "0 20px 16px", borderBottom: "1px solid #DDD8CF", marginBottom: 8 }}>
+        {/* LEFT — mode switch, competition management, then the list */}
+        <div className="admin-regs-sidebar" style={{ background: "#EDE8DF", borderLeft: "1px solid #DDD8CF", padding: "16px 0 24px", overflowY: "auto" }}>
+
+          {/* Competitions or personal sessions. Two different collections with
+              different shapes, so this switches the whole panel rather than
+              filtering one list. */}
+          <div style={{ display: "flex", margin: "0 20px 16px", border: "1px solid #C8B8A4", background: "#FDFAF5" }}>
+            {[
+              { id: "competition", label: t("registrations.modeCompetitions") },
+              { id: "session", label: t("registrations.modeSessions") },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { setMode(m.id); setSearch(""); }}
+                aria-pressed={mode === m.id}
+                style={{
+                  flex: 1, border: "none", cursor: "pointer", padding: "9px 6px",
+                  fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".1em",
+                  textTransform: "uppercase", minHeight: 34,
+                  background: mode === m.id ? "#4A3525" : "transparent",
+                  color: mode === m.id ? "#F5F1EA" : "#8A7868",
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {mode === "session" ? (
+            <>
+              <div style={{ padding: "0 20px 12px", borderBottom: "1px solid #DDD8CF", marginBottom: 8 }}>
+                <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "#B2967D" }}>
+                  {t("registrations.modeSessions")}
+                </span>
+              </div>
+
+              {/* "All" first, then one row per session type with its count. */}
+              {[{ id: null, label: t("registrations.allSessions") }]
+                .concat(SESSIONS_FOR_ADMIN.map((x) => ({ id: x.id, label: prices[x.id]?.title || x.id })))
+                .map((item) => {
+                  const count = item.id
+                    ? sessionBookings.filter((b) => b.sessionId === item.id).length
+                    : sessionBookings.length;
+                  const active = selectedSession === item.id;
+                  return (
+                    <button
+                      key={item.id || "all"}
+                      onClick={() => { setSelectedSession(item.id); setSearch(""); }}
+                      style={{
+                        width: "100%", textAlign: "right", padding: "13px 20px",
+                        background: active ? "#F5F1EA" : "transparent", border: "none",
+                        borderRight: active ? "2px solid #B2967D" : "2px solid transparent",
+                        cursor: "pointer", direction: "rtl",
+                        borderBottom: "1px solid #DDD8CF", transition: "all .15s",
+                      }}
+                    >
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", marginBottom: 4 }}>
+                        {item.label}
+                      </div>
+                      <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#B2967D" }}>
+                        {t("registrations.signups", { count })}
+                      </span>
+                    </button>
+                  );
+                })}
+            </>
+          ) : (
+          <>
+          {/* Create and remove the events themselves. Removing one clears it
+              from the list riders see; the sign-ups already made for it stay in
+              the archive below, because registrations cannot be deleted. */}
+          <AdminCompetitionsPanel competitions={comps} onChanged={reloadCompetitions} />
+
+          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #DDD8CF", marginBottom: 8 }}>
             <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "#B2967D" }}>
-              {t("registrations.competitions")}
+              {t("registrations.archive")}
             </span>
           </div>
 
@@ -229,6 +348,8 @@ export default function AdminRegistrationsPage() {
               {t("registrations.none")}
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* RIGHT — Registrants */}
@@ -237,7 +358,9 @@ export default function AdminRegistrationsPage() {
           {/* Title + count + search */}
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: 400, color: "#2C1E12", marginBottom: 6 }}>
-              {selected || t("registrations.pick")}
+              {mode === "session"
+                ? (selectedSession ? prices[selectedSession]?.title : t("registrations.allSessions"))
+                : (selected || t("registrations.pick"))}
             </h1>
             {saveError && (
               <div style={{
@@ -254,8 +377,9 @@ export default function AdminRegistrationsPage() {
               {/* Priority is capped per competition, so the count has to be
                   visible here — this is the only place she can tell whether
                   the next request can still be accepted. Counted across the
-                  whole competition, not the filtered view. */}
-              {(() => {
+                  whole competition, not the filtered view. It is a competition
+                  add-on only, so it is absent in session mode. */}
+              {mode === "competition" && (() => {
                 const used = allRegs.filter(
                   (r) => r.competitionTitle === selected && (r.packages || []).includes("priority")
                 ).length;
@@ -336,6 +460,16 @@ export default function AdminRegistrationsPage() {
                       {r.day && (
                         <span style={tagStyle("#EDE8DF", "#4A3525")}>{r.day}</span>
                       )}
+                      {/* Session bookings carry a session type and a requested
+                          date instead of a competition day and packages. */}
+                      {r.__session && r.sessionId && (
+                        <span style={tagStyle("#F5F0E8", "#7D5A44")}>
+                          {prices[r.sessionId]?.title || sessionById(r.sessionId)?.slug || r.sessionId}
+                        </span>
+                      )}
+                      {r.__session && r.preferredDate && (
+                        <span style={tagStyle("#EDE8DF", "#4A3525")}>📅 {r.preferredDate}</span>
+                      )}
                       {(r.packages || []).map(p => (
                         <span key={p} style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(p)}</span>
                       ))}
@@ -359,15 +493,45 @@ export default function AdminRegistrationsPage() {
                     </div>
                   </div>
 
-                  {/* Row 2 — Contact + deposit */}
+                  {/* Row 2 — Contact, and whatever else the record carries.
+                      A competition sign-up quotes a deposit figure the rider
+                      typed; a session booking has a location and possibly extra
+                      animals instead. */}
                   <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>
                     <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
                       📱 {r.contact}
                     </span>
-                    <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
-                      💰 {r.deposit}
-                    </span>
+                    {r.deposit && (
+                      <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
+                        💰 {r.deposit}
+                      </span>
+                    )}
+                    {r.location && (
+                      <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
+                        📍 {r.location}
+                      </span>
+                    )}
+                    {Number(r.horseCount) > 1 && (
+                      <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
+                        🐎 ×{r.horseCount}
+                      </span>
+                    )}
+                    {r.extraAnimal && (
+                      <span style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#6A5A50" }}>
+                        🐕 {r.extraAnimal}
+                      </span>
+                    )}
                   </div>
+
+                  {r.notes && (
+                    <div style={{
+                      fontFamily: "Arial,sans-serif", fontSize: 11, lineHeight: 1.7,
+                      color: "#4A3525", background: "#F5F1EA", border: "1px solid #E4DFD6",
+                      padding: "8px 12px", marginBottom: 8,
+                    }}>
+                      {r.notes}
+                    </div>
+                  )}
 
                   {/* Row 2b — Account email + username */}
                   {(() => {
@@ -404,9 +568,13 @@ export default function AdminRegistrationsPage() {
                     )}>
                       {PUBLISH_KEYS[r.publishPermission] ? t(PUBLISH_KEYS[r.publishPermission]) : r.publishPermission}
                     </span>
-                    <span style={tagStyle(r.receiptWanted === "yes" ? "#EDE8DF" : "#F5F5F5", "#6A5A50")}>
-                      {t("registrations.receipt", { value: r.receiptWanted === "yes" ? t("registrations.yes") : t("registrations.no") })}
-                    </span>
+                    {/* Session bookings never ask about a receipt, so the tag
+                        would otherwise read "receipt: no" for all of them. */}
+                    {!r.__session && (
+                      <span style={tagStyle(r.receiptWanted === "yes" ? "#EDE8DF" : "#F5F5F5", "#6A5A50")}>
+                        {t("registrations.receipt", { value: r.receiptWanted === "yes" ? t("registrations.yes") : t("registrations.no") })}
+                      </span>
+                    )}
                     <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#A89D90" }}>
                       {t("registrations.submitted", { date: formatDate(r.submittedAt) })}
                     </span>

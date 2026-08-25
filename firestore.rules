@@ -42,6 +42,34 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- competitions (the events riders can sign up to) ----
+    // Public read: a rider has to see what is coming up before they can sign
+    // up, and /register filters the list to their own country. Only the admin
+    // creates or removes them.
+    //
+    // Deleting a competition removes the event, not the sign-ups made for it —
+    // `registrations` below stays delete-protected on purpose, so the archive
+    // survives even after the event is cleared off the list.
+    match /competitions/{docId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    // ---- sessionBookings (personal photo sessions) ----
+    // Deliberately identical in shape to `registrations` above: a rider may
+    // create one, only the admin may read them, and the only field that can
+    // change afterwards is whether the deposit has been paid. A booking is a
+    // record of what somebody asked for and must not become editable after the
+    // fact — not even by the admin.
+    match /sessionBookings/{docId} {
+      allow create: if request.auth != null;
+      allow read:   if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['depositPaid', 'depositPaidAt']);
+      allow delete: if false;
+    }
+
     // ---- priorityCounts (priority delivery places taken, per competition) ----
     // One document per competition holding a single number. It exists so the
     // sign-up form can show "2 of 5 places left" without giving riders read

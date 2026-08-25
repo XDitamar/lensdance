@@ -110,7 +110,12 @@ export const PRICE_SETS = {
     currency: "ILS",
     amounts: {
       entryPerson: 60,
-      extendedEntry: 120,
+      // Lowered from 120 (August 2026). Still well clear of the 60 ₪ standard
+      // package, so the step up still pays for the extra coverage — the course
+      // walk, the close-ups, the podium and the vet check.
+      // As with sessionBW, not mirrored in the overseas sets: those are pitched
+      // against their own local markets rather than converted from shekels.
+      extendedEntry: 100,
       extraHorse: 30,
       videoPackage: 150,
       shortVideo: 80,
@@ -118,7 +123,12 @@ export const PRICE_SETS = {
       eventShoot: 1500,
       sessionHour: 800,
       sessionTwoHour: 1450,
-      sessionBW: 600,
+      // Raised from 600 (August 2026). Five finished portraits at 170 ₪ each —
+      // the highest per-photo rate of any session, which is the point: it has
+      // the fewest deliverables and by far the most retouching time per image.
+      // Deliberately NOT mirrored in the overseas sets below; those are pitched
+      // against their own local markets, not converted from shekels.
+      sessionBW: 850,
       sessionTraining: 1200,
       extraHorseSession: 120,
       extraAnimal: 70,

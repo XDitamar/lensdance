@@ -299,3 +299,25 @@
   color: #6b4b2a;
   border-color: #b2967d;
 }
+
+/* Per-card booking link for the personal sessions. Each session has its own
+   page, so the button lives on the card rather than once at the bottom — a
+   single footer button could not know which session was meant. */
+.pp-card-book {
+  display: block;
+  margin-top: 12px;
+  background: #4a3525;
+  color: #f5f1ea;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  padding: 12px 10px;
+  transition: background 0.2s;
+}
+
+.pp-card-book:hover {
+  background: #2c1e12;
+}

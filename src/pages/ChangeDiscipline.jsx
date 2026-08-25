@@ -55,15 +55,21 @@ export default function ChangeDiscipline() {
     ) : (
       <form onSubmit={doChange} noValidate>
         <Field label={t("changeDiscipline.label")}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 10 }}>
+          {/* Two columns, because there are four disciplines — three columns
+              left the last one alone on its own row. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 10 }}
+               role="radiogroup" aria-label={t("changeDiscipline.label")}>
             {DISCIPLINES.map(d => (
-              <button key={d.id} type="button" onClick={() => setSelected(d.id)}
+              <button key={d.id} type="button" role="radio"
+                aria-checked={selected === d.id}
+                onClick={() => setSelected(d.id)}
                 style={{
                   border: `1px solid ${selected === d.id ? "#B2967D" : "#D7C9B8"}`,
                   background: selected === d.id ? "#F5F0E8" : "transparent",
                   padding: "12px 6px", cursor: "pointer", transition: "all .2s",
                   fontFamily: "Arial, sans-serif", fontSize: 10,
                   letterSpacing: ".06em", color: "#4A3525",
+                  minHeight: 44,
                 }}>
                 {t(disciplineKey(d.id))}
               </button>

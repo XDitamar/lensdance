@@ -52,6 +52,8 @@
   "disciplines": {
     "jumping": "Show jumping",
     "dressage": "Dressage",
+    "reining": "Reining",
+    "cutting": "Cutting",
     "crosscountry": "Cross country",
     "endurance": "Endurance",
     "driving": "Carriage driving",
@@ -137,7 +139,7 @@
     "sectionTitle": "Pricing & Packages",
     "pageTitle": "Pricing",
     "subtitle": "These are starting ranges — a custom quote is given after a personal consultation",
-    "footerNote": "Payment via PayPal or bank transfer",
+    "footerNote": "Payment by Bit, Paybox, cash or bank transfer · PayPal from outside Israel",
     "book": "Book Now",
     "from": "From {{price}}",
     "perEntry": {
@@ -377,7 +379,11 @@
     "markUnpaid": "Mark as unpaid",
     "prioritySlots": "Priority: {{used}} of {{total}} places taken",
     "priorityFull": "Priority is full for this competition",
-    "updateFailed": "Could not update: {{detail}}"
+    "updateFailed": "Could not update: {{detail}}",
+    "modeCompetitions": "Competitions",
+    "modeSessions": "Sessions",
+    "allSessions": "All sessions",
+    "archive": "Sign-up archive"
   },
   "errors": {
     "userNotFound": "No account found with that email.",
@@ -617,7 +623,8 @@
       "publish": "Please choose a publishing preference.",
       "terms": "Please accept the terms.",
       "needAccount": "You need to sign in to register. Please sign in and try again.",
-      "priorityTaken": "The last priority place went while you were filling this in. Choose \"No\" and send the sign-up — everything else is saved."
+      "priorityTaken": "The last priority place went while you were filling this in. Choose \"No\" and send the sign-up — everything else is saved.",
+      "choose": "Pick a competition."
     },
     "days": {
       "thursday": "Thursday",
@@ -629,7 +636,9 @@
     "priorityYes": "Yes, add priority delivery",
     "priorityNo": "No, the standard 10 business days is fine",
     "priorityRemaining": "{{remaining}} of {{total}} places still open for this competition",
-    "priorityFull": "All priority places for this competition have been taken"
+    "priorityFull": "All priority places for this competition have been taken",
+    "chooseLabel": "Which competition? *",
+    "chooseNone": "There are no upcoming competitions in your country right now. Message me and we will sort something out."
   },
   "quote": {
     "cta": "Request a quote",
@@ -675,11 +684,11 @@
       },
       {
         "q": "How should I prepare for a personal session?",
-        "a": "<p>My sessions are deliberately unhurried — a relaxed horse photographs better than a perfectly turned-out nervous one. Prepare as you would for a show: a clean horse, clean tack, everything sitting where it should.</p><p>Bring someone with you if you can. An extra pair of hands to hold the horse, catch an ear or shake a bag at the right moment is worth more than any lens I own.</p><p>Braiding is lovely and completely optional. It photographs beautifully, but nobody has ever looked at a picture and thought less of it for a loose mane.</p>"
+        "a": "<p>My sessions run at an easy, unhurried pace, so that both you and your horse enjoy the day. To arrive as prepared as possible, get your horse ready as you would for a competition — a good groom, and clean, polished tack. As for clothes, simply wear what you feel comfortable in; there is a separate question below devoted to outfits.</p><p>On the day, bring treats your horse likes to keep him cooperative, along with wet wipes and a brush for a last touch-up right before we start. One more golden tip: bring a friend or someone from the family. An extra pair of hands can sort out small details, hold equipment, and catch your horse's attention at exactly the right moment to get those ears forward. And if you have ideas of your own, or particular shots you have been dreaming of, tell me in advance and we will work them into the session.</p>"
       },
       {
         "q": "What should I wear?",
-        "a": "<p>Wear something you're comfortable in — you'll be moving, and it shows when you aren't.</p><p>Colour is the one thing worth planning. Pick something that works with your horse's coat and your tack, and keep <strong>one</strong> stand-out colour in the frame at most: a white saddle pad with a bright blue top works, a white pad and a red top and green boots does not. Everything else in neutrals — grey, black, navy, cream.</p><p>Bright colours carry better on grey days. Bring a couple of options and we'll decide on the spot against the light we actually have.</p><p>The two-hour session includes three outfits, so bring a riding look and something casual if you'd like the change. The one-hour session is one outfit.</p>"
+        "a": "<p>I recommend choosing an outfit you feel comfortable in, in a colour that flatters your horse's coat and tack. Colour is the one thing worth planning in advance: between the tack and the outfit, aim for no more than <strong>one stand-out colour</strong> — a white saddle pad with a red top, for instance, works beautifully. Keep everything else in quiet, neutral tones: grey, black, navy or cream.</p><p>On overcast days, strong, bold colours work better. Either way, bring two or three options with you on the day so we can decide together, on the spot, what suits the light and the location best. (The two-hour session allows up to three outfits — a riding look and a casual one, say — while the one-hour session is a single outfit.)</p><p>Fabrics with an interesting texture — knits, denim, leather — and a few delicate accessories such as a hat or some jewellery can add a great deal of character to the photographs.</p>"
       },
       {
         "q": "Anything different for the black & white session?",
@@ -687,7 +696,7 @@
       },
       {
         "q": "How do I pay, and what is the deposit?",
-        "a": "<p><strong>40% of the package price up front holds your place; the balance is due on delivery.</strong> The deposit is what makes travelling to a competition possible at all, which is why I ask for it rather than taking bookings on trust.</p><p>Payment by PayPal or bank transfer. We agree the details before the shoot, and paying the deposit is what confirms the booking.</p>"
+        "a": "<p><strong>40% of the package price up front holds your date; the balance is due on delivery.</strong> The deposit is what makes travelling to a shoot possible at all, which is why I ask for it rather than taking bookings on trust.</p><p>Payment by Bit, Paybox, cash or bank transfer. For clients outside Israel, PayPal as well. We agree the details before the shoot, and paying the deposit is what confirms the booking.</p>"
       },
       {
         "q": "What if I need to cancel?",
@@ -699,15 +708,15 @@
       },
       {
         "q": "How and when do I get my photos?",
-        "a": "<p>Through your own gallery on this site. Once the balance is paid I'll upload your photos to <a href=\"/me\">your personal gallery</a> — sign in with the account you registered with and download them, one at a time or all at once.</p><p><strong>Standard delivery is within 10 business days</strong> of the competition or session. If you'd rather not wait, see the next question.</p><p>Files come at full print resolution. I don't send photos over WhatsApp or email — messaging apps compress images badly enough that you'd be printing something noticeably worse than what I shot.</p>"
+        "a": "<p>Through your own gallery on this site. Once the balance is paid I upload your photos there — sign in <a href=\"/me\">with the account you registered with</a> and download them, one at a time or all at once.</p><p><strong>Standard delivery is within 10 business days</strong> of the competition or session. If you'd rather not wait, see the next question.</p><p>Files arrive as full-quality JPGs. I don't send photos over WhatsApp or email — messaging apps compress images, and what reached you would be noticeably worse than what I shot.</p>"
       },
       {
         "q": "What is priority delivery?",
-        "a": "<p>Your photos within <strong>48 hours</strong> instead of 10 business days, for half the price of the photo package.</p><p>There are only a few places at each competition, and the cap is real rather than a sales tactic — a rush edit means an all-night session, and there's a limit to how many of those fit into one weekend. You'll see how many places are left when you fill in <a href=\"/register\">the sign-up form</a>, and the number goes down as riders take them.</p>"
+        "a": "<p>Your photos within <strong>48 hours</strong> instead of 10 business days, for half the price of the photo package.</p><p>Priority delivery is available <strong>at competitions only</strong>, not for personal sessions.</p><p>There are only a few places at each competition. A rush edit means a night's work, and there is a limit to how many of those fit into one weekend. You'll see how many places are left on <a href=\"/register\">the sign-up form</a>, and the number drops as riders take them.</p>"
       },
       {
         "q": "Can I print the photos?",
-        "a": "<p>Yes. Every file you get is at print resolution — hang it on a wall, put it in an album, take it to any print shop you like.</p><p>Ordering prints through the site isn't something I offer yet. If it's something you'd want, tell me: it's on the list, and knowing people actually want it is what moves it up.</p>"
+        "a": "<p>It depends which shoot.</p><p><strong>From a personal session</strong> — yes. Those files come at print resolution, ready for a wall or an album.</p><p><strong>From a competition</strong> — the files are ordinary JPGs, made for viewing and sharing. You can print them, but they weren't prepared specifically for print, so the result won't match a file made for the purpose.</p><p>Ordering prints through the site isn't something I offer yet. If it's something you'd want, tell me — it's on the list, and real demand is what moves it up.</p>"
       },
       {
         "q": "Can I post the photos on social media?",
@@ -722,5 +731,59 @@
         "a": "<p>Often. Stable shoots, a whole team at one competition, a horse being sold, a foal's first week, an event that doesn't fit any of the boxes.</p><p>Use the <strong>custom package</strong> button on the <a href=\"/pricing\">pricing page</a> — tell me what you have in mind and where, and I'll come back with a price. It reaches me on WhatsApp, so it usually gets an answer the same day.</p>"
       }
     ]
+  },
+  "booking": {
+    "eyebrow": "Book a session",
+    "intro": "Tell me when and where, and I will come back to you to confirm. A booking is held once the deposit is paid.",
+    "dateLabel": "When would suit you? *",
+    "dateHint": "An approximate week is enough — we will settle the exact day together.",
+    "datePlaceholder": "A date, or roughly when",
+    "locationLabel": "Where is the shoot? *",
+    "locationPlaceholder": "Yard or stable, town",
+    "horseLabel": "Your horse's name *",
+    "horsePlaceholder": "The horse we are shooting",
+    "horseCountLabel": "How many horses?",
+    "horseCountHint": "{{price}} for each horse beyond the first.",
+    "extraAnimalLabel": "Another animal joining?",
+    "extraAnimalHint": "{{price}} for another animal — a dog, say. Leave empty if not.",
+    "extraAnimalPlaceholder": "A dog, for instance",
+    "notesLabel": "Anything else I should know",
+    "notesPlaceholder": "An idea you have in mind, something about your horse, a time of day that works better…",
+    "submit": "Send booking ✦",
+    "submitting": "Sending your booking…",
+    "successTitle": "Your booking is in",
+    "successBody": "I will come back to you shortly to confirm the day and settle the deposit. Anything urgent — message me on WhatsApp.",
+    "backToPricing": "← Back to pricing",
+    "errors": {
+      "name": "Enter your name.",
+      "contact": "Enter a way to reach you.",
+      "date": "Tell me roughly when suits you.",
+      "location": "Tell me where the shoot is.",
+      "horse": "Enter your horse's name."
+    }
+  },
+  "competitions": {
+    "title": "Competitions",
+    "add": "+ New",
+    "create": "Create competition",
+    "nameLabel": "Competition name",
+    "namePlaceholder": "Spring show 2026",
+    "farmLabel": "Farm or yard",
+    "farmPlaceholder": "Where it is held",
+    "startLabel": "First day",
+    "endLabel": "Last day",
+    "endHint": "Leave empty for a one-day show.",
+    "countryLabel": "Country",
+    "countryHint": "Riders are only offered competitions in their own country.",
+    "anyCountry": "All countries",
+    "past": "Finished",
+    "delete": "Remove competition",
+    "empty": "No competitions yet. Add the first one.",
+    "confirmDelete": "Remove \"{{name}}\" from the list?\n\nSign-ups already made for it are kept — only the event is removed.",
+    "errors": {
+      "name": "Give the competition a name.",
+      "start": "Pick the first day.",
+      "range": "The last day cannot be before the first."
+    }
   }
 }

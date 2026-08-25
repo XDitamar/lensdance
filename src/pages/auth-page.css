@@ -118,9 +118,11 @@
   gap: 18px;
 }
 
+/* Two columns for the four disciplines — a third column left the last one
+   stranded on a row of its own. */
 .auth-disciplines {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
 }
