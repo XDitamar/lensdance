@@ -42,6 +42,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- photoLikes (a client's favourites in their own gallery) ----
+    // Visible to the person who made them and to the admin, nobody else —
+    // these are pictures of the rider, and who marked which is not something
+    // other clients get to browse.
+    //
+    // The document id is derived from uid + path (src/lib/likes.js), so liking
+    // is a setDoc and unliking a deleteDoc.
+    //
+    // TWO THINGS THAT LOOK WRONG BUT ARE NOT:
+    //
+    // `update` is allowed, not closed. setDoc onto a document that already
+    // exists counts as an update, not a create — so with update closed, a
+    // second tab, a stale page or a double-tap would be rejected and the heart
+    // would spring back. The userId check is what actually matters, and it is
+    // applied to both: nobody can write a like that claims to be someone
+    // else's, and nobody can re-point an existing one.
+    //
+    // `resource == null` on delete. Deleting a like that is already gone
+    // otherwise evaluates resource.data on nothing and is denied, which would
+    // leave a heart stuck on for a client whose local state had drifted.
+    // Letting the no-op through is what makes the toggle reliable.
+    match /photoLikes/{likeId} {
+      allow create, update: if request.auth != null
+                            && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin()
+                  || (request.auth != null
+                      && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin()
+                    || (request.auth != null
+                        && (resource == null
+                            || resource.data.userId == request.auth.uid));
+    }
+
     // ---- competitions (the events riders can sign up to) ----
     // Public read: a rider has to see what is coming up before they can sign
     // up, and /register filters the list to their own country. Only the admin

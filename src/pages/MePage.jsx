@@ -6,6 +6,7 @@ import { ref, listAll, getDownloadURL, uploadBytes } from "firebase/storage";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { logDownload } from "../lib/downloads";
+import { fetchLikedPaths, setLiked } from "../lib/likes";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -280,6 +281,52 @@ export default function MePage() {
   const isAdmin = user?.email === ADMIN_EMAIL;
   const requestedUid = searchParams.get("uid");
   const targetUid = isAdmin && requestedUid ? requestedUid : user?.uid || null;
+
+  /* Favourites.
+     Held as a Set of Storage paths so rendering a tile is one O(1) lookup
+     rather than a scan. Keyed on targetUid, not the viewer: when Alina opens a
+     client's gallery through /me?uid=… she sees THEIR hearts, which is the
+     whole point of the feature. She cannot set them — only the owner can, see
+     `canLike` below and the matching rule in firestore.rules. */
+  const [likedPaths, setLikedPaths] = useState(() => new Set());
+  const canLike = !!user?.uid && user.uid === targetUid;
+
+  useEffect(() => {
+    if (!targetUid) { setLikedPaths(new Set()); return undefined; }
+    let alive = true;
+    fetchLikedPaths(targetUid)
+      .then((s) => { if (alive) setLikedPaths(s); })
+      .catch((e) => console.warn("Could not load likes:", e?.code || e));
+    return () => { alive = false; };
+  }, [targetUid]);
+
+  /**
+   * Flip a heart. The UI moves first and the write follows, because a like is
+   * a low-stakes preference and waiting on a round-trip makes it feel broken.
+   * A failed write puts the heart back where it was.
+   */
+  const handleToggleLike = async (item) => {
+    if (!canLike) return;
+    const path = item.id;
+    const next = !likedPaths.has(path);
+
+    setLikedPaths((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(path); else s.delete(path);
+      return s;
+    });
+
+    try {
+      await setLiked({ uid: user.uid, email: user.email, path, name: item.name, next });
+    } catch (e) {
+      console.warn("Could not save like:", e?.code || e);
+      setLikedPaths((prev) => {
+        const s = new Set(prev);
+        if (next) s.delete(path); else s.add(path);
+        return s;
+      });
+    }
+  };
 
   // Admin editing of the displayed gallery's title + cover image
   const [ownerEmail, setOwnerEmail] = useState(null);
@@ -821,6 +868,7 @@ export default function MePage() {
             const isVideo = item.isVideo;
             const isLoaded = loaded[item.id];
             const isSelected = selectedItems?.includes(item.id);
+            const isLiked = likedPaths.has(item.id);
 
             return (
               <div
@@ -857,6 +905,35 @@ export default function MePage() {
                       setLoaded((l) => ({ ...l, [item.id]: true }));
                     }}
                   />
+                )}
+
+                {/* Favourite. Top-left, opposite the selection circle.
+                    On a desktop it fades in when the tile is hovered; on a
+                    touch screen there is no hover, so .gallery-like is always
+                    visible there (see style.css). A heart that is already set
+                    stays visible either way — otherwise you could not tell
+                    what you had marked without hovering every photo.
+                    Read-only when the admin is looking at a client's gallery. */}
+                {(canLike || isLiked) && (
+                  <button
+                    type="button"
+                    className={`gallery-like${isLiked ? " is-liked" : ""}${canLike ? "" : " is-readonly"}`}
+                    aria-label={isLiked ? t("me.unlike") : t("me.like")}
+                    aria-pressed={isLiked}
+                    title={isLiked ? t("me.unlike") : t("me.like")}
+                    disabled={!canLike}
+                    onClick={(e) => { e.stopPropagation(); handleToggleLike(item); }}
+                  >
+                    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                      <path
+                        d="M12 20.7 4.6 13.3a4.6 4.6 0 0 1 6.5-6.5l.9.9.9-.9a4.6 4.6 0 0 1 6.5 6.5Z"
+                        fill={isLiked ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
                 )}
 
                 {/* Selection checkbox — sits above the media, and stops the

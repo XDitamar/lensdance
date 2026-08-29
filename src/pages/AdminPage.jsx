@@ -12,6 +12,7 @@ import {
 } from "firebase/storage";
 import { collection, getDocs } from "firebase/firestore";
 import { folderKeysFor, fetchDownloadsForFolder } from "../lib/downloads";
+import { fetchLikesForUser } from "../lib/likes";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -78,6 +79,11 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]); // Firestore user profiles (name, email, uid…)
   const [downloads, setDownloads] = useState([]);
   const [downloadsLoading, setDownloadsLoading] = useState(false);
+  /* The photos this client hearted in their own gallery. The visual version —
+     hearts drawn on the pictures themselves — is on /me?uid=…, linked from the
+     button above; this list is the quick read: what they loved, and when. */
+  const [likes, setLikes] = useState([]);
+  const [likesLoading, setLikesLoading] = useState(false);
   const inputRef = useRef(null);
 
   const user = auth.currentUser;
@@ -176,6 +182,7 @@ export default function AdminPage() {
     setCurrentFolder(folder);
     fetchMediaInFolder(folder);
     setDownloads([]);
+    setLikes([]);
     setDownloadsLoading(true);
     try {
       setDownloads(await fetchDownloadsForFolder(folder));
@@ -183,6 +190,20 @@ export default function AdminPage() {
       console.warn("Could not load downloads:", e);
     } finally {
       setDownloadsLoading(false);
+    }
+
+    /* Likes are keyed by uid, not by folder name — a folder is derived from an
+       email and several spellings map to the same person, whereas the uid is
+       the account itself. An account-less folder simply has no likes to show. */
+    const uid = userForFolder(folder)?.uid;
+    if (!uid) return;
+    setLikesLoading(true);
+    try {
+      setLikes(await fetchLikesForUser(uid));
+    } catch (e) {
+      console.warn("Could not load likes:", e);
+    } finally {
+      setLikesLoading(false);
     }
   };
 
@@ -520,6 +541,95 @@ export default function AdminPage() {
               <button className="filter-button" onClick={() => { setCurrentFolder(null); setDownloads([]); }}>
                 Back to users
               </button>
+            </div>
+          </div>
+
+          {/* ── Photos this client marked as favourites ──
+              Shown as thumbnails, not a list of filenames. The point of this
+              panel is reading someone's taste at a glance — which crops, which
+              light, which moments they go for — and "DSC_8944.jpg" tells you
+              none of that.
+              The pictures come from `mediaItems`, already loaded for this
+              folder, so nothing extra is fetched. A like whose file is no
+              longer in the folder still shows, as a caption with no picture,
+              rather than vanishing without explanation. */}
+          <div style={{ marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8, background: "#FDFAF5" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #EDE8DF", fontWeight: 700, fontSize: 14 }}>
+              {t("admin.likes")} {likesLoading ? "" : `(${likes.length})`}
+            </div>
+            <div style={{ maxHeight: 300, overflowY: "auto", padding: "12px 14px" }}>
+              {likesLoading ? (
+                <p style={{ color: "#888", fontSize: 13 }}>{t("admin.likesLoading")}</p>
+              ) : likes.length === 0 ? (
+                <p style={{ color: "#888", fontSize: 13 }}>{t("admin.likesEmpty")}</p>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {likes.map((l) => {
+                    const media = mediaItems.find((m) => m.id === l.path);
+                    const ext = (l.name || l.path || "").split(".").pop().toLowerCase();
+                    const isVid = ["mp4", "mov", "webm", "m4v"].includes(ext);
+                    const when = l.likedAt?.seconds
+                      ? new Date(l.likedAt.seconds * 1000).toLocaleDateString(i18n.language)
+                      : "";
+                    return (
+                      <a
+                        key={l.id}
+                        href={media?.url || undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`${l.name || l.path}${when ? ` · ${when}` : ""}`}
+                        style={{
+                          width: 118, textDecoration: "none", color: "#6A5A50",
+                          cursor: media?.url ? "zoom-in" : "default",
+                        }}
+                      >
+                        <div style={{
+                          position: "relative", width: 118, height: 118,
+                          background: "#EDE8DF", borderRadius: 6, overflow: "hidden",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {media?.url ? (
+                            isVid ? (
+                              <>
+                                <video src={media.url} muted playsInline preload="metadata"
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                {/* preload="metadata" does not paint a frame, so a
+                                    clip would otherwise be an unexplained grey
+                                    square. The marker says "this is a video". */}
+                                <span style={{
+                                  position: "absolute", inset: 0, display: "flex",
+                                  alignItems: "center", justifyContent: "center",
+                                  color: "rgba(255,255,255,.9)", fontSize: 22,
+                                  textShadow: "0 1px 4px rgba(0,0,0,.5)",
+                                  background: "rgba(0,0,0,.18)", pointerEvents: "none",
+                                }} aria-hidden="true">▶</span>
+                              </>
+                            ) : (
+                              <img src={media.url} alt={l.name || ""} loading="lazy" decoding="async"
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            )
+                          ) : (
+                            <span style={{ fontSize: 20, color: "#C4B7A6" }} aria-hidden="true">🖼</span>
+                          )}
+                          <span style={{
+                            position: "absolute", top: 5, left: 5,
+                            width: 20, height: 20, borderRadius: "50%",
+                            background: "rgba(255,255,255,.92)", color: "#E2607A",
+                            fontSize: 11, lineHeight: "20px", textAlign: "center",
+                          }} aria-hidden="true">♥</span>
+                        </div>
+                        <div style={{
+                          fontSize: 10, marginTop: 4, direction: "ltr",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>
+                          {l.name || l.path}
+                        </div>
+                        {when && <div style={{ fontSize: 9, color: "#A89D90", direction: "ltr" }}>{when}</div>}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

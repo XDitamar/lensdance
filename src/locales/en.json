@@ -154,6 +154,7 @@
         "The warm-up arena",
         "The podium, if you get there",
         "{{extraPrice}} for each additional horse",
+        "A discreet logo on the photo — you have to look for it",
         "Within 10 business days"
       ]
     },
@@ -330,7 +331,10 @@
     "downloadsLoading": "Loading download history…",
     "downloadsEmpty": "This user hasn't downloaded any photos yet.",
     "file": "file",
-    "confirmDeleteAll": "Are you sure you want to delete all the media in this folder?\nThis cannot be undone!"
+    "confirmDeleteAll": "Are you sure you want to delete all the media in this folder?\nThis cannot be undone!",
+    "likes": "♥ Photos this client loved",
+    "likesLoading": "Loading favourites…",
+    "likesEmpty": "This client hasn't marked any photos yet."
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -536,7 +540,9 @@
     "downloadSelected": "Download selected",
     "download": "Download",
     "playVideo": "▶ Tap to play",
-    "coverAlt": "Cover image"
+    "coverAlt": "Cover image",
+    "like": "Mark as a favourite",
+    "unlike": "Remove from favourites"
   },
   "a11y": {
     "open": "Open accessibility menu",

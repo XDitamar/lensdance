@@ -2496,3 +2496,67 @@ input, select, textarea { max-width: 100%; }
     font-size: 13px;
   }
 }
+
+/* ── Favourites in the personal gallery ─────────────────────────────────────
+   The heart sits inside the frame, top-left, opposite the selection circle.
+   On a desktop it appears when the tile is hovered so it does not clutter a
+   wall of photographs; on a touch screen there is no hover to wait for, so it
+   is always visible. A heart that is already set stays visible in both cases —
+   the point of marking a photo is being able to see afterwards that you did. */
+.gallery-like {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.gallery-tile:hover .gallery-like,
+.gallery-like:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.gallery-like:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* Set hearts are always on show, hover or not. */
+.gallery-like.is-liked {
+  opacity: 1;
+  transform: none;
+  color: #E2607A;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* The admin looking at a client's gallery sees the hearts but cannot set them.
+   No pointer cursor, no hover state — it is information, not a control. */
+.gallery-like.is-readonly {
+  cursor: default;
+}
+
+@media (hover: none) {
+  .gallery-like {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-like {
+    transition: none;
+  }
+}
