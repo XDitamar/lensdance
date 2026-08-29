@@ -29,6 +29,10 @@ import {
   priceSetFor,
   setNameFor,
 } from "../config/pricing";
+// Storage that never throws. Safari with Private Browsing or tracking
+// prevention makes a plain localStorage call raise, and a raise in here would
+// blank every page that shows a price. See src/lib/safeStorage.js.
+import { readStored, removeStored, writeStored } from "../lib/safeStorage";
 
 const COUNTRY_KEY = "ld_country"; // sessionStorage — the detected country
 export const COUNTRY_OVERRIDE_KEY = "ld_country_override"; // localStorage — admin's choice
@@ -39,19 +43,13 @@ let countryPromise = null;
 /* ── Admin override ─────────────────────────────────────────────────────── */
 
 export function getCountryOverride() {
-  try {
-    return localStorage.getItem(COUNTRY_OVERRIDE_KEY) || null;
-  } catch {
-    return null;
-  }
+  return readStored(COUNTRY_OVERRIDE_KEY);
 }
 
 /** Force (or, with null, stop forcing) the country. Updates every live hook. */
 export function setCountryOverride(code) {
-  try {
-    if (code) localStorage.setItem(COUNTRY_OVERRIDE_KEY, String(code).toUpperCase());
-    else localStorage.removeItem(COUNTRY_OVERRIDE_KEY);
-  } catch {}
+  if (code) writeStored(COUNTRY_OVERRIDE_KEY, String(code).toUpperCase());
+  else removeStored(COUNTRY_OVERRIDE_KEY);
   window.dispatchEvent(new Event(COUNTRY_EVENT));
 }
 
@@ -66,7 +64,7 @@ export function detectCountry() {
   const override = getCountryOverride();
   if (override) return Promise.resolve(override);
 
-  const cached = sessionStorage.getItem(COUNTRY_KEY);
+  const cached = readStored(COUNTRY_KEY, { session: true });
   if (cached) return Promise.resolve(cached);
 
   if (!countryPromise) {
@@ -74,7 +72,7 @@ export function detectCountry() {
       .then((r) => r.json())
       .then((d) => {
         const c = (d.country_code || "IL").toUpperCase();
-        sessionStorage.setItem(COUNTRY_KEY, c);
+        writeStored(COUNTRY_KEY, c, { session: true });
         return c;
       })
       .catch(() => {
@@ -227,15 +225,19 @@ function buildPrices(t, setName) {
 
 export function useGeoPrice() {
   const { t, i18n } = useTranslation();
+  /* Read through the safe helpers, not sessionStorage directly. This one runs
+     during render, so on a browser that blocks storage the raw call threw
+     before the component had produced any output — and the page went blank
+     rather than simply falling back to detecting the country again. */
   const [country, setCountry] = useState(
-    () => getCountryOverride() || sessionStorage.getItem(COUNTRY_KEY)
+    () => getCountryOverride() || readStored(COUNTRY_KEY, { session: true })
   );
 
   useEffect(() => {
     let alive = true;
 
     const read = () => {
-      const next = getCountryOverride() || sessionStorage.getItem(COUNTRY_KEY);
+      const next = getCountryOverride() || readStored(COUNTRY_KEY, { session: true });
       if (alive && next) setCountry(next);
     };
 

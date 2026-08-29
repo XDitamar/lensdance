@@ -8,6 +8,10 @@ import { BrowserRouter } from "react-router-dom";
 // renders nothing and sends nothing, so `npm start` stays clean.
 import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
+// Turns a blank white page into a readable error. A component that throws
+// during render otherwise unmounts the whole tree and leaves nothing on screen
+// to report — see the header comment in the file.
+import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
 import "./i18n";
 import "./style.css";
@@ -34,7 +38,10 @@ if ("serviceWorker" in navigator) {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <AuthProvider>
-      <App />
+      {/* Inside the router so the error page can still link back to /. */}
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
       {/* Renders nothing — it injects Vercel's insights script, which patches
           the History API itself and so records client-side navigations without
           any help from react-router. No `route` prop on purpose: passing one

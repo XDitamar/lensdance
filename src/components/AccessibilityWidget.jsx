@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from "react-i18next";
+import { readStoredJson, writeStoredJson } from "../lib/safeStorage";
 
 
 const DEFAULTS = {
@@ -63,7 +64,7 @@ const Icon = ({ name, size = 18 }) => (
 
 function loadSettings() {
   try {
-    const saved = JSON.parse(localStorage.getItem('accessibility-settings') || '{}');
+    const saved = readStoredJson('accessibility-settings', {});
     return { ...DEFAULTS, ...saved };
   } catch {
     return { ...DEFAULTS };
@@ -103,7 +104,12 @@ const AccessibilityWidget = () => {
     };
     Object.entries(toggles).forEach(([cls, on]) => b.classList.toggle(cls, on));
 
-    localStorage.setItem('accessibility-settings', JSON.stringify(settings));
+    // Unguarded before. An effect that throws is caught the same way a render
+    // that throws is, so on a browser that blocks storage — Safari in Private
+    // Browsing, or with tracking prevention on this site — saving a setting
+    // took the whole page down. Losing the saved preference is the acceptable
+    // failure here; losing the page is not.
+    writeStoredJson('accessibility-settings', settings);
   }, [settings]);
 
   /* Mute / unmute media */

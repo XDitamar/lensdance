@@ -141,14 +141,35 @@ export default function AdminPage() {
       const folderRef = ref(storage, folderName);
       const res = await listAll(folderRef);
 
+      /* Thumbnails, not originals.
+         This grid used to point every <img> at the full-resolution download
+         URL. A folder of thirty 8 MB photographs then decoded a couple of
+         hundred megabytes of bitmap at once — Chrome survives it, Safari kills
+         the tab, and a killed tab looks exactly like a blank white page with
+         the whole app gone. /me has always resized through /api/image; this
+         page simply never did.
+         The original stays on `url` for Open and Delete, which need the real
+         file. Only what is painted is shrunk. */
+      const isProduction =
+        window.location.hostname !== "localhost" &&
+        !window.location.hostname.startsWith("127.");
+
       const mediaPromises = res.items.map(async (itemRef) => {
         if (itemRef.name === ".placeholder") return null;
 
         const url = await getDownloadURL(itemRef);
+        const type = itemRef.name.split(".").pop();
+        const isVid = /^(mp4|mov|avi|webm|mkv|m4v)$/i.test(type || "");
+        const thumbUrl = !isVid && isProduction
+          ? `/api/image?url=${encodeURIComponent(url)}&w=480&q=70`
+          : url;
+
         return {
           id: itemRef.fullPath,
           url,
-          type: itemRef.name.split(".").pop(),
+          thumbUrl,
+          isVideo: isVid,
+          type,
           name: itemRef.name,
         };
       });
@@ -605,7 +626,8 @@ export default function AdminPage() {
                                 }} aria-hidden="true">▶</span>
                               </>
                             ) : (
-                              <img src={media.url} alt={l.name || ""} loading="lazy" decoding="async"
+                              <img src={media.thumbUrl || media.url} alt={l.name || ""}
+                                loading="lazy" decoding="async"
                                 style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             )
                           ) : (
@@ -697,9 +719,27 @@ export default function AdminPage() {
             {mediaItems.map((item) => (
               <div key={item.id} className="gallery-item">
                 {/[.]?(jpg|jpeg|png|gif|webp)$/i.test(item.name) ? (
-                  <img src={item.url} alt={item.name} style={{ width: "100%", borderRadius: "8px" }} />
+                  /* thumbUrl, lazy, async: only what is actually on screen gets
+                     downloaded and decoded. With originals and eager loading a
+                     large folder could exhaust the tab's memory — see the note
+                     in fetchMediaInFolder. */
+                  <img
+                    src={item.thumbUrl || item.url}
+                    alt={item.name}
+                    loading="lazy"
+                    decoding="async"
+                    style={{ width: "100%", borderRadius: "8px" }}
+                  />
                 ) : (
-                  <video src={item.url} controls style={{ width: "100%", borderRadius: "8px" }} />
+                  /* preload="metadata" fetches a few kilobytes of header rather
+                     than buffering every clip in the folder at once. */
+                  <video
+                    src={item.url}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    style={{ width: "100%", borderRadius: "8px" }}
+                  />
                 )}
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
                   <a className="filter-button" href={item.url} target="_blank" rel="noreferrer">
