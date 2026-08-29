@@ -13,8 +13,14 @@ import App from "./App";
 // to report — see the header comment in the file.
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
+import { installTranslateDomGuard } from "./lib/translateDomGuard";
 import "./i18n";
 import "./style.css";
+
+// Must run before the first render. Google Translate replaces text nodes behind
+// React's back, and React then throws trying to remove nodes that have moved —
+// which blanks the entire page. See the file for the full story.
+installTranslateDomGuard();
 
 // Apply the saved theme before first paint to avoid a light-mode flash.
 try {
