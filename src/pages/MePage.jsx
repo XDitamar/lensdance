@@ -328,6 +328,28 @@ export default function MePage() {
     }
   };
 
+  /* ── The cover image, in three states ──────────────────────────────────
+     1. A cover somebody chose        → always that one. `coverImage` is only
+                                        ever written by an explicit upload, so
+                                        its presence means a human picked it
+                                        and nothing here may override it.
+     2. No chosen cover, photos exist → borrow one of the photos.
+     3. No chosen cover, no photos    → no picture at all.
+
+     Case 3 is the point of this: the old fallback was a stock image from
+     /pics, so a brand-new empty gallery greeted the client with a photograph
+     of a stranger's horse as though it were theirs.
+
+     The borrowed cover in case 2 is computed here and deliberately NOT saved.
+     Saving it would make it indistinguishable from a chosen one, and case 1
+     would then lock in a picture nobody actually picked. It also skips videos,
+     which cannot render in an <img>. */
+  const autoCover = useMemo(() => {
+    const firstPhoto = mediaItems.find((m) => !m.isVideo);
+    return firstPhoto?.gridUrl || firstPhoto?.url || null;
+  }, [mediaItems]);
+  const coverSrc = userData?.coverImage || autoCover;
+
   // Admin editing of the displayed gallery's title + cover image
   const [ownerEmail, setOwnerEmail] = useState(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -634,20 +656,30 @@ export default function MePage() {
       {/* ══════════════════════════════════════
           COVER IMAGE
       ══════════════════════════════════════ */}
-      <div style={{ position: "relative", height: 380, overflow: "hidden", background: "#1A1208" }}>
+      <div style={{
+        position: "relative",
+        height: coverSrc ? 380 : 260,
+        overflow: "hidden", background: "#1A1208",
+      }}>
 
-        {/* Background image — coverImage from Firestore, fallback to first media */}
-        <img
-          src={userData?.coverImage || (mediaItems[0]?.gridUrl) || (mediaItems[0]?.url) || "/pics/pic1.webp"}
-          alt={t("me.coverAlt")}
-          fetchpriority="high"
-          decoding="async"
-          style={{
-            width: "100%", height: "100%",
-            objectFit: "cover", objectPosition: "center 25%",
-            display: "block",
-          }}
-        />
+        {/* The cover, in three states — see coverSrc above.
+            It used to fall back to /pics/pic1.webp, a stock shot of somebody
+            else's horse, which made an empty gallery look like it already had
+            someone's photos in it. An empty gallery now shows no picture at
+            all: just the dark band with the client's name on it. */}
+        {coverSrc && (
+          <img
+            src={coverSrc}
+            alt={t("me.coverAlt")}
+            fetchpriority="high"
+            decoding="async"
+            style={{
+              width: "100%", height: "100%",
+              objectFit: "cover", objectPosition: "center 25%",
+              display: "block",
+            }}
+          />
+        )}
 
         {/* Gradient overlay */}
         <div style={{
