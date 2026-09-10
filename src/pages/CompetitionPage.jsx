@@ -12,6 +12,7 @@ import {
   watchPrioritySlots,
 } from "../lib/priority";
 import {
+  competitionDays,
   competitionLabel,
   fetchCompetitions,
   formatRange,
@@ -27,9 +28,13 @@ import { detectCountry } from "../hooks/useGeoPrice";
 // The terms live in src/locales/*.json ("competition.terms"). Hebrew is the
 // binding version; the English one is a convenience translation and says so.
 
-/* The stored value is the Hebrew day name, because that is what every existing
-   registration document already contains — only the label is translated. */
-const DAYS = [
+/* Fallback days, used only when there are no competition records yet.
+   Once Alina creates a competition the options come from its date range
+   instead — see competitionDays() in src/lib/competitions.js. A show's days
+   change with every event, so hardcoding three names was right by coincidence
+   at best. The stored value stays the Hebrew day name here, because that is
+   what every registration made before this change already contains. */
+const FALLBACK_DAYS = [
   { value: "חמישי", key: "thursday" },
   { value: "שישי",  key: "friday" },
   { value: "רביעי", key: "wednesday" },
@@ -63,7 +68,6 @@ export default function CompetitionPage() {
     day: "",
     riderName: "",
     horseName: "",
-    deposit: "",
     packages: [],
     contact: "",
     receiptWanted: "",
@@ -71,6 +75,8 @@ export default function CompetitionPage() {
     underAge: false,
   });
   const [wantsPriority, setWantsPriority] = useState(false);
+  /** Which package's "?" is open. One at a time — this is a form, not a menu. */
+  const [openPkg, setOpenPkg] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -122,6 +128,27 @@ export default function CompetitionPage() {
      before its line throws rather than reading as undefined. */
   const filedUnder = chosenComp ? competitionLabel(chosenComp) : title;
 
+  /* The days on offer. Real dates from the chosen competition; the old fixed
+     three only when no competition exists to read them from. Both shapes are
+     { value, label } so the radio list below does not care which it got. */
+  const dayOptions = chosenComp
+    ? competitionDays(chosenComp, i18n.language).map((d) => ({
+        value: `${d.label} · ${d.date}`,
+        label: d.label,
+      }))
+    : FALLBACK_DAYS.map(({ value, key }) => ({
+        value,
+        label: t(`competition.days.${key}`),
+      }));
+
+  /* Switching competition invalidates whatever day was picked — the dates
+     belong to the other event. Clearing it is better than silently submitting
+     a day that is not in this competition at all. */
+  useEffect(() => {
+    setForm((f) => (f.day ? { ...f, day: "" } : f));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.competitionId]);
+
   // Live priority count for the competition on screen. A subscription rather
   // than a one-off read: someone else can take the last place while this form
   // is open, and the rider should see that before they submit, not after.
@@ -156,7 +183,6 @@ export default function CompetitionPage() {
     if (!form.day)            return t("competition.errors.day");
     if (!form.riderName.trim()) return t("competition.errors.rider");
     if (!form.horseName.trim()) return t("competition.errors.horse");
-    if (!form.deposit.trim())   return t("competition.errors.deposit");
     if (form.packages.length === 0) return t("competition.errors.packages");
     if (!form.contact.trim())   return t("competition.errors.contact");
     if (!form.receiptWanted)    return t("competition.errors.receipt");
@@ -376,18 +402,22 @@ export default function CompetitionPage() {
           </Field>
         )}
 
-        {/* Day */}
+        {/* Day — the real dates of the chosen competition, or the old fixed
+            list when no competition has been created yet. */}
         <Field label={t("competition.dayLabel")}>
-          {/* The VALUE stays Hebrew — it is what the admin list already stores.
-              Only the visible label follows the language. */}
-          {DAYS.map(({ value, key }) => (
+          {dayOptions.map(({ value, label }) => (
             <label key={value} style={s.radioLabel}>
               <input type="radio" name="day" value={value}
                 checked={form.day === value} onChange={set("day")}
                 style={{ accentColor: "#B2967D" }} />
-              {t(`competition.days.${key}`)}
+              {label}
             </label>
           ))}
+          {dayOptions.length === 0 && (
+            <p style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#8A7868" }}>
+              {t("competition.noDays")}
+            </p>
+          )}
         </Field>
 
         {/* Rider name */}
@@ -404,33 +434,77 @@ export default function CompetitionPage() {
             onChange={set("horseName")} required />
         </Field>
 
-        {/* Deposit */}
-        <Field label={t("competition.depositLabel")}>
-          <input style={s.input} type="text" value={form.deposit}
-            placeholder={t("competition.depositPlaceholder")}
-            onChange={set("deposit")} required />
-          {/* The rate lives in src/config/pricing.js and reaches here through
-              useGeoPrice, so the form, the pricing cards and the terms can
-              never quote three different numbers. */}
-          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", lineHeight: 1.7, marginTop: 8 }}>
-            {t("competition.depositHint", { percent: prices.depositPercent })}
-          </p>
-        </Field>
+        {/* The deposit amount used to be typed in here by the rider, which
+            asked them to work out a number the site already knows. The rate
+            lives in src/config/pricing.js and reaches this line through
+            useGeoPrice, so the form, the pricing cards and the terms can never
+            quote three different figures. */}
+        <p style={{
+          fontFamily: "Arial,sans-serif", fontSize: 11, lineHeight: 1.75,
+          color: "#4A3525", background: "#F2F7EA", border: "1px solid #C0DD97",
+          padding: "12px 16px", marginBottom: 24,
+        }}>
+          {t("competition.depositHint", { percent: prices.depositPercent })}
+        </p>
 
-        {/* Package selection */}
-        <Field label={t("competition.deliveryLabel")}>
+        {/* Package selection. Each one carries a "?" that opens the same list
+            of contents the pricing page shows — a name and a price alone did
+            not tell anyone what they were actually ordering. */}
+        <Field label={t("competition.packagesLabel")}>
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", marginBottom: 10, lineHeight: 1.65 }}>
             {t("competition.deliveryBody")}
           </p>
-          {packages.map(pkg => (
-            <label key={pkg.id} style={s.checkLabel}>
-              <input type="checkbox"
-                checked={form.packages.includes(pkg.id)}
-                onChange={() => togglePkg(pkg.id)}
-                style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
-              {pkg.label}
-            </label>
-          ))}
+          {packages.map(pkg => {
+            const open = openPkg === pkg.id;
+            const lines = Array.isArray(pkg.includes) ? pkg.includes : [];
+            return (
+              <div key={pkg.id}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <label style={{ ...s.checkLabel, flex: 1 }}>
+                    <input type="checkbox"
+                      checked={form.packages.includes(pkg.id)}
+                      onChange={() => togglePkg(pkg.id)}
+                      style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
+                    {pkg.label}
+                  </label>
+                  {lines.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setOpenPkg(open ? null : pkg.id)}
+                      aria-expanded={open}
+                      aria-label={t("competition.whatsIncluded")}
+                      title={t("competition.whatsIncluded")}
+                      style={{
+                        flexShrink: 0, width: 22, height: 22, borderRadius: "50%",
+                        border: `1px solid ${open ? "#B2967D" : "#D7C9B8"}`,
+                        background: open ? "#B2967D" : "transparent",
+                        color: open ? "#FDFAF5" : "#B2967D",
+                        fontFamily: "Arial,sans-serif", fontSize: 11, lineHeight: 1,
+                        cursor: "pointer", padding: 0,
+                      }}
+                    >
+                      ?
+                    </button>
+                  )}
+                </div>
+                {open && (
+                  <ul style={{
+                    listStyle: "none", margin: "6px 0 10px",
+                    paddingInlineStart: 26, paddingBlock: 0,
+                  }}>
+                    {lines.map((line) => (
+                      <li key={line} style={{
+                        fontFamily: "Arial,sans-serif", fontSize: 11,
+                        lineHeight: 1.8, color: "#6A5A50",
+                      }}>
+                        · {line}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </Field>
 
         {/* Priority — its own field, because unlike the packages above there is

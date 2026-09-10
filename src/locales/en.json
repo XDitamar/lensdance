@@ -598,9 +598,6 @@
     "riderPlaceholder": "First and last name",
     "horseLabel": "Horse's name and number *",
     "horsePlaceholder": "Horse's name + class number if known",
-    "depositLabel": "Deposit + entry fee if applicable *",
-    "depositPlaceholder": "Deposit amount + entry fee if relevant",
-    "deliveryLabel": "Please note — sending by other means lowers the photo quality *",
     "deliveryBody": "I deliver the photos through my website — to receive them you'll need to open an account here (if you get stuck, message me any time and I'll help). Note that I also send the photos to the jumping association and sometimes to the farm that hosted the competition.",
     "contactLabel": "How can I reach you (phone/Instagram etc.) *",
     "contactPlaceholder": "Phone / @instagram / WhatsApp",
@@ -622,7 +619,6 @@
       "day": "Please choose a competition day.",
       "rider": "Please enter the rider's name.",
       "horse": "Please enter the horse's name and number.",
-      "deposit": "Please enter the deposit details.",
       "packages": "Please choose at least one package.",
       "contact": "Please enter your contact details.",
       "receipt": "Please choose whether you'd like a receipt.",
@@ -644,7 +640,10 @@
     "priorityRemaining": "{{remaining}} of {{total}} places still open for this competition",
     "priorityFull": "All priority places for this competition have been taken",
     "chooseLabel": "Which competition? *",
-    "chooseNone": "There are no upcoming competitions in your country right now. Message me and we will sort something out."
+    "chooseNone": "There are no upcoming competitions in your country right now. Message me and we will sort something out.",
+    "packagesLabel": "What would you like to order? *",
+    "whatsIncluded": "What's included",
+    "noDays": "No dates listed for this competition yet — message me and we'll sort it out."
   },
   "quote": {
     "cta": "Request a quote",

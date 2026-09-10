@@ -201,12 +201,22 @@ function buildPrices(t, setName) {
 
     // /register — competition packages. The ids are a data contract with the
     // admin registrations page; never rename them.
+    //
+    // `includes` carries the same bullet list the pricing cards show. The
+    // sign-up form used to offer these as bare names and prices, which told a
+    // rider nothing about what they were actually buying — now each one has a
+    // "?" that opens this list, without sending anyone back to /pricing.
     packages: [
-      { id: "photos", label: t("pricing.packages.photos", { price: person }) },
-      { id: "video", label: t("pricing.packages.video", { price: m("videoPackage") }) },
-      { id: "extended", label: t("pricing.packages.extended", { price: m("extendedEntry") }) },
-      { id: "short", label: t("pricing.packages.short", { price: m("shortVideo") }) },
-      { id: "obstacle", label: t("pricing.packages.obstacle", { price: m("obstacleVideo") }) },
+      { id: "photos", label: t("pricing.packages.photos", { price: person }),
+        includes: t("pricing.perEntry.includes", { price: person, extraPrice: m("extraHorse"), count: PHOTOS_STANDARD, returnObjects: true }) },
+      { id: "video", label: t("pricing.packages.video", { price: m("videoPackage") }),
+        includes: t("pricing.videoPackage.includes", { price: m("videoPackage"), returnObjects: true }) },
+      { id: "extended", label: t("pricing.packages.extended", { price: m("extendedEntry") }),
+        includes: t("pricing.extendedEntry.includes", { price: m("extendedEntry"), extraPrice: m("extraHorse"), count: PHOTOS_EXTENDED, returnObjects: true }) },
+      { id: "short", label: t("pricing.packages.short", { price: m("shortVideo") }),
+        includes: t("pricing.shortVideo.includes", { price: m("shortVideo"), returnObjects: true }) },
+      { id: "obstacle", label: t("pricing.packages.obstacle", { price: m("obstacleVideo") }),
+        includes: t("pricing.obstacleVideo.includes", { price: m("obstacleVideo"), returnObjects: true }) },
       {
         // How many places are left is deliberately NOT in this label: the
         // sign-up form shows a live count next to the field (see

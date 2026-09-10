@@ -142,6 +142,41 @@ export function formatRange(comp, locale = "en-GB") {
 export const competitionLabel = (comp) =>
   [comp?.name, comp?.farm].filter(Boolean).join(" · ");
 
+/**
+ * The individual days of a competition, derived from the range the admin
+ * entered when creating it.
+ *
+ * The sign-up form used to offer a hardcoded Wednesday / Thursday / Friday,
+ * which was only ever right by coincidence — a show at a different yard runs on
+ * different days, and a two-day event in October has nothing to do with those
+ * three names. Alina sets the dates once when she creates the competition and
+ * the riders' options follow.
+ *
+ * The ISO string is built by hand rather than with toISOString(): that converts
+ * to UTC, and local midnight in Israel is the previous day in UTC, so every
+ * date would come back one day early.
+ */
+export function competitionDays(comp, locale = "he") {
+  if (!comp?.startDate) return [];
+
+  const start = new Date(`${comp.startDate}T00:00:00`);
+  const end = new Date(`${comp.endDate || comp.startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const out = [];
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    out.push({
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      label: d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "short" }),
+    });
+    // A range longer than a fortnight is a typo, not a horse show. Stop rather
+    // than render a hundred radio buttons.
+    if (out.length >= 14) break;
+  }
+  return out;
+}
+
 /* ── Writing (admin only — enforced in firestore.rules) ─────────────────── */
 
 export async function createCompetition({ name, farm, country, startDate, endDate }) {
