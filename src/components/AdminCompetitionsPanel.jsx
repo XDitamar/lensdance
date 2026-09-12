@@ -7,10 +7,14 @@
 // visitor only the events in their own country, so a German rider is not
 // invited to a show outside Tel Aviv. See src/lib/competitions.js.
 //
-// DELETING. The confirmation says so and it bears repeating here: removing a
-// competition removes the event from the list, not the sign-ups people already
-// submitted for it. Registrations cannot be deleted at all (firestore.rules),
-// so the archive — and any deposit already paid against it — survives.
+// UPCOMING vs HISTORY. The list is split by date, and an event crosses over on
+// its own the day after it ends — there is nothing to archive by hand. The same
+// cutoff is what stops riders being offered a show that already happened.
+//
+// DELETING. Removing a competition removes the EVENT, not the sign-ups people
+// submitted for it; those live in `registrations` and are cleared separately
+// from the archive list on /admin/registrations. So a deleted competition never
+// takes a deposit record with it by surprise.
 
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -72,6 +76,30 @@ export default function AdminCompetitionsPanel({ competitions, onChanged }) {
     }
   };
 
+  /* Clearing out finished events one ✕ at a time gets tedious after a season,
+     so there is a single button for it. The confirmation states the count —
+     "remove 7 finished competitions?" is a decision; "are you sure?" is not. */
+  const finished = competitions.filter(hasEnded);
+  const upcoming = competitions.filter((c) => !hasEnded(c));
+
+  const removeFinished = async () => {
+    if (finished.length === 0) return;
+    if (!window.confirm(t("competitions.confirmDeleteFinished", { count: finished.length }))) return;
+    setBusy(true);
+    setError("");
+    try {
+      // Sequential rather than Promise.all: a partial failure then leaves a
+      // clear picture of what did and did not go, instead of an unknown mix.
+      for (const comp of finished) await deleteCompetition(comp.id);
+      await onChanged();
+    } catch (err) {
+      setError(t("common.errorWithCode", { detail: err?.code || err?.message || "unknown" }));
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div style={s.wrap}>
       <div style={s.head}>
@@ -85,36 +113,36 @@ export default function AdminCompetitionsPanel({ competitions, onChanged }) {
 
       {open && (
         <form onSubmit={submit} style={s.form}>
-          <Row label={t("competitions.nameLabel")}>
+          <FormRow label={t("competitions.nameLabel")}>
             {(id) => (
               <input id={id} style={s.input} value={form.name} onChange={set("name")}
                 placeholder={t("competitions.namePlaceholder")} />
             )}
-          </Row>
+          </FormRow>
 
-          <Row label={t("competitions.farmLabel")}>
+          <FormRow label={t("competitions.farmLabel")}>
             {(id) => (
               <input id={id} style={s.input} value={form.farm} onChange={set("farm")}
                 placeholder={t("competitions.farmPlaceholder")} />
             )}
-          </Row>
+          </FormRow>
 
           <div style={s.pair}>
-            <Row label={t("competitions.startLabel")}>
+            <FormRow label={t("competitions.startLabel")}>
               {(id) => (
                 <input id={id} style={s.input} type="date" value={form.startDate}
                   onChange={set("startDate")} />
               )}
-            </Row>
-            <Row label={t("competitions.endLabel")} hint={t("competitions.endHint")}>
+            </FormRow>
+            <FormRow label={t("competitions.endLabel")} hint={t("competitions.endHint")}>
               {(id) => (
                 <input id={id} style={s.input} type="date" value={form.endDate}
                   min={form.startDate || undefined} onChange={set("endDate")} />
               )}
-            </Row>
+            </FormRow>
           </div>
 
-          <Row label={t("competitions.countryLabel")} hint={t("competitions.countryHint")}>
+          <FormRow label={t("competitions.countryLabel")} hint={t("competitions.countryHint")}>
             {(id) => (
               <select id={id} style={s.input} value={form.country} onChange={set("country")}>
                 {COMPETITION_COUNTRIES.map((c) => (
@@ -124,7 +152,7 @@ export default function AdminCompetitionsPanel({ competitions, onChanged }) {
                 ))}
               </select>
             )}
-          </Row>
+          </FormRow>
 
           <button type="submit" style={{ ...s.saveBtn, opacity: busy ? 0.6 : 1 }} disabled={busy}>
             {busy ? t("common.saving") : t("competitions.create")}
@@ -132,44 +160,66 @@ export default function AdminCompetitionsPanel({ competitions, onChanged }) {
         </form>
       )}
 
+      {finished.length > 0 && !open && (
+        <button type="button" style={s.clearBtn} onClick={removeFinished} disabled={busy}>
+          {t("competitions.clearFinished", { count: finished.length })}
+        </button>
+      )}
+
+      {/* Upcoming above, finished below. A competition moves between the two
+          on its own the moment its last day passes — there is no "archive"
+          button to remember to press, because the dates already say when an
+          event is over. The same cutoff hides it from riders (see
+          visibleCompetitions in src/lib/competitions.js). */}
       <div style={{ marginTop: 6 }}>
         {competitions.length === 0 && (
           <p style={s.empty}>{t("competitions.empty")}</p>
         )}
-        {competitions.map((comp) => {
-          const past = hasEnded(comp);
-          return (
-            <div key={comp.id} style={{ ...s.row, opacity: past ? 0.62 : 1 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={s.rowName}>{comp.name}</div>
-                <div style={s.rowMeta}>
-                  {[comp.farm, formatRange(comp), comp.country === ANY_COUNTRY
-                    ? t("competitions.anyCountry")
-                    : countryName(comp.country)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-                {past && <span style={s.pastTag}>{t("competitions.past")}</span>}
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(comp)}
-                disabled={busy}
-                style={s.delBtn}
-                title={t("competitions.delete")}
-                aria-label={`${t("competitions.delete")} — ${comp.name}`}
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
+
+        {upcoming.length > 0 && (
+          <div style={s.groupLabel}>{t("competitions.upcoming")}</div>
+        )}
+        {upcoming.map((comp) => <Row key={comp.id} comp={comp} past={false} t={t} busy={busy} onRemove={remove} />)}
+
+        {finished.length > 0 && (
+          <div style={s.groupLabel}>{t("competitions.history")}</div>
+        )}
+        {finished.map((comp) => <Row key={comp.id} comp={comp} past t={t} busy={busy} onRemove={remove} />)}
       </div>
     </div>
   );
 }
 
-function Row({ label, hint, children }) {
+/** One competition in the list. Identical in both sections; only dimmed when past. */
+function Row({ comp, past, t, busy, onRemove }) {
+  return (
+    <div style={{ ...s.row, opacity: past ? 0.62 : 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={s.rowName}>{comp.name}</div>
+        <div style={s.rowMeta}>
+          {[comp.farm, formatRange(comp), comp.country === ANY_COUNTRY
+            ? t("competitions.anyCountry")
+            : countryName(comp.country)]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+        {past && <span style={s.pastTag}>{t("competitions.past")}</span>}
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(comp)}
+        disabled={busy}
+        style={s.delBtn}
+        title={t("competitions.delete")}
+        aria-label={`${t("competitions.delete")} — ${comp.name}`}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function FormRow({ label, hint, children }) {
   const id = React.useId();
   return (
     <div style={{ marginBottom: 12 }}>
@@ -191,6 +241,7 @@ const s = {
   input:   { width: "100%", boxSizing: "border-box", background: "#FFF", border: "1px solid #D7C9B8", padding: "8px 10px", fontFamily: "Arial,sans-serif", fontSize: 12, color: "#2C1E12", outline: "none", borderRadius: 0 },
   hint:    { fontFamily: "Arial,sans-serif", fontSize: 9.5, lineHeight: 1.6, color: "#8A7868", margin: "5px 0 0" },
   saveBtn: { width: "100%", background: "#4A3525", color: "#F5F1EA", border: "none", padding: "11px 0", fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", cursor: "pointer", marginTop: 4, minHeight: 40 },
+  clearBtn:{ width: "100%", background: "transparent", color: "#8A7868", border: "1px dashed #C4B7A6", padding: "9px 0", fontFamily: "Arial,sans-serif", fontSize: 9, letterSpacing: ".12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 4, minHeight: 34 },
   row:     { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 0", borderBottom: "1px solid #E4DFD6" },
   rowName: { fontFamily: "Georgia,serif", fontSize: 12.5, color: "#2C1E12", lineHeight: 1.4 },
   rowMeta: { fontFamily: "Arial,sans-serif", fontSize: 9.5, color: "#8A7868", marginTop: 3, lineHeight: 1.5 },

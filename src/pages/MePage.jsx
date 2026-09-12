@@ -7,6 +7,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { logDownload } from "../lib/downloads";
 import { fetchLikedPaths, setLiked } from "../lib/likes";
+import { daysLeft, fetchRetention, toDate } from "../lib/retention";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -344,6 +345,20 @@ export default function MePage() {
      Saving it would make it indistinguishable from a chosen one, and case 1
      would then lock in a picture nobody actually picked. It also skips videos,
      which cannot render in an <img>. */
+  /* How long this gallery stays up. Read from the retention record the
+     photographer starts; null when no clock is running, which is the normal
+     state for a gallery that has only just been uploaded. */
+  const [retention, setRetention] = useState(null);
+
+  useEffect(() => {
+    if (!targetUid) { setRetention(null); return undefined; }
+    let alive = true;
+    fetchRetention(targetUid)
+      .then((r) => { if (alive) setRetention(r); })
+      .catch((e) => console.warn("Could not load retention:", e?.code || e));
+    return () => { alive = false; };
+  }, [targetUid]);
+
   const autoCover = useMemo(() => {
     const firstPhoto = mediaItems.find((m) => !m.isVideo);
     return firstPhoto?.gridUrl || firstPhoto?.url || null;
@@ -848,8 +863,37 @@ export default function MePage() {
       </div>
 
       {/* ══════════════════════════════════════
-          TOOLBAR — select & download
+          HOW LONG THESE PHOTOS STAY UP
+          Only shown once the photographer has started the clock. Sitting
+          directly above the download toolbar on purpose: the moment a deadline
+          becomes relevant is the moment somebody is deciding whether to
+          download now or "later".
       ══════════════════════════════════════ */}
+      {(() => {
+        if (!retention?.expiresAt || mediaItems.length === 0) return null;
+        const left = daysLeft(retention.expiresAt);
+        const ends = toDate(retention.expiresAt);
+        const soon = left !== null && left <= 7;
+        const gone = left !== null && left <= 0;
+        return (
+          <div style={{
+            padding: "11px 28px",
+            background: gone ? "#FFF0EE" : soon ? "#FFF8E8" : "#F7FBF1",
+            borderBottom: `1px solid ${gone ? "#E8C4BC" : soon ? "#EBD9A8" : "#D8E8C0"}`,
+            fontFamily: "Arial, sans-serif", fontSize: 11.5, lineHeight: 1.7,
+            color: gone ? "#8A2A1F" : soon ? "#7A5A00" : "#3B6D11",
+            textAlign: "center", direction: i18n.dir(),
+          }}>
+            {gone
+              ? t("me.retentionExpired")
+              : t("me.retentionNotice", {
+                  count: left,
+                  date: ends ? ends.toLocaleDateString(i18n.language) : "",
+                })}
+          </div>
+        );
+      })()}
+
       <div style={{
         padding: "13px 28px",
         display: "flex", alignItems: "center", justifyContent: "space-between",

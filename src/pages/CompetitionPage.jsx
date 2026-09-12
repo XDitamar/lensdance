@@ -19,6 +19,7 @@ import {
   visibleCompetitions,
 } from "../lib/competitions";
 import { detectCountry } from "../hooks/useGeoPrice";
+import { getWhatsAppInternational } from "../config/contact";
 
 // The packages come from useGeoPrice: amounts/currency per the visitor's
 // country (src/config/pricing.js), wording per their language
@@ -63,11 +64,18 @@ export default function CompetitionPage() {
 
   // Form state
   const [comps, setComps] = useState([]);
+  /* How many competition records exist at all, regardless of date or country.
+     This distinguishes two states that look identical from `comps` alone:
+     "nothing is coming up right now" — which deserves a friendly note — and
+     "competitions were never set up here", where the page must keep working
+     the way it did before this feature existed. null while unknown. */
+  const [compsTotal, setCompsTotal] = useState(null);
   const [form, setForm] = useState({
     competitionId: "",
     day: "",
     riderName: "",
     horseName: "",
+    classEntry: "",
     packages: [],
     contact: "",
     receiptWanted: "",
@@ -107,12 +115,17 @@ export default function CompetitionPage() {
         const [all, country] = await Promise.all([fetchCompetitions(), detectCountry()]);
         if (!alive) return;
         const list = visibleCompetitions(all, country);
+        setCompsTotal(all.length);
         setComps(list);
         // One option is not a choice — preselect it so nobody has to click a
         // dropdown with a single entry.
         if (list.length === 1) setForm((f) => ({ ...f, competitionId: list[0].id }));
       } catch (err) {
         console.warn("Failed to load competitions:", err);
+        // A failed read must not look like "no competitions" — that would show
+        // the closed notice to everyone over a network blip. Leaving the total
+        // unknown keeps the form available.
+        if (alive) setCompsTotal(null);
       }
     })();
     return () => { alive = false; };
@@ -267,6 +280,41 @@ export default function CompetitionPage() {
       </Page>
     );
   }
+  /* ── NOTHING COMING UP ──
+     Competitions exist in the system but none of them is still ahead of the
+     visitor's own date and country. Saying so plainly beats an empty dropdown
+     over a form nobody can usefully fill in.
+     Shown before the sign-in gate on purpose: "there is no competition right
+     now" is more use to a visitor than being asked to create an account first.
+     The admin is let through so she can still open the form to check it. */
+  if (compsTotal !== null && compsTotal > 0 && comps.length === 0 && !isAdmin) {
+    return (
+      <Page>
+        <div style={{ textAlign: "center", padding: "40px 0", direction: i18n.dir() }}>
+          <div style={{ fontSize: 30, marginBottom: 16, color: "#B2967D" }}>✦</div>
+          <h2 style={{ fontFamily: "Georgia,serif", fontSize: 22, fontWeight: 400, color: "#2C1E12", marginBottom: 14 }}>
+            {t("competition.noneUpcomingTitle")}
+          </h2>
+          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#8A7868", lineHeight: 1.85, marginBottom: 24 }}>
+            {t("competition.noneUpcomingBody")}
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <a
+              href={`https://wa.me/${getWhatsAppInternational()}`}
+              target="_blank" rel="noreferrer"
+              style={{ ...s.btn, width: "auto", padding: "13px 28px", textDecoration: "none", display: "inline-block" }}
+            >
+              {t("competition.noneUpcomingCta")}
+            </a>
+            <a href="/pricing" style={{ fontFamily: "Arial,sans-serif", fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", color: "#4A3525", border: "1px solid #B2967D", padding: "13px 28px", textDecoration: "none", display: "inline-block" }}>
+              {t("pricing.pageTitle")}
+            </a>
+          </div>
+        </div>
+      </Page>
+    );
+  }
+
   if (!user) {
     return (
       <Page>
@@ -427,11 +475,22 @@ export default function CompetitionPage() {
             onChange={set("riderName")} required />
         </Field>
 
-        {/* Horse name + number */}
+        {/* The horse, and the class, are two different things. They used to
+            share one box — "horse name + class number if known" — so answers
+            came back as one run-on string that had to be read apart by hand on
+            the day. Two fields, each asking one question. */}
         <Field label={t("competition.horseLabel")}>
           <input style={s.input} type="text" value={form.horseName}
             placeholder={t("competition.horsePlaceholder")}
             onChange={set("horseName")} required />
+        </Field>
+
+        {/* Optional: a rider often does not have the entry number yet when
+            they sign up, and refusing the form over it would cost a booking. */}
+        <Field label={t("competition.classLabel")}>
+          <input style={s.input} type="text" value={form.classEntry}
+            placeholder={t("competition.classPlaceholder")}
+            onChange={set("classEntry")} />
         </Field>
 
         {/* The deposit amount used to be typed in here by the rider, which

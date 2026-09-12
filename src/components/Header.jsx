@@ -191,6 +191,11 @@ export default function Header() {
                     direction: dir,
                   }}>
                     {[
+                      /* First, because it is the only entry a rider opens for
+                         information rather than to change something — and the
+                         question it answers ("am I actually booked?") is the
+                         one they arrive with. */
+                      { label: t("settings.myCompetitions"),  to: "/my-competitions" },
                       { label: t("settings.changeName"),       to: "/change-name" },
                       { label: t("settings.changeDiscipline"), to: "/change-discipline" },
                       { label: t("settings.changePassword"),   to: "/change-password" },

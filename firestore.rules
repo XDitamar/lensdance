@@ -30,16 +30,42 @@ service cloud.firestore {
     // ---- registrations (competition sign-ups) ----
     match /registrations/{docId} {
       allow create: if request.auth != null;
-      allow read:   if isAdmin();
+      // The admin reads everything. A rider reads only their OWN sign-ups,
+      // which is what /my-competitions shows them — what they booked, for
+      // which event, and whether the deposit is marked paid. The userId check
+      // is what keeps one client out of another's entries, and it also
+      // constrains the query: a listing without `where("userId","==",uid)` is
+      // refused outright rather than quietly returning everyone.
+      allow read:   if isAdmin()
+                    || (request.auth != null
+                        && resource.data.userId == request.auth.uid);
       // The admin marks the 40% deposit as paid from /admin/registrations.
       // Narrowed to that one field on purpose: a sign-up is a record of what
-      // the rider submitted and must not become editable after the fact, so
-      // nobody — admin included — can quietly rewrite a name, a package or a
-      // publishing permission. Deleting stays closed.
+      // the rider submitted, so nobody — admin included — can quietly rewrite
+      // a name, a package or a publishing permission.
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly(['depositPaid', 'depositPaidAt']);
-      allow delete: if false;
+      // Deleting is open to the admin at Alina's request, so she can clear
+      // test entries and finished events. Note the asymmetry and keep it:
+      // EDITING a sign-up stays locked while DELETING is allowed. A silently
+      // altered record is worse than a missing one — an edit still looks like
+      // the rider's own words, whereas a deletion is visibly gone.
+      allow delete: if isAdmin();
+    }
+
+    // ---- retention (when a client's gallery comes down) ----
+    // Admin writes, client reads. The read matters: the gallery shows the
+    // client how long they have left, and a deadline nobody can see is a
+    // deadline that produces angry messages.
+    //
+    // It lives here rather than as a field on `users` precisely BECAUSE a user
+    // may write their own `users` document — an expiry stored there could be
+    // pushed into the future by the person it applies to.
+    match /retention/{userId} {
+      allow read:  if isAdmin()
+                   || (request.auth != null && request.auth.uid == userId);
+      allow write: if isAdmin();
     }
 
     // ---- photoLikes (a client's favourites in their own gallery) ----
@@ -100,7 +126,9 @@ service cloud.firestore {
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly(['depositPaid', 'depositPaidAt']);
-      allow delete: if false;
+      // Same reasoning as registrations above: deletable by the admin,
+      // never editable beyond the deposit flag.
+      allow delete: if isAdmin();
     }
 
     // ---- priorityCounts (priority delivery places taken, per competition) ----

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, orderBy, query, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useNavigate } from "react-router-dom";
@@ -47,6 +47,81 @@ export default function AdminRegistrationsPage() {
       setSaving(null);
     }
   };
+  /**
+   * Remove a sign-up or a session booking.
+   *
+   * Two things happen beyond the delete itself. The row leaves the local list
+   * immediately rather than waiting for a refetch, because the admin is
+   * usually mid-scroll. And if the entry held a priority place, the tally is
+   * recomputed straight away — otherwise that place would stay counted as
+   * taken until the next time this page loads, and a rider would be told the
+   * competition was full when it was not.
+   */
+  const removeEntry = async (reg) => {
+    const who = reg.riderName || reg.userName || reg.userEmail || "";
+    if (!window.confirm(t("registrations.confirmDelete", { name: who }))) return;
+
+    setSaving(reg.id);
+    setSaveError("");
+    try {
+      await deleteDoc(doc(db, reg.__session ? SESSION_BOOKINGS : "registrations", reg.id));
+
+      if (reg.__session) {
+        setSessionBookings((list) => list.filter((x) => x.id !== reg.id));
+      } else {
+        const remaining = allRegs.filter((x) => x.id !== reg.id);
+        setAllRegs(remaining);
+        if ((reg.packages || []).includes(PRIORITY_PACKAGE_ID) && reg.competitionTitle) {
+          const used = remaining.filter(
+            (r) => r.competitionTitle === reg.competitionTitle
+              && (r.packages || []).includes(PRIORITY_PACKAGE_ID)
+          ).length;
+          syncPriorityCount(reg.competitionTitle, used)
+            .catch((e) => console.warn("Priority count sync failed after delete:", e));
+        }
+      }
+    } catch (e) {
+      setSaveError(t("registrations.updateFailed", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  /**
+   * Clear a whole competition out of the archive.
+   *
+   * Removing an old event one rider at a time is unworkable once a season has
+   * gone by, so this deletes every sign-up filed under one competition title.
+   * The confirmation names the event and the number of entries, because that
+   * count is the only thing that tells her whether she is clearing last year's
+   * leftovers or this weekend's bookings.
+   */
+  const removeArchive = async (title) => {
+    const group = allRegs.filter((r) => (r.competitionTitle || t("registrations.untitled")) === title);
+    if (group.length === 0) return;
+    if (!window.confirm(t("registrations.confirmDeleteGroup", { name: title, count: group.length }))) return;
+
+    setSaving(`group:${title}`);
+    setSaveError("");
+    try {
+      // Sequential, so a partial failure leaves a clear picture of what went.
+      for (const r of group) await deleteDoc(doc(db, "registrations", r.id));
+
+      setAllRegs((list) => list.filter((r) => !group.some((g) => g.id === r.id)));
+      setCompetitions((list) => list.filter((c) => c.title !== title));
+      if (selected === title) setSelected(null);
+      // Nothing is booked on this competition any more, so its priority tally
+      // has to go back to zero — otherwise a competition of the same name
+      // later would start out looking full.
+      syncPriorityCount(title, 0)
+        .catch((e) => console.warn("Priority count reset failed:", e));
+    } catch (e) {
+      setSaveError(t("registrations.updateFailed", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const [user, loadingAuth] = useAuthState(auth);
   const navigate = useNavigate();
 
@@ -315,32 +390,56 @@ export default function AdminRegistrationsPage() {
             </span>
           </div>
 
+          {/* Each archive group carries its own ✕, which clears every sign-up
+              filed under that competition in one go. Deleting an old event
+              rider by rider is not realistic after a season. */}
           {competitions.map(comp => (
-            <button
+            <div
               key={comp.title}
-              onClick={() => { setSelected(comp.title); setSearch(""); }}
               style={{
-                width: "100%", textAlign: "right", padding: "14px 20px",
+                display: "flex", alignItems: "stretch", direction: "rtl",
                 background: selected === comp.title ? "#F5F1EA" : "transparent",
-                border: "none",
                 borderRight: selected === comp.title ? "2px solid #B2967D" : "2px solid transparent",
-                cursor: "pointer", direction: "rtl",
                 borderBottom: "1px solid #DDD8CF",
                 transition: "all .15s",
               }}
             >
-              <div style={{ fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", marginBottom: 4 }}>
-                {comp.title}
-              </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#B2967D" }}>
-                  {t("registrations.signups", { count: comp.count })}
-                </span>
-                <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#A89D90" }}>
-                  {formatDate({ toDate: () => comp.latestDate })}
-                </span>
-              </div>
-            </button>
+              <button
+                onClick={() => { setSelected(comp.title); setSearch(""); }}
+                style={{
+                  flex: 1, textAlign: "right", padding: "14px 20px",
+                  background: "transparent", border: "none",
+                  cursor: "pointer", direction: "rtl", minWidth: 0,
+                }}
+              >
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", marginBottom: 4 }}>
+                  {comp.title}
+                </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#B2967D" }}>
+                    {t("registrations.signups", { count: comp.count })}
+                  </span>
+                  <span style={{ fontFamily: "Arial,sans-serif", fontSize: 9, color: "#A89D90" }}>
+                    {formatDate({ toDate: () => comp.latestDate })}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => removeArchive(comp.title)}
+                disabled={saving === `group:${comp.title}`}
+                title={t("registrations.deleteGroup")}
+                aria-label={`${t("registrations.deleteGroup")} — ${comp.title}`}
+                style={{
+                  background: "transparent", border: "none", color: "#B2967D",
+                  cursor: saving === `group:${comp.title}` ? "wait" : "pointer",
+                  fontSize: 12, padding: "0 14px", flexShrink: 0,
+                  opacity: saving === `group:${comp.title}` ? 0.5 : 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
           ))}
 
           {competitions.length === 0 && (
@@ -450,6 +549,13 @@ export default function AdminRegistrationsPage() {
                       <div style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#8A7868" }}>
                         🐴 {r.horseName}
                       </div>
+                      {/* The class and entry number, since this became its own
+                          field. Older sign-ups have it inside horseName. */}
+                      {r.classEntry && (
+                        <div style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#8A7868" }}>
+                          🏁 {r.classEntry}
+                        </div>
+                      )}
                       {userInfo[r.userId]?.discipline && (
                         <div style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D", marginTop: 2 }}>
                           🏇 {DISCIPLINES.find(d => d.id === userInfo[r.userId].discipline)&& t(disciplineKey(userInfo[r.userId].discipline))}
@@ -489,6 +595,25 @@ export default function AdminRegistrationsPage() {
                         }}
                       >
                         {r.depositPaid ? `✓ ${t("registrations.paid")}` : `○ ${t("registrations.unpaid")}`}
+                      </button>
+
+                      {/* Deliberately the quietest control on the row: no
+                          fill, no border, small. Deleting a sign-up is not
+                          something to invite by accident. */}
+                      <button
+                        type="button"
+                        onClick={() => removeEntry(r)}
+                        disabled={saving === r.id}
+                        title={t("registrations.delete")}
+                        aria-label={`${t("registrations.delete")} — ${r.riderName || ""}`}
+                        style={{
+                          background: "transparent", border: "none",
+                          color: "#B2967D", cursor: saving === r.id ? "wait" : "pointer",
+                          fontSize: 13, lineHeight: 1, padding: "6px 8px",
+                          opacity: saving === r.id ? 0.5 : 1,
+                        }}
+                      >
+                        ✕
                       </button>
                     </div>
                   </div>

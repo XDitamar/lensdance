@@ -1,0 +1,279 @@
+/* src/pages/my-competitions.css
+ *
+ * "My competitions" (/my-competitions). Prefixed `mc-` for the same reason the
+ * other page stylesheets carry a prefix: several generic class names are styled
+ * more than once in this codebase and whichever file loads last wins.
+ *
+ * Direction-agnostic — Hebrew and Arabic render RTL — so spacing uses logical
+ * properties and text-align: start rather than left/right.
+ */
+
+.mc-root {
+  background: #f5f1ea;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.mc-page {
+  max-width: 620px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px 60px;
+  box-sizing: border-box;
+}
+
+.mc-head {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.mc-eyebrow {
+  display: block;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin-bottom: 8px;
+}
+
+.mc-title {
+  font-family: Georgia, serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: #2c1e12;
+  margin: 0;
+}
+
+.mc-rule {
+  height: 1px;
+  width: 34px;
+  background: #b2967d;
+  margin: 14px auto 0;
+}
+
+.mc-muted {
+  font-family: Arial, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #8a7868;
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Upcoming / past switch ─────────────────────────────────────────────── */
+
+.mc-tabs {
+  display: inline-flex;
+  border: 1px solid #c8b8a4;
+  background: #fdfaf5;
+  margin: 0 auto 22px;
+  /* inline-flex in a block parent needs this to centre */
+  display: flex;
+  width: fit-content;
+}
+
+.mc-tab {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a7868;
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+  min-height: 38px;
+}
+
+.mc-tab + .mc-tab {
+  border-inline-start: 1px solid #e2d9ce;
+}
+
+.mc-tab.is-active {
+  background: #4a3525;
+  color: #f5f1ea;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+.mc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mc-card {
+  background: #fdfaf5;
+  border: 1px solid #e2d9ce;
+  padding: 18px 20px;
+}
+
+.mc-card.is-past {
+  opacity: 0.72;
+}
+
+.mc-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.mc-card-title {
+  font-family: Georgia, serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #2c1e12;
+}
+
+.mc-card-dates {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  color: #b2967d;
+  margin-top: 3px;
+}
+
+.mc-deposit {
+  flex-shrink: 0;
+  font-family: Arial, sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  background: #fff0ee;
+  border: 1px solid #e8c4bc;
+  color: #8a2a1f;
+  white-space: nowrap;
+}
+
+.mc-deposit.is-paid {
+  background: #eaf3de;
+  border-color: #c0dd97;
+  color: #3b6d11;
+}
+
+/* Definition list so a screen reader reads "horse: Kip", not two loose words. */
+.mc-rows {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #ede8df;
+  padding-top: 10px;
+}
+
+.mc-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+
+.mc-row dt {
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #b2967d;
+  margin: 0;
+  flex-shrink: 0;
+  min-width: 64px;
+  text-align: start;
+}
+
+.mc-row dd {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #4a3525;
+  margin: 0;
+}
+
+.mc-packages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #ede8df;
+}
+
+.mc-pkg {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  color: #7d5a44;
+  background: #f5f0e8;
+  padding: 4px 10px;
+}
+
+/* ── Buttons and footer ─────────────────────────────────────────────────── */
+
+.mc-cta-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+.mc-btn {
+  display: inline-block;
+  background: #4a3525;
+  color: #f5f1ea;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 13px 30px;
+  min-height: 44px;
+  box-sizing: border-box;
+  transition: background 0.2s;
+}
+
+.mc-btn:hover {
+  background: #2c1e12;
+}
+
+.mc-foot {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 32px;
+}
+
+.mc-link {
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a7868;
+  text-decoration: none;
+  border-bottom: 1px solid #d7c9b8;
+  padding-bottom: 2px;
+}
+
+.mc-link:hover {
+  color: #6b4b2a;
+  border-color: #b2967d;
+}
+
+@media (max-width: 600px) {
+  .mc-page {
+    padding: 32px 20px 44px;
+  }
+
+  .mc-title {
+    font-size: 22px;
+  }
+
+  .mc-row {
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 9px;
+  }
+}

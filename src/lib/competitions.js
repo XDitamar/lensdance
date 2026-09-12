@@ -38,6 +38,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -175,6 +176,24 @@ export function competitionDays(comp, locale = "he") {
     if (out.length >= 14) break;
   }
   return out;
+}
+
+/**
+ * One rider's own sign-ups, newest first.
+ *
+ * Powers /my-competitions. The `where` is not optional: the security rule only
+ * permits a read of documents whose userId is the caller's, and Firestore
+ * refuses a listing it cannot prove stays inside that — so a query without it
+ * fails rather than leaking.
+ */
+export async function fetchMyRegistrations(uid) {
+  if (!uid) return [];
+  const snap = await getDocs(
+    query(collection(db, "registrations"), where("userId", "==", uid))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 }
 
 /* ── Writing (admin only — enforced in firestore.rules) ─────────────────── */

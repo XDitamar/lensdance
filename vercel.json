@@ -27,5 +27,11 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup-expired-photos",
+      "schedule": "0 3 * * *"
+    }
   ]
 }

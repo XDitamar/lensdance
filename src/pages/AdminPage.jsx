@@ -13,6 +13,14 @@ import {
 import { collection, getDocs } from "firebase/firestore";
 import { folderKeysFor, fetchDownloadsForFolder } from "../lib/downloads";
 import { fetchLikesForUser } from "../lib/likes";
+import {
+  RETENTION_DAYS,
+  clearRetention,
+  daysLeft,
+  fetchRetention,
+  startRetention,
+  toDate,
+} from "../lib/retention";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -84,6 +92,40 @@ export default function AdminPage() {
      button above; this list is the quick read: what they loved, and when. */
   const [likes, setLikes] = useState([]);
   const [likesLoading, setLikesLoading] = useState(false);
+
+  /* The 30-day clock for the folder on screen. null = not started. */
+  const [retention, setRetention] = useState(null);
+  const [retentionBusy, setRetentionBusy] = useState(false);
+
+  const onStartRetention = async () => {
+    const u = userForFolder(currentFolder);
+    if (!u?.uid) { setError(t("admin.retentionNoAccount")); return; }
+    if (!window.confirm(t("admin.retentionConfirm", { days: RETENTION_DAYS }))) return;
+    setRetentionBusy(true);
+    try {
+      await startRetention({ uid: u.uid, folder: currentFolder, email: u.email });
+      setRetention(await fetchRetention(u.uid));
+    } catch (e) {
+      setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setRetentionBusy(false);
+    }
+  };
+
+  const onStopRetention = async () => {
+    const u = userForFolder(currentFolder);
+    if (!u?.uid) return;
+    if (!window.confirm(t("admin.retentionStopConfirm"))) return;
+    setRetentionBusy(true);
+    try {
+      await clearRetention(u.uid);
+      setRetention(null);
+    } catch (e) {
+      setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setRetentionBusy(false);
+    }
+  };
   const inputRef = useRef(null);
 
   const user = auth.currentUser;
@@ -217,6 +259,7 @@ export default function AdminPage() {
        email and several spellings map to the same person, whereas the uid is
        the account itself. An account-less folder simply has no likes to show. */
     const uid = userForFolder(folder)?.uid;
+    setRetention(null);
     if (!uid) return;
     setLikesLoading(true);
     try {
@@ -225,6 +268,11 @@ export default function AdminPage() {
       console.warn("Could not load likes:", e);
     } finally {
       setLikesLoading(false);
+    }
+    try {
+      setRetention(await fetchRetention(uid));
+    } catch (e) {
+      console.warn("Could not load retention:", e);
     }
   };
 
@@ -564,6 +612,62 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+
+          {/* ── The 30-day clock ──
+              Pressed when the upload for this client is finished, not when it
+              starts: Alina often uploads a competition across several
+              sittings, and a clock that began with the first file would burn
+              days before the gallery was even complete. */}
+          {(() => {
+            const left = retention ? daysLeft(retention.expiresAt) : null;
+            const ends = retention ? toDate(retention.expiresAt) : null;
+            const expired = left !== null && left <= 0;
+            return (
+              <div style={{
+                marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
+                background: retention ? (expired ? "#FFF6F4" : "#F7FBF1") : "#FDFAF5",
+                padding: "12px 14px",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 12, flexWrap: "wrap",
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
+                    {t("admin.retentionTitle")}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: expired ? "#8A2A1F" : "#6A5A50" }}>
+                    {!retention
+                      ? t("admin.retentionNotStarted", { days: RETENTION_DAYS })
+                      : expired
+                        ? t("admin.retentionExpired")
+                        : t("admin.retentionRunning", {
+                            count: left,
+                            date: ends ? ends.toLocaleDateString(i18n.language) : "",
+                          })}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="filter-button"
+                    onClick={onStartRetention}
+                    disabled={retentionBusy}
+                    style={{ opacity: retentionBusy ? 0.6 : 1 }}
+                  >
+                    {retention ? t("admin.retentionRestart") : t("admin.retentionStart")}
+                  </button>
+                  {retention && (
+                    <button
+                      className="filter-button"
+                      onClick={onStopRetention}
+                      disabled={retentionBusy}
+                      style={{ opacity: retentionBusy ? 0.6 : 1 }}
+                    >
+                      {t("admin.retentionStop")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Photos this client marked as favourites ──
               Shown as thumbnails, not a list of filenames. The point of this

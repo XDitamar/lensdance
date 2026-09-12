@@ -21,7 +21,8 @@
     "changeDiscipline": "Change Category",
     "changePassword": "Change Password",
     "back": "← Back",
-    "eyebrow": "Settings"
+    "eyebrow": "Settings",
+    "myCompetitions": "My competitions"
   },
   "theme": {
     "toLight": "Light mode",
@@ -129,7 +130,7 @@
     "loginRequired": "🔒 You need to sign in to continue",
     "loginPrompt": "Please sign in to accept the terms and continue.",
     "saveFailed": "Could not save your acceptance (check the Firestore permissions).",
-    "agreement": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the results to the client.\nBy ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance.\nPlease make sure the client's details, the horse's and rider's details, and the competition and class details are accurate and clearly communicated.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end of the competition.\nDelivery during an emergency: in the event of a national emergency (such as war, a military operation or a natural disaster) delivery may take longer. Delivery resumes once the emergency ends, plus a reasonable amount of time for processing. The client will be updated about any such change as soon as possible.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed.\nThe delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media.\nCredit must be given to the photographer when posting (for example a tag or a mention).\nPublication by the photographer: with the client's approval, the photographer may use photos and/or videos in which the client appears for self-promotion on social media or on the photographer's website.\nThe client's name should be mentioned when publishing, in order to credit them.\nCommercial use of the results is prohibited without explicit prior approval.\nOnce the client approves publication of their photos, the photographer may use them on social media and on the website.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery.\nPayment constitutes the client's final acceptance of these terms.\nIf the client wishes to cancel the order before the competition (10 hours before the class starts), they receive a full refund.\nIf a deposit was paid and the competition was cancelled for any reason, the deposit is refunded in full.\nIf the client requests a refund after receiving the photos/videos, no refund is given. A request can be submitted for the case to be reviewed on its merits, and the decision is at the photographer's discretion.\nIf a refund is approved, the client may not use the photos they received without the photographer's consent.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication.\nIf a client behaves disrespectfully or offensively, the photographer reserves the right to decline to provide services to that client in the future.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "agreement": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the results to the client.\nBy ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance.\nPlease make sure the client's details, the horse's and rider's details, and the competition and class details are accurate and clearly communicated.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end of the competition.\nDelivery during an emergency: in the event of a national emergency (such as war, a military operation or a natural disaster) delivery may take longer. Delivery resumes once the emergency ends, plus a reasonable amount of time for processing. The client will be updated about any such change as soon as possible.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed.\nThe delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media.\nCredit must be given to the photographer when posting (for example a tag or a mention).\nPublication by the photographer: with the client's approval, the photographer may use photos and/or videos in which the client appears for self-promotion on social media or on the photographer's website.\nThe client's name should be mentioned when publishing, in order to credit them.\nCommercial use of the results is prohibited without explicit prior approval.\nOnce the client approves publication of their photos, the photographer may use them on social media and on the website.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery.\nPayment constitutes the client's final acceptance of these terms.\nIf the client wishes to cancel the order before the competition (10 hours before the class starts), they receive a full refund.\nIf a deposit was paid and the competition was cancelled for any reason, the deposit is refunded in full.\nIf the client requests a refund after receiving the photos/videos, no refund is given. A request can be submitted for the case to be reviewed on its merits, and the decision is at the photographer's discretion.\nIf a refund is approved, the client may not use the photos they received without the photographer's consent.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication.\nIf a client behaves disrespectfully or offensively, the photographer reserves the right to decline to provide services to that client in the future.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.\n\nזמינות הגלריה: התמונות והסרטונים זמינים להורדה בגלריה האישית באתר למשך 30 יום מהמועד שבו הושלמה העלאתם. בתום התקופה הקבצים נמחקים מהאתר. באחריות הלקוח להוריד ולשמור את הקבצים בתוך התקופה הזו.",
     "read": "I have read the terms",
     "agree": "I accept the terms",
     "login": "Sign in"
@@ -334,7 +335,17 @@
     "confirmDeleteAll": "Are you sure you want to delete all the media in this folder?\nThis cannot be undone!",
     "likes": "♥ Photos this client loved",
     "likesLoading": "Loading favourites…",
-    "likesEmpty": "This client hasn't marked any photos yet."
+    "likesEmpty": "This client hasn't marked any photos yet.",
+    "retentionTitle": "Photo availability",
+    "retentionNotStarted": "No clock running. Press start once this client's upload is finished — the gallery then stays up for {{days}} days.",
+    "retentionRunning": "{{count}} days left — comes down on {{date}}.",
+    "retentionExpired": "The window has passed. The scheduled job clears the files on its next run.",
+    "retentionStart": "Start 30-day clock",
+    "retentionRestart": "Restart clock",
+    "retentionStop": "Stop clock",
+    "retentionConfirm": "Start the {{days}}-day clock for this client?\n\nThey'll see the deadline in their gallery, and the files are cleared automatically once it passes.",
+    "retentionStopConfirm": "Stop the clock? The gallery stays up until someone starts it again.",
+    "retentionNoAccount": "This folder has no account linked, so there is nobody to run a clock for."
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -387,7 +398,11 @@
     "modeCompetitions": "Competitions",
     "modeSessions": "Sessions",
     "allSessions": "All sessions",
-    "archive": "Sign-up archive"
+    "archive": "Sign-up archive",
+    "delete": "Remove this sign-up",
+    "confirmDelete": "Remove the sign-up for {{name}}?\n\nThis cannot be undone. The deposit record goes with it.",
+    "deleteGroup": "Clear this competition's sign-ups",
+    "confirmDeleteGroup": "Delete all {{count}} sign-ups for \"{{name}}\"?\n\nThis cannot be undone."
   },
   "errors": {
     "userNotFound": "No account found with that email.",
@@ -542,7 +557,9 @@
     "playVideo": "▶ Tap to play",
     "coverAlt": "Cover image",
     "like": "Mark as a favourite",
-    "unlike": "Remove from favourites"
+    "unlike": "Remove from favourites",
+    "retentionNotice": "These photos stay available for {{count}} more days — until {{date}}. Download the ones you want to keep before then.",
+    "retentionExpired": "The availability window for this gallery has passed. If you still need the files, message me and I'll see what I can do."
   },
   "a11y": {
     "open": "Open accessibility menu",
@@ -577,7 +594,7 @@
     "reset": "Reset accessibility"
   },
   "competition": {
-    "terms": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the result. By ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance. Please make sure the client's details, the horse's and rider's details, and the competition and class details are accurate.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end. Delivery during an emergency: in the event of a national emergency (such as war or a military operation) the timing will be agreed separately.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed. The delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media. Credit must be given to the photographer when posting (a tag or a mention). Commercial use of the results is prohibited without explicit prior approval. Where publication is approved, the photographer may use the photos for marketing while naming the client.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery. Payment constitutes the client's final acceptance of these terms. Cancelling up to 10 hours before the competition — the deposit is refunded. Cancelling less than 10 hours before, or not showing up — the deposit is not refunded. Once the photos/videos have been received, no refund is given.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication. If a client behaves disrespectfully, the photographer reserves the right to decline the service.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.",
+    "terms": "Terms for ordering photos/videos from equestrian competitions\n\n(This is a translation for convenience. The Hebrew version is the binding one.)\n\n1. General:\nThis service offers photography and/or video of equestrian events, and delivery of the result. By ordering the service, the client agrees to the terms set out below.\n\n2. Placing an order:\nPhotography services are booked in advance. Please make sure the client's details, the horse's and rider's details, and the competition and class details are accurate.\n\n3. Delivery times:\nStandard delivery: photos and/or videos are sent to the client within 10 business days from the end. Delivery during an emergency: in the event of a national emergency (such as war or a military operation) the timing will be agreed separately.\n\n4. Quality and content:\nThe photography is done professionally, but a perfect shot of every single moment cannot be guaranteed. The delivered files receive basic editing and enhancement (such as colour and lighting correction) at the photographer's discretion.\n\n5. Use of the results:\nThe client may use the photos and/or videos for personal use only, including posting them on social media. Credit must be given to the photographer when posting (a tag or a mention). Commercial use of the results is prohibited without explicit prior approval. Where publication is approved, the photographer may use the photos for marketing while naming the client.\n\n6. Payment:\nPayment details are agreed with the client before the shoot. Securing the booking requires a 40% deposit of the package price; the balance is due on delivery. Payment constitutes the client's final acceptance of these terms. Cancelling up to 10 hours before the competition — the deposit is refunded. Cancelling less than 10 hours before, or not showing up — the deposit is not refunded. Once the photos/videos have been received, no refund is given.\n\n7. Conduct and mutual respect:\nThe service is provided on a basis of mutual respect and pleasant communication. If a client behaves disrespectfully, the photographer reserves the right to decline the service.\n\n8. Acceptance:\nPayment constitutes the client's final acceptance of these terms.\n\nזמינות הגלריה: התמונות והסרטונים זמינים להורדה בגלריה האישית באתר למשך 30 יום מהמועד שבו הושלמה העלאתם. בתום התקופה הקבצים נמחקים מהאתר. באחריות הלקוח להוריד ולשמור את הקבצים בתוך התקופה הזו.",
     "needAccountTitle": "You need an account to sign up",
     "needAccountBody": "Signing up for a shoot requires an account — that's how your photos reach your personal gallery.<br />Sign in or create a new account to continue.",
     "login": "Sign in",
@@ -596,8 +613,8 @@
     "dayLabel": "Which days are you competing? *",
     "riderLabel": "Rider's name *",
     "riderPlaceholder": "First and last name",
-    "horseLabel": "Horse's name and number *",
-    "horsePlaceholder": "Horse's name + class number if known",
+    "horseLabel": "Your horse's name and number *",
+    "horsePlaceholder": "The horse's name + its number",
     "deliveryBody": "I deliver the photos through my website — to receive them you'll need to open an account here (if you get stuck, message me any time and I'll help). Note that I also send the photos to the jumping association and sometimes to the farm that hosted the competition.",
     "contactLabel": "How can I reach you (phone/Instagram etc.) *",
     "contactPlaceholder": "Phone / @instagram / WhatsApp",
@@ -643,7 +660,12 @@
     "chooseNone": "There are no upcoming competitions in your country right now. Message me and we will sort something out.",
     "packagesLabel": "What would you like to order? *",
     "whatsIncluded": "What's included",
-    "noDays": "No dates listed for this competition yet — message me and we'll sort it out."
+    "noDays": "No dates listed for this competition yet — message me and we'll sort it out.",
+    "classLabel": "Class + entry number (if you have one)",
+    "classPlaceholder": "The class you're riding + your entry number",
+    "noneUpcomingTitle": "No competition coming up just yet",
+    "noneUpcomingBody": "There is nothing on the calendar to sign up to at the moment. New dates go up here as soon as they are set — and if you have a show in mind, tell me and I'll see whether I can be there.",
+    "noneUpcomingCta": "Message me"
   },
   "quote": {
     "cta": "Request a quote",
@@ -713,7 +735,7 @@
       },
       {
         "q": "How and when do I get my photos?",
-        "a": "<p>Through your own gallery on this site. Once the balance is paid I upload your photos there — sign in <a href=\"/me\">with the account you registered with</a> and download them, one at a time or all at once.</p><p><strong>Standard delivery is within 10 business days</strong> of the competition or session. If you'd rather not wait, see the next question.</p><p>Files arrive as full-quality JPGs. I don't send photos over WhatsApp or email — messaging apps compress images, and what reached you would be noticeably worse than what I shot.</p>"
+        "a": "<p>Through your own gallery on this site. Once the balance is paid I upload your photos there — sign in <a href=\"/me\">with the account you registered with</a> and download them, one at a time or all at once.</p><p><strong>Standard delivery is within 10 business days</strong> of the competition or session. If you'd rather not wait, see the next question.</p><p>Files arrive as full-quality JPGs. I don't send photos over WhatsApp or email — messaging apps compress images, and what reached you would be noticeably worse than what I shot.</p><p><strong>Your gallery stays online for 30 days</strong> from the day I finish uploading it, and the exact date is shown at the top of the gallery. After that the files are cleared — storing every shoot forever is what would push the prices up. Download what you want to keep while it is there; if you miss the window, message me and I'll see what I can do.</p>"
       },
       {
         "q": "What is priority delivery?",
@@ -789,6 +811,25 @@
       "name": "Give the competition a name.",
       "start": "Pick the first day.",
       "range": "The last day cannot be before the first."
-    }
+    },
+    "clearFinished": "Clear {{count}} finished",
+    "confirmDeleteFinished": "Remove {{count}} finished competitions from the list?\n\nSign-ups already made for them are kept — only the events are removed.",
+    "upcoming": "Coming up",
+    "history": "History"
+  },
+  "myComps": {
+    "eyebrow": "Your account",
+    "title": "My competitions",
+    "upcoming": "Coming up ({{count}})",
+    "past": "Past ({{count}})",
+    "empty": "You haven't signed up to a competition yet.",
+    "emptyUpcoming": "Nothing coming up — your past entries are under the other tab.",
+    "emptyPast": "No past entries.",
+    "signInPrompt": "Sign in to see the competitions you're signed up to.",
+    "signUpCta": "Sign up for a shoot",
+    "toGallery": "← My gallery",
+    "day": "Day",
+    "horse": "Horse",
+    "class": "Class"
   }
 }
