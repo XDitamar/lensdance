@@ -15,6 +15,7 @@ import {
   competitionDays,
   competitionLabel,
   fetchCompetitions,
+  fetchMyRegistrations,
   formatRange,
   visibleCompetitions,
 } from "../lib/competitions";
@@ -70,6 +71,27 @@ export default function CompetitionPage() {
      "competitions were never set up here", where the page must keep working
      the way it did before this feature existed. null while unknown. */
   const [compsTotal, setCompsTotal] = useState(null);
+
+  /* The competitions this rider has already signed up to, by title.
+     One entry per rider per competition: a second sign-up for the same event
+     is almost always somebody trying to CHANGE the first one, and since a
+     registration is immutable by design that has to go through Alina. Two
+     entries would instead leave her with contradictory instructions and no way
+     to tell which is current.
+     Signing up to a DIFFERENT competition stays open — that is a new booking,
+     not a correction. */
+  const [myTitles, setMyTitles] = useState(() => new Set());
+
+  useEffect(() => {
+    if (!user?.uid) { setMyTitles(new Set()); return undefined; }
+    let alive = true;
+    fetchMyRegistrations(user.uid)
+      .then((rows) => {
+        if (alive) setMyTitles(new Set(rows.map((r) => r.competitionTitle).filter(Boolean)));
+      })
+      .catch((e) => console.warn("Could not load my registrations:", e?.code || e));
+    return () => { alive = false; };
+  }, [user]);
   const [form, setForm] = useState({
     competitionId: "",
     day: "",
@@ -191,8 +213,24 @@ export default function CompetitionPage() {
       : [...f.packages, pkg],
   }));
 
+  /** Already signed up to the competition currently selected. */
+  const alreadyRegistered = !!filedUnder && myTitles.has(filedUnder);
+
+  /* With several competitions on offer, the rider picks one before being shown
+     anything else. Every question below it — which day, which packages, how
+     many priority places are left — is an answer ABOUT a specific event, so
+     asking them next to an unanswered "which competition?" is asking someone
+     to fill in a form whose subject has not been settled.
+     A single competition is preselected when the list loads, so this never
+     stands between anyone and a form they could have filled in straight away. */
+  const awaitingChoice = comps.length > 1 && !form.competitionId;
+
   const validate = () => {
     if (comps.length > 0 && !form.competitionId) return t("competition.errors.choose");
+    // Checked here as well as in the UI: the list of the rider's own sign-ups
+    // arrives asynchronously, so on a slow connection the form can be filled in
+    // and submitted before it lands.
+    if (alreadyRegistered) return t("competition.errors.already");
     if (!form.day)            return t("competition.errors.day");
     if (!form.riderName.trim()) return t("competition.errors.rider");
     if (!form.horseName.trim()) return t("competition.errors.horse");
@@ -450,6 +488,59 @@ export default function CompetitionPage() {
           </Field>
         )}
 
+        {/* Picked a competition they are already signed up to. The rest of the
+            form collapses into this: filling it in again would create a second
+            entry for the same rider at the same event, and Alina would have no
+            way to tell which one is current. Changes go through her because a
+            sign-up is immutable once submitted (firestore.rules). */}
+        {alreadyRegistered ? (
+          <div style={{
+            background: "#F7FBF1", border: "1px solid #C0DD97",
+            padding: "22px 24px", textAlign: "center", marginTop: 4,
+          }}>
+            <div style={{ fontSize: 26, marginBottom: 10, color: "#3B6D11" }}>✓</div>
+            <h2 style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 400, color: "#2C1E12", margin: "0 0 10px" }}>
+              {t("competition.alreadyTitle")}
+            </h2>
+            <p style={{ fontFamily: "Arial,sans-serif", fontSize: 12, color: "#4A3525", lineHeight: 1.85, margin: "0 0 20px" }}>
+              {t("competition.alreadyBody", { name: filedUnder })}
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <a
+                href={`https://wa.me/${getWhatsAppInternational()}?text=${encodeURIComponent(
+                  t("competition.alreadyWhatsappMessage", { name: filedUnder })
+                )}`}
+                target="_blank" rel="noreferrer"
+                style={{ ...s.btn, width: "auto", padding: "13px 26px", textDecoration: "none", display: "inline-block" }}
+              >
+                {t("competition.alreadyWhatsapp")}
+              </a>
+              <a
+                href="/my-competitions"
+                style={{
+                  fontFamily: "Arial,sans-serif", fontSize: 10, letterSpacing: ".22em",
+                  textTransform: "uppercase", color: "#4A3525", border: "1px solid #B2967D",
+                  padding: "13px 26px", textDecoration: "none", display: "inline-block",
+                }}
+              >
+                {t("settings.myCompetitions")}
+              </a>
+            </div>
+          </div>
+        ) : awaitingChoice ? (
+          /* Nothing else yet — the questions below all depend on which
+             competition this is. */
+          <p style={{
+            fontFamily: "Arial,sans-serif", fontSize: 12, lineHeight: 1.8,
+            color: "#8A7868", textAlign: "center",
+            background: "#FDFAF5", border: "1px solid #E2D9CE",
+            padding: "18px 20px", margin: "4px 0 0",
+          }}>
+            {t("competition.choosePrompt")}
+          </p>
+        ) : (
+        <>
+
         {/* Day — the real dates of the chosen competition, or the old fixed
             list when no competition has been created yet. */}
         <Field label={t("competition.dayLabel")}>
@@ -669,6 +760,9 @@ export default function CompetitionPage() {
           style={{ ...s.btn, opacity: loading ? 0.65 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
           {loading ? t("competition.submitting") : t("competition.submit")}
         </button>
+
+        </>
+        )}
 
       </form>
     </Page>

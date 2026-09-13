@@ -643,7 +643,8 @@
       "terms": "Please accept the terms.",
       "needAccount": "You need to sign in to register. Please sign in and try again.",
       "priorityTaken": "The last priority place went while you were filling this in. Choose \"No\" and send the sign-up — everything else is saved.",
-      "choose": "Pick a competition."
+      "choose": "Pick a competition.",
+      "already": "You're already signed up to this competition. Message Alina to change anything."
     },
     "days": {
       "thursday": "Thursday",
@@ -665,7 +666,12 @@
     "classPlaceholder": "The class you're riding + your entry number",
     "noneUpcomingTitle": "No competition coming up just yet",
     "noneUpcomingBody": "There is nothing on the calendar to sign up to at the moment. New dates go up here as soon as they are set — and if you have a show in mind, tell me and I'll see whether I can be there.",
-    "noneUpcomingCta": "Message me"
+    "noneUpcomingCta": "Message me",
+    "choosePrompt": "Pick the competition you're entering and the rest of the form will appear.",
+    "alreadyTitle": "You're already signed up to this one",
+    "alreadyBody": "Your entry for {{name}} is in — there's no need to fill this in again. To change a day, a horse or a package, message me and I'll update it for you.",
+    "alreadyWhatsapp": "Message Alina",
+    "alreadyWhatsappMessage": "Hi Alina! I'm already signed up for {{name}} and I'd like to change something in my entry:"
   },
   "quote": {
     "cta": "Request a quote",
