@@ -83,6 +83,16 @@ function clean(value, max = 80) {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
+/**
+ * Escapes the three characters Telegram's HTML mode treats as markup.
+ * Applied to every piece of rider-typed text: without it a name containing
+ * "<b>" would style her notification, and an unbalanced "<" would make
+ * Telegram reject the whole message — an alert lost to a typo.
+ */
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -129,12 +139,40 @@ module.exports = async function handler(req, res) {
   const body = req.body || {};
   const rider = clean(body.rider) || "רוכב/ת ללא שם";
   const competition = clean(body.competition) || "תחרות ללא שם";
+  const horse = clean(body.horse);
+  const classEntry = clean(body.classEntry);
+  const day = clean(body.day);
+  const contact = clean(body.contact, 40);
+  // Labels, not ids: the browser already knows what the rider was shown, and
+  // duplicating the pricing catalogue here would be one more thing to keep in
+  // step with src/config/pricing.js.
+  const packages = Array.isArray(body.packages)
+    ? body.packages.map((p) => clean(p, 40)).filter(Boolean).slice(0, 8)
+    : [];
   const site = (process.env.SITE_URL || DEFAULT_SITE).replace(/\/+$/, "");
 
-  // Short on purpose: the details are one tap away, and a notification that
-  // has to be scrolled is a notification she stops reading.
-  const text =
-    `🐴 הרשמה חדשה\n${rider} — ${competition}\n\n${site}/admin/registrations`;
+  /* TWO LAYERS, ONE MESSAGE.
+     Who and which competition are always visible — that is what Alina needs
+     to recognise at a glance on a lock screen. Everything else goes inside an
+     expandable blockquote, which Telegram itself collapses behind a "show
+     more" and opens in place when tapped. No second message, no extra tap to
+     another app, and the notification preview stays one short line.
+     On a Telegram client too old for expandable quotes this degrades to an
+     ordinary quote — everything is still there, just already open. */
+  const detail = [
+    horse && `🐎 ${esc(horse)}`,
+    classEntry && `🏁 ${esc(classEntry)}`,
+    day && `📅 ${esc(day)}`,
+    packages.length > 0 && `📦 ${esc(packages.join(" · "))}`,
+    contact && `📱 ${esc(contact)}`,
+  ].filter(Boolean);
+
+  const text = [
+    "🐴 <b>הרשמה חדשה</b>",
+    `${esc(rider)} — ${esc(competition)}`,
+    detail.length > 0 ? `<blockquote expandable>${detail.join("\n")}</blockquote>` : "",
+    `<a href="${site}/admin/registrations">פתיחת רשימת ההרשמות</a>`,
+  ].filter(Boolean).join("\n");
 
   /* Each recipient is attempted on its own, and one failing does not stop the
      others: a chat id that has gone stale (the bot was blocked, someone left
@@ -145,7 +183,12 @@ module.exports = async function handler(req, res) {
         const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id, text, disable_web_page_preview: true }),
+          body: JSON.stringify({
+            chat_id,
+            text,
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+          }),
         });
         const data = await tg.json().catch(() => ({}));
         if (!tg.ok || data.ok === false) {

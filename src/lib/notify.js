@@ -14,8 +14,11 @@
 import { auth } from "../firebase";
 
 /**
- * @param {{ rider?: string, competition?: string }} details
- *        Only these two fields are read — the message is deliberately short.
+ * @param {{ rider?: string, competition?: string, horse?: string,
+ *           classEntry?: string, day?: string, packages?: string[],
+ *           contact?: string }} details
+ *        Packages are the labels the rider actually saw, not package ids —
+ *        the server has no pricing catalogue and should not grow one.
  */
 export async function notifyNewRegistration(details) {
   try {
@@ -36,6 +39,11 @@ export async function notifyNewRegistration(details) {
       body: JSON.stringify({
         rider: details?.rider || "",
         competition: details?.competition || "",
+        horse: details?.horse || "",
+        classEntry: details?.classEntry || "",
+        day: details?.day || "",
+        packages: Array.isArray(details?.packages) ? details.packages : [],
+        contact: details?.contact || "",
       }),
       // The rider is about to see the confirmation screen; this must not hold
       // the page open if Telegram or the function is slow.

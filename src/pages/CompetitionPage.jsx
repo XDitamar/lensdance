@@ -298,7 +298,24 @@ export default function CompetitionPage() {
          not awaited: the rider's confirmation must not wait on Telegram, and
          a notification that fails to send is not a sign-up that failed to
          register. See src/lib/notify.js. */
-      notifyNewRegistration({ rider: form.riderName, competition: filedUnder });
+      notifyNewRegistration({
+        rider: form.riderName,
+        competition: filedUnder,
+        horse: form.horseName,
+        classEntry: form.classEntry,
+        // The day value carries an ISO date for the admin list; the label in
+        // front of it is the part a person reads.
+        day: String(form.day || "").split(" · ")[0],
+        contact: form.contact,
+        // Labels rather than ids, and priority appended the same way it is
+        // stored on the registration itself.
+        packages: [
+          ...form.packages.map(
+            (id) => prices.packages.find((p) => p.id === id)?.label || id
+          ),
+          ...(wantsPriority ? [t("pricing.priority.title")] : []),
+        ],
+      });
     } catch (err) {
       if (err?.code === "permission-denied" || !user) {
         setError(t("competition.errors.needAccount"));
