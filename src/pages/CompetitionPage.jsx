@@ -20,6 +20,7 @@ import {
   visibleCompetitions,
 } from "../lib/competitions";
 import { detectCountry } from "../hooks/useGeoPrice";
+import { notifyNewRegistration } from "../lib/notify";
 import { getWhatsAppInternational } from "../config/contact";
 
 // The packages come from useGeoPrice: amounts/currency per the visitor's
@@ -292,6 +293,12 @@ export default function CompetitionPage() {
         submittedAt: serverTimestamp(),
       });
       setSubmitted(true);
+
+      /* Ping Alina's phone. Deliberately after setSubmitted and deliberately
+         not awaited: the rider's confirmation must not wait on Telegram, and
+         a notification that fails to send is not a sign-up that failed to
+         register. See src/lib/notify.js. */
+      notifyNewRegistration({ rider: form.riderName, competition: filedUnder });
     } catch (err) {
       if (err?.code === "permission-denied" || !user) {
         setError(t("competition.errors.needAccount"));
