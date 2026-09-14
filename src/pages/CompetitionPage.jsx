@@ -207,11 +207,16 @@ export default function CompetitionPage() {
   };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+  /* One package per sign-up. Picking a second replaces the first rather than
+     adding to it, and picking the chosen one again clears it — otherwise the
+     only way out of a wrong choice would be to reload the form.
+     Still stored as an array: every reader of a registration (the admin list,
+     the deposit maths, the priority tally) expects `packages` to be a list,
+     and the add-on is appended to it at submit time. A single choice is a
+     rule about the form, not a change to the record's shape. */
   const togglePkg = pkg => setForm(f => ({
     ...f,
-    packages: f.packages.includes(pkg)
-      ? f.packages.filter(p => p !== pkg)
-      : [...f.packages, pkg],
+    packages: f.packages.includes(pkg) ? [] : [pkg],
   }));
 
   /** Already signed up to the competition currently selected. */
@@ -628,6 +633,11 @@ export default function CompetitionPage() {
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868", marginBottom: 10, lineHeight: 1.65 }}>
             {t("competition.deliveryBody")}
           </p>
+          {/* Said out loud as well as shown by the radios: someone scanning
+              the form decides what to tick before noticing the control type. */}
+          <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D", marginBottom: 10, letterSpacing: ".04em" }}>
+            {t("competition.packagesOne")}
+          </p>
           {packages.map(pkg => {
             const open = openPkg === pkg.id;
             const lines = Array.isArray(pkg.includes) ? pkg.includes : [];
@@ -635,9 +645,18 @@ export default function CompetitionPage() {
               <div key={pkg.id}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                   <label style={{ ...s.checkLabel, flex: 1 }}>
-                    <input type="checkbox"
+                    {/* A radio, because only one may be chosen — a row of
+                        checkboxes silently invites people to tick three and
+                        then refuses them at submit.
+                        Selection runs off onClick rather than onChange so that
+                        clicking the chosen one again clears it: a radio never
+                        fires change when it is already checked, which would
+                        otherwise leave someone stuck with their first pick. */}
+                    <input type="radio"
+                      name="package"
                       checked={form.packages.includes(pkg.id)}
-                      onChange={() => togglePkg(pkg.id)}
+                      onClick={() => togglePkg(pkg.id)}
+                      onChange={() => {}}
                       style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
                     {pkg.label}
                   </label>

@@ -671,7 +671,8 @@
     "alreadyTitle": "You're already signed up to this one",
     "alreadyBody": "Your entry for {{name}} is in — there's no need to fill this in again. To change a day, a horse or a package, message me and I'll update it for you.",
     "alreadyWhatsapp": "Message Alina",
-    "alreadyWhatsappMessage": "Hi Alina! I'm already signed up for {{name}} and I'd like to change something in my entry:"
+    "alreadyWhatsappMessage": "Hi Alina! I'm already signed up for {{name}} and I'd like to change something in my entry:",
+    "packagesOne": "Choose one package"
   },
   "quote": {
     "cta": "Request a quote",
