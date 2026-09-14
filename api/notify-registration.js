@@ -33,25 +33,43 @@
 // message body is still treated as untrusted: only known fields are read, each
 // is stripped of line breaks and truncated, so a rider cannot type a name that
 // forges extra lines in her notification.
-
-const admin = require("firebase-admin");
+//
+// The token is checked against Google's identity toolkit with the project's
+// WEB api key — the same key that already ships inside the browser bundle
+// (src/firebase.js), so it is not a secret and nothing new is exposed.
+//
+// Deliberately NOT firebase-admin. The service-account variables on Vercel
+// have been unreliable (api/media.js dies on them), and an alert that stops
+// working because an unrelated credential expired is worse than useless: it
+// fails silently, and silence is exactly what it is supposed to prevent. This
+// route needs one question answered — "is this a real signed-in user?" — and
+// that question has a public endpoint.
 
 /** Where the "open the list" link points when SITE_URL is not set. */
 const DEFAULT_SITE = "https://www.lens-dance.com";
 
-function initAdmin() {
-  if (admin.apps.length) return admin.app();
+/** Public web api key (already in the client bundle); overridable per env. */
+const WEB_API_KEY =
+  process.env.FIREBASE_WEB_API_KEY || "AIzaSyCTL0IcIZ4cXhevCucMDJdTn5SKUArbdw8";
 
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const credential = raw
-    ? admin.credential.cert(JSON.parse(raw))
-    : admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-      });
-
-  return admin.initializeApp({ credential });
+/**
+ * True when `idToken` is a live Firebase session for this project.
+ * Throws only if the check itself could not be carried out, so a network
+ * problem on Google's side is never mistaken for a forged token.
+ */
+async function isRealUser(idToken) {
+  const r = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${WEB_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+  if (r.status === 400 || r.status === 401 || r.status === 403) return false;
+  if (!r.ok) throw new Error(`identitytoolkit HTTP ${r.status}`);
+  const data = await r.json();
+  return Array.isArray(data.users) && data.users.length > 0;
 }
 
 /**
@@ -89,15 +107,22 @@ module.exports = async function handler(req, res) {
 
   const idToken = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!idToken) {
-    res.status(401).json({ ok: false, error: "Unauthorized" });
+    res.status(401).json({ ok: false, error: "missing-token" });
     return;
   }
 
+  /* Three outcomes, told apart on purpose. Collapsing them into one 401 is
+     what made the first version of this impossible to debug: a server that
+     could not verify anything looked exactly like a rider with a stale
+     token. */
   try {
-    initAdmin();
-    await admin.auth().verifyIdToken(idToken);
+    if (!(await isRealUser(idToken))) {
+      res.status(401).json({ ok: false, error: "invalid-token" });
+      return;
+    }
   } catch (err) {
-    res.status(401).json({ ok: false, error: "Unauthorized" });
+    console.error("Token check could not be performed:", err);
+    res.status(500).json({ ok: false, error: "verification-unavailable", detail: err.message });
     return;
   }
 
