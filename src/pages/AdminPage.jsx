@@ -276,6 +276,55 @@ export default function AdminPage() {
     }
   };
 
+  /* ── WHO APPEARS IN THE LIST ────────────────────────────────────────────
+     The list used to be exactly "the folders that exist in Storage", which
+     meant a client could only be found once she already had photos. Alina
+     would search a brand-new client by email, get "No user galleries found",
+     and have no way to upload the first photo to her — the folder she needed
+     could only be created by the upload she could not reach.
+
+     So a registered account is enough to show up. Every user profile
+     contributes its expected folder name (the stored folderKey when there is
+     one, otherwise the sanitized email) unless a folder for that person is
+     already listed. Firebase Storage has no real directories — a path is
+     created by the first file written to it — so uploading to a name that is
+     not there yet is exactly how it is supposed to work.
+
+     Storage roots that are not people are dropped at the same time: the
+     public gallery, the covers folder, and stray files sitting at the root,
+     which used to appear as though "pic3.png" were a client. */
+  const SYSTEM_FOLDERS = React.useMemo(
+    () => new Set(["MainGallery", "covers", "public", "images", "thumbs"]),
+    []
+  );
+  const looksLikeFile = (name) => /\.[A-Za-z0-9]{2,5}$/.test(name);
+
+  const knownFolders = React.useMemo(() => {
+    const out = [];
+    const seen = new Set();
+
+    allFolders.forEach((folder) => {
+      if (SYSTEM_FOLDERS.has(folder) || looksLikeFile(folder)) return;
+      out.push(folder);
+      seen.add(folder);
+    });
+
+    users.forEach((u) => {
+      const candidates = folderKeysFor({ email: u.email, uid: u.uid });
+      // Already on screen under one of its spellings — nothing to add.
+      if (candidates.some((k) => seen.has(k))) return;
+      const key = u.folderKey || candidates[0];
+      if (!key || seen.has(key) || SYSTEM_FOLDERS.has(key)) return;
+      out.push(key);
+      seen.add(key);
+    });
+
+    return out;
+  }, [allFolders, users, SYSTEM_FOLDERS]);
+
+  /** Nothing uploaded yet — shown as a hint on the card, not hidden. */
+  const isEmptyFolder = (folder) => !allFolders.includes(folder);
+
   // --- Live search + discipline filter + sort ---
   // Matches full name, email or folder; then narrows to one riding discipline
   // and orders the result. Runs on every keystroke over an in-memory list, so
@@ -283,7 +332,7 @@ export default function AdminPage() {
   useEffect(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    let list = allFolders;
+    let list = knownFolders;
 
     if (term !== "") {
       list = list.filter((folder) => {
@@ -325,7 +374,7 @@ export default function AdminPage() {
 
     setUserFolders(sorted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, disciplineFilter, sortBy, allFolders, users, t]);
+  }, [searchTerm, disciplineFilter, sortBy, knownFolders, users, t]);
 
   // --- Multi-file upload ---
   const onPickFiles = (e) => {
@@ -582,6 +631,14 @@ export default function AdminPage() {
                     <span style={{ fontSize: 10, opacity: u?.discipline ? 0.85 : 0.4 }}>
                       {disciplineLabel(u?.discipline)}
                     </span>
+                    {/* An account with nothing in it yet. Worth saying so —
+                        otherwise opening it looks like the photos failed to
+                        load rather than like there are none. */}
+                    {isEmptyFolder(folder) && (
+                      <span style={{ fontSize: 9, opacity: 0.55 }}>
+                        {t("admin.noPhotosYet")}
+                      </span>
+                    )}
                   </button>
                 );
               })}

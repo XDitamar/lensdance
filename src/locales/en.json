@@ -345,7 +345,8 @@
     "retentionStop": "Stop clock",
     "retentionConfirm": "Start the {{days}}-day clock for this client?\n\nThey'll see the deadline in their gallery, and the files are cleared automatically once it passes.",
     "retentionStopConfirm": "Stop the clock? The gallery stays up until someone starts it again.",
-    "retentionNoAccount": "This folder has no account linked, so there is nobody to run a clock for."
+    "retentionNoAccount": "This folder has no account linked, so there is nobody to run a clock for.",
+    "noPhotosYet": "No photos yet"
   },
   "testimonials": {
     "title": "What Our Clients Say",
