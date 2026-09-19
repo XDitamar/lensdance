@@ -148,7 +148,7 @@
       "label": "{{price}} per person",
       "extra": "{{extraPrice}} per additional horse",
       "sub": "From {{count}} photos · {{price}} per person",
-      "from": "From {{price}}",
+      "from": "{{price}}",
       "includes": [
         "At least {{count}} edited photos",
         "Your round",
@@ -346,7 +346,13 @@
     "retentionConfirm": "Start the {{days}}-day clock for this client?\n\nThey'll see the deadline in their gallery, and the files are cleared automatically once it passes.",
     "retentionStopConfirm": "Stop the clock? The gallery stays up until someone starts it again.",
     "retentionNoAccount": "This folder has no account linked, so there is nobody to run a clock for.",
-    "noPhotosYet": "No photos yet"
+    "noPhotosYet": "No photos yet",
+    "accessTitle": "Photo downloads",
+    "accessOpen": "Open — the client can download full quality",
+    "accessLocked": "Locked — the client sees a preview only",
+    "accessUnlock": "Release for download",
+    "accessLock": "Lock",
+    "unlockConfirm": "Release the full-quality photos to this client?"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -560,7 +566,10 @@
     "like": "Mark as a favourite",
     "unlike": "Remove from favourites",
     "retentionNotice": "These photos stay available for {{count}} more days — until {{date}}. Download the ones you want to keep before then.",
-    "retentionExpired": "The availability window for this gallery has passed. If you still need the files, message me and I'll see what I can do."
+    "retentionExpired": "The availability window for this gallery has passed. If you still need the files, message me and I'll see what I can do.",
+    "lockedTag": "Not released yet",
+    "lockedTitle": "Your photos are ready to view",
+    "lockedBody": "This is a preview — the photos are shown at low quality with a watermark until payment is complete. They are released for download at full quality, without the logo, right after."
   },
   "a11y": {
     "open": "Open accessibility menu",

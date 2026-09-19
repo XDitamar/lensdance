@@ -21,6 +21,7 @@ import {
   startRetention,
   toDate,
 } from "../lib/retention";
+import { isUnlocked as isGalleryUnlocked, setUnlocked as setGalleryUnlocked } from "../lib/galleryAccess";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -126,6 +127,31 @@ export default function AdminPage() {
       setRetentionBusy(false);
     }
   };
+  /* Has this client's gallery been released for download?
+     null while unknown, so the button never claims a state it has not read.
+     See src/lib/galleryAccess.js — locked is the default, by absence. */
+  const [unlocked, setUnlocked] = useState(null);
+  const [accessBusy, setAccessBusy] = useState(false);
+
+  const onToggleAccess = async () => {
+    const u = userForFolder(currentFolder);
+    if (!u?.uid) { setError(t("admin.retentionNoAccount")); return; }
+    const next = !unlocked;
+    // Only releasing is confirmed. Re-locking is the reversible direction and
+    // the cautious one; asking twice for it trains the habit of clicking
+    // through the dialog that matters.
+    if (next && !window.confirm(t("admin.unlockConfirm"))) return;
+    setAccessBusy(true);
+    try {
+      await setGalleryUnlocked(u.uid, next);
+      setUnlocked(next);
+    } catch (e) {
+      setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
   const inputRef = useRef(null);
 
   const user = auth.currentUser;
@@ -260,7 +286,9 @@ export default function AdminPage() {
        the account itself. An account-less folder simply has no likes to show. */
     const uid = userForFolder(folder)?.uid;
     setRetention(null);
+    setUnlocked(null);
     if (!uid) return;
+    isGalleryUnlocked(uid).then(setUnlocked);
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -668,6 +696,40 @@ export default function AdminPage() {
                 Back to users
               </button>
             </div>
+          </div>
+
+          {/* ── Release for download ──
+              A gallery is a preview until this is pressed: the client can see
+              the photographs but gets them small, soft and watermarked, with
+              no download buttons. Locked is the default and the default by
+              absence, so a new client is never accidentally left open. */}
+          <div style={{
+            marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
+            background: unlocked ? "#F7FBF1" : "#FDF6E9",
+            padding: "12px 14px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, flexWrap: "wrap",
+          }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
+                {t("admin.accessTitle")}
+              </div>
+              <div style={{ fontSize: 12.5, color: unlocked ? "#3B6D11" : "#8A6A22" }}>
+                {unlocked === null
+                  ? t("common.loading")
+                  : unlocked
+                    ? t("admin.accessOpen")
+                    : t("admin.accessLocked")}
+              </div>
+            </div>
+            <button
+              className="filter-button"
+              onClick={onToggleAccess}
+              disabled={accessBusy || unlocked === null}
+              style={{ opacity: accessBusy || unlocked === null ? 0.6 : 1 }}
+            >
+              {unlocked ? t("admin.accessLock") : t("admin.accessUnlock")}
+            </button>
           </div>
 
           {/* ── The 30-day clock ──

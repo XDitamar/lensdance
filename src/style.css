@@ -2560,3 +2560,40 @@ input, select, textarea { max-width: 100%; }
     transition: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LOCKED GALLERY — the preview a client sees before the balance is paid
+   ─────────────────────────────────────────────────────────────────────────
+   A website cannot stop a screenshot: the operating-system flag that blacks
+   out a capture (FLAG_SECURE on Android) belongs to installed apps, which is
+   why WhatsApp can do it in its app and not on web.whatsapp.com. So the
+   capture is not what is defended — the picture is. What sits on screen is
+   already a 260px, heavily compressed file (see lockedUrl in MePage.jsx),
+   and these rules keep it visibly a proof: softened, upscaled so the
+   compression shows, and under a repeating wordmark.
+
+   A screenshot, a long-press save and a right-click save therefore all
+   produce the same worthless image — which is the honest goal here, rather
+   than pretending the photograph can be locked inside the browser. */
+.gallery-tile-media.is-locked-media,
+.modal-media.is-locked-media {
+  filter: blur(2.5px) contrast(0.93) saturate(0.88);
+  image-rendering: pixelated;
+  transform: scale(1.03);          /* hides the blur's soft edge at the frame */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;     /* iOS: no "Save Image" sheet on long press */
+  pointer-events: none;            /* the tile keeps the click, the image does not */
+}
+
+/* The wordmark. An SVG pattern rather than text nodes so it cannot be
+   selected, copied, or pulled out of the DOM, and so it scales with the
+   tile. Non-interactive, so tapping still opens the lightbox. */
+.gallery-tile.is-locked-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='120'><text x='90' y='60' font-family='Georgia,serif' font-size='15' letter-spacing='3' fill='rgba(255,255,255,0.42)' text-anchor='middle' transform='rotate(-28 90 60)'>LENS DANCE</text></svg>");
+  background-repeat: repeat;
+}

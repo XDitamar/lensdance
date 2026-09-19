@@ -25,7 +25,7 @@
 // DELETION is done by api/cleanup-expired-photos.js on a schedule, not by the
 // browser. Nothing can be relied on to happen in a page nobody has open.
 
-import { doc, getDoc, getDocs, collection, serverTimestamp, setDoc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 export const RETENTION = "retention";
@@ -64,11 +64,20 @@ export const hasExpired = (expiresAt, now = Date.now()) => {
 
 /* ── Reading ────────────────────────────────────────────────────────────── */
 
-/** The retention record for one client, or null when no clock has been started. */
+/**
+ * The retention record for one client, or null when no clock has been started.
+ *
+ * "No clock" is decided by the absence of an EXPIRY, not by the absence of the
+ * document. This record is shared with the download lock (src/lib/galleryAccess.js),
+ * so it can exist while no countdown is running — and callers here all treat a
+ * returned object as "there is a deadline".
+ */
 export async function fetchRetention(uid) {
   if (!uid) return null;
   const snap = await getDoc(doc(db, RETENTION, uid));
-  return snap.exists() ? { uid, ...snap.data() } : null;
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return data?.expiresAt ? { uid, ...data } : null;
 }
 
 /** Every retention record. Admin only — used by the cleanup job's dry run. */
@@ -91,6 +100,9 @@ export async function fetchAllRetention() {
 export async function startRetention({ uid, folder, email, days = RETENTION_DAYS }) {
   if (!uid) throw new Error("startRetention needs a uid");
   const expires = new Date(Date.now() + days * DAY_MS);
+  // Merged, not overwritten: the download lock lives on this same document
+  // (src/lib/galleryAccess.js), and starting a countdown must not re-lock a
+  // gallery that has already been released.
   await setDoc(doc(db, RETENTION, uid), {
     startedAt: serverTimestamp(),
     expiresAt: expires,
@@ -98,12 +110,24 @@ export async function startRetention({ uid, folder, email, days = RETENTION_DAYS
     folder: folder || null,
     userEmail: email || null,
     deletedAt: null,
-  });
+  }, { merge: true });
   return expires;
 }
 
-/** Stop the clock — the gallery stays up until someone starts it again. */
+/**
+ * Stop the clock — the gallery stays up until someone starts it again.
+ *
+ * Blanks the countdown rather than deleting the document, because the
+ * download lock is stored on it too: deleting would silently re-lock a
+ * released gallery. fetchRetention reads "no expiry" as "no clock", so the
+ * record left behind is invisible to everything that asks about deadlines.
+ */
 export async function clearRetention(uid) {
   if (!uid) return;
-  await deleteDoc(doc(db, RETENTION, uid));
+  await setDoc(doc(db, RETENTION, uid), {
+    startedAt: null,
+    expiresAt: null,
+    days: null,
+    deletedAt: null,
+  }, { merge: true });
 }

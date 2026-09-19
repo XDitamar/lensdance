@@ -67,6 +67,12 @@ service cloud.firestore {
                    || (request.auth != null && request.auth.uid == userId);
       allow write: if isAdmin();
     }
+    // The same document also carries `unlocked` — whether this client's photos
+    // have been released for download (src/lib/galleryAccess.js). It is here
+    // rather than in a collection of its own precisely because these rules are
+    // already right for it: the client may read the flag, because the gallery
+    // has to explain itself, and may not write it, because the lock is not
+    // theirs to open.
 
     // ---- photoLikes (a client's favourites in their own gallery) ----
     // Visible to the person who made them and to the admin, nobody else —

@@ -8,6 +8,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { logDownload } from "../lib/downloads";
 import { fetchLikedPaths, setLiked } from "../lib/likes";
 import { daysLeft, fetchRetention, toDate } from "../lib/retention";
+import { isUnlocked } from "../lib/galleryAccess";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -292,6 +293,32 @@ export default function MePage() {
   const [likedPaths, setLikedPaths] = useState(() => new Set());
   const canLike = !!user?.uid && user.uid === targetUid;
 
+  /* ── RELEASED, OR STILL A PREVIEW? ──────────────────────────────────────
+     A gallery goes up before the balance is paid, so until Alina releases it
+     the client gets a preview: no downloads, and the pictures themselves
+     shown small, soft and under her logo.
+
+     Why degrade the picture instead of "protecting the screen": a website
+     cannot stop a screenshot. WhatsApp and Instagram can, because they are
+     installed apps and can ask the operating system for it (FLAG_SECURE on
+     Android); on their own websites screenshots work perfectly well. Since
+     the capture cannot be prevented, what gets captured is made worthless
+     instead — a screenshot of a locked gallery is a small watermarked image,
+     which is exactly what a download would have been.
+
+     Alina always sees the real thing: she is not the one being asked to pay.
+     Starts as `null` (unknown) rather than false, so the first paint does not
+     flash a "locked" notice at a client whose gallery is in fact open. */
+  const [unlocked, setUnlocked] = useState(null);
+  const locked = !isAdmin && unlocked === false;
+
+  useEffect(() => {
+    if (!targetUid) { setUnlocked(null); return undefined; }
+    let alive = true;
+    isUnlocked(targetUid).then((v) => { if (alive) setUnlocked(v); });
+    return () => { alive = false; };
+  }, [targetUid]);
+
   useEffect(() => {
     if (!targetUid) { setLikedPaths(new Set()); return undefined; }
     let alive = true;
@@ -441,6 +468,12 @@ export default function MePage() {
         const thumbUrl = sized(640, 70);   // אריח קטן בגריד
         const gridUrl  = sized(1280, 72);  // אריח רחב
         const modalUrl = sized(1600, 80);  // תצוגה מוגדלת — לא הקובץ המקורי הכבד
+        /* What a locked gallery shows. Small and hard-compressed on purpose:
+           this is the file a screenshot or a long-press-save would capture,
+           so it has to be useless at any size that matters. Computed for
+           every item regardless of lock state — it is a string, and only the
+           one actually rendered is ever fetched. */
+        const lockedUrl = sized(260, 28);
 
         return {
           id: itemRef.fullPath,
@@ -448,6 +481,7 @@ export default function MePage() {
           thumbUrl,
           gridUrl,
           modalUrl,
+          lockedUrl,
           name: itemRef.name,
           type,
           isVideo: isVid,
@@ -903,7 +937,17 @@ export default function MePage() {
         <span style={{ fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: ".08em", color: "#9A8878" }}>
           {t("me.countLine", { count: mediaItems.length })}
         </span>
+        {/* Selecting and downloading exist only once the gallery is released.
+            Disabling them would be worse than removing them: a button that
+            refuses is read as a fault in the site, while their absence next to
+            the notice below reads as "not yet". */}
         <div style={{ display: "flex", gap: 10 }}>
+          {locked ? (
+            <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em", textTransform: "uppercase", color: "#B2967D" }}>
+              {t("me.lockedTag")}
+            </span>
+          ) : (
+          <>
           {/* Select all button */}
           <button
             onClick={handleSelectAll}
@@ -928,8 +972,27 @@ export default function MePage() {
           >
             {t("me.downloadSelected")}
           </button>
+          </>
+          )}
         </div>
       </div>
+
+      {/* Why the photos look the way they do. Without this the client reads a
+          soft, watermarked gallery as a broken one and writes to ask what
+          happened — which is the message this paragraph replaces. */}
+      {locked && (
+        <div style={{
+          background: "#FDF6E9", borderBottom: "1px solid #E8DCC4",
+          padding: "14px 22px", textAlign: "center",
+        }}>
+          <p style={{ fontFamily: "Georgia, serif", fontSize: 14, color: "#4A3525", margin: "0 0 4px" }}>
+            {t("me.lockedTitle")}
+          </p>
+          <p style={{ fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.8, color: "#8A7868", margin: 0 }}>
+            {t("me.lockedBody")}
+          </p>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════
           PHOTO / VIDEO GRID — masonry
@@ -949,8 +1012,14 @@ export default function MePage() {
             return (
               <div
                 key={item.id || index}
-                className={`gallery-tile${isLoaded ? " is-loaded" : ""}`}
+                className={`gallery-tile${isLoaded ? " is-loaded" : ""}${locked ? " is-locked-tile" : ""}`}
                 onClick={() => handleOpenModal(item)}
+                /* Long-press-to-save and right-click-save are the casual way
+                   round a locked gallery, so they are closed. Not a serious
+                   barrier — anyone who opens devtools still gets the preview —
+                   but the preview is all there is to get. */
+                onContextMenu={locked ? (e) => e.preventDefault() : undefined}
+                onDragStart={locked ? (e) => e.preventDefault() : undefined}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleOpenModal(item)}
@@ -967,9 +1036,12 @@ export default function MePage() {
                   </>
                 ) : (
                   <img
-                    src={item.thumbUrl || item.gridUrl || item.url}
+                    src={locked
+                      ? (item.lockedUrl || item.url)
+                      : (item.thumbUrl || item.gridUrl || item.url)}
                     alt=""
-                    className="gallery-tile-media"
+                    className={`gallery-tile-media${locked ? " is-locked-media" : ""}`}
+                    draggable={!locked}
                     loading={index < 4 ? "eager" : "lazy"}
                     fetchpriority={index < 2 ? "high" : undefined}
                     decoding="async"
@@ -1057,9 +1129,13 @@ export default function MePage() {
               />
             ) : (
               <img
-                src={selectedItem.modalUrl || selectedItem.url}
+                src={locked
+                  ? (selectedItem.lockedUrl || selectedItem.url)
+                  : (selectedItem.modalUrl || selectedItem.url)}
                 alt={selectedItem.name}
-                className="modal-media"
+                className={`modal-media${locked ? " is-locked-media" : ""}`}
+                draggable={!locked}
+                onContextMenu={locked ? (e) => e.preventDefault() : undefined}
                 style={{
                   background: "#111",
                   maxHeight: "80vh",
@@ -1069,16 +1145,22 @@ export default function MePage() {
               />
             )}
             <div className="modal-actions">
-              <button
-                type="button"
-                className="download-btn"
-                onClick={() => {
-                  nativeDownload(selectedItem.url, selectedItem.name, { prefer: "auto" });
-                  recordDownload(selectedItem);
-                }}
-              >
-                {t("me.download")}
-              </button>
+              {locked ? (
+                <span style={{ fontFamily: "Arial, sans-serif", fontSize: 11, color: "#B2967D" }}>
+                  {t("me.lockedTag")}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="download-btn"
+                  onClick={() => {
+                    nativeDownload(selectedItem.url, selectedItem.name, { prefer: "auto" });
+                    recordDownload(selectedItem);
+                  }}
+                >
+                  {t("me.download")}
+                </button>
+              )}
             </div>
           </div>
         </div>
