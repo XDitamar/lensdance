@@ -158,8 +158,18 @@ export default function AdminPage() {
   const isAdmin = !!user && user.email === ADMIN_EMAIL;
 
   // Match a Storage folder name to its Firestore user profile
+  /* Match a Storage folder name back to its account.
+     `folderKey` is checked first and explicitly: it is the canonical name
+     stored on the profile, and it is what a client with no folder yet is
+     listed under — but it is not necessarily one of the spellings
+     folderKeysFor() derives from the email, so matching on those alone left
+     exactly those clients with no account attached. Everything keyed on the
+     uid then went quiet: no likes, no retention, and a download lock stuck
+     on "loading" behind a button that could never be pressed. */
   const userForFolder = (folder) =>
-    users.find((u) => folderKeysFor({ email: u.email, uid: u.uid }).includes(folder));
+    users.find((u) =>
+      (u.folderKey && u.folderKey === folder)
+      || folderKeysFor({ email: u.email, uid: u.uid }).includes(folder));
 
   // --- Fetch User Folders from Storage (With Debug Logs) ---
   const fetchUserFolders = async () => {
@@ -714,22 +724,30 @@ export default function AdminPage() {
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
                 {t("admin.accessTitle")}
               </div>
+              {/* A folder with no account behind it cannot be locked or
+                  released — the flag is keyed on the uid. Saying so beats
+                  leaving "loading" on screen forever, which is what this did
+                  while it waited for a uid that was never coming. */}
               <div style={{ fontSize: 12.5, color: unlocked ? "#3B6D11" : "#8A6A22" }}>
-                {unlocked === null
-                  ? t("common.loading")
-                  : unlocked
-                    ? t("admin.accessOpen")
-                    : t("admin.accessLocked")}
+                {!userForFolder(currentFolder)?.uid
+                  ? t("admin.retentionNoAccount")
+                  : unlocked === null
+                    ? t("common.loading")
+                    : unlocked
+                      ? t("admin.accessOpen")
+                      : t("admin.accessLocked")}
               </div>
             </div>
-            <button
-              className="filter-button"
-              onClick={onToggleAccess}
-              disabled={accessBusy || unlocked === null}
-              style={{ opacity: accessBusy || unlocked === null ? 0.6 : 1 }}
-            >
-              {unlocked ? t("admin.accessLock") : t("admin.accessUnlock")}
-            </button>
+            {!!userForFolder(currentFolder)?.uid && (
+              <button
+                className="filter-button"
+                onClick={onToggleAccess}
+                disabled={accessBusy || unlocked === null}
+                style={{ opacity: accessBusy || unlocked === null ? 0.6 : 1 }}
+              >
+                {unlocked ? t("admin.accessLock") : t("admin.accessUnlock")}
+              </button>
+            )}
           </div>
 
           {/* ── The 30-day clock ──
