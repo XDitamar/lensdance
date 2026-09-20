@@ -943,7 +943,11 @@ export default function MePage() {
             the notice below reads as "not yet". */}
         <div style={{ display: "flex", gap: 10 }}>
           {locked ? (
-            <span style={{ fontFamily: "Arial, sans-serif", fontSize: 9, letterSpacing: ".14em", textTransform: "uppercase", color: "#B2967D" }}>
+            /* A sentence, not a label: "not released yet" told the client a
+               state without telling them what it meant for the pictures in
+               front of them. Left in normal case — uppercase letter-spacing
+               makes a full sentence hard to read at this size. */
+            <span style={{ fontFamily: "Arial, sans-serif", fontSize: 10.5, color: "#B2967D", lineHeight: 1.6 }}>
               {t("me.lockedTag")}
             </span>
           ) : (

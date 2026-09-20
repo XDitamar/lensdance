@@ -567,7 +567,7 @@
     "unlike": "Remove from favourites",
     "retentionNotice": "These photos stay available for {{count}} more days — until {{date}}. Download the ones you want to keep before then.",
     "retentionExpired": "The availability window for this gallery has passed. If you still need the files, message me and I'll see what I can do.",
-    "lockedTag": "Not released yet",
+    "lockedTag": "Reduced quality until payment is complete",
     "lockedTitle": "Your photos are ready to view",
     "lockedBody": "This is a preview — the photos are shown at low quality with a watermark until payment is complete. They are released for download at full quality, without the logo, right after."
   },
