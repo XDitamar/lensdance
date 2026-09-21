@@ -9,6 +9,8 @@ import { logDownload } from "../lib/downloads";
 import { fetchLikedPaths, setLiked } from "../lib/likes";
 import { daysLeft, fetchRetention, toDate } from "../lib/retention";
 import { isUnlocked } from "../lib/galleryAccess";
+import { downloadAsZip } from "../lib/zipDownload";
+import { batches, fetchAsFiles, shareBatch, shouldOfferShare } from "../lib/shareFiles";
 import "../style.css";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -260,6 +262,18 @@ export default function MePage() {
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line no-unused-vars
   const [installingAll, setInstallingAll] = useState(false);
+  /** { done, total, phase } while a zip is being built; null otherwise. */
+  const [zipProgress, setZipProgress] = useState(null);
+  /* Shown in the page rather than in alert(). A native alert blocks the whole
+     renderer until somebody presses OK — including the download that raised
+     it — and on a phone it lands as a system dialog over a half-finished
+     save. This is a note, not an interruption. */
+  const [downloadNote, setDownloadNote] = useState("");
+  /* Photos fetched and waiting for the share sheet, in sheet-sized batches.
+     They sit here between the two taps: iOS will not open a share sheet from
+     a gesture that has already been spent on twenty downloads, so fetching
+     and sharing are deliberately separate actions. */
+  const [shareQueue, setShareQueue] = useState(null); // { groups, index } | null
   const [error, setError] = useState("");
   // eslint-disable-next-line no-unused-vars
   const [filter, setFilter] = useState("all");
@@ -637,18 +651,112 @@ export default function MePage() {
     }
   };
 
+  /* One zip, not one download per photo.
+     The old loop fired a separate browser download for every file with a
+     350ms pause between them: fine for three photos, and for a hundred it is
+     a "this site wants to download multiple files" prompt followed by half a
+     minute of drip-feeding into the Downloads folder. A single file is also
+     what somebody actually wants to keep.
+     A lone photo still goes down as itself — wrapping one picture in an
+     archive the client then has to unpack is worse than the problem. */
   const handleDownloadSelected = async () => {
     const itemsToDownload = mediaItems.filter(item => selectedItems.includes(item.id));
+    if (itemsToDownload.length === 0) return;
+
     setInstallingAll(true);
+    setZipProgress(null);
+    setDownloadNote("");
+    setShareQueue(null);
     try {
-      for (const item of itemsToDownload) {
-        await nativeDownload(item.url, item.name, { prefer: "auto" });
-        recordDownload(item);
-        await new Promise((r) => setTimeout(r, 350));
+      if (itemsToDownload.length === 1) {
+        await nativeDownload(itemsToDownload[0].url, itemsToDownload[0].name, { prefer: "auto" });
+        recordDownload(itemsToDownload[0]);
+        return;
       }
+
+      /* ── ON A PHONE: the system share sheet, not a file ──────────────────
+         A zip is the wrong answer on an iPhone. It lands in Files rather than
+         Photos, it has to be unpacked, and every picture still has to be
+         saved by hand afterwards — which is the chore this was meant to end.
+         What the client actually wants is their photographs in the camera
+         roll, and iOS already has a one-tap way to do that: a share sheet
+         holding the files, with "Save 12 Images" on it.
+         Fetch now, share on the next tap — Safari will not open a sheet from
+         a gesture that has already spent ten seconds downloading. */
+      if (shouldOfferShare(itemsToDownload.length)) {
+        const { files, failed } = await fetchAsFiles(itemsToDownload, {
+          onProgress: (p) => setZipProgress(p),
+        });
+        if (files.length > 0) {
+          itemsToDownload.forEach((item) => recordDownload(item));
+          setShareQueue({ groups: batches(files), index: 0 });
+          if (failed.length > 0) setDownloadNote(t("me.zipPartial", { count: failed.length }));
+          return;
+        }
+        // Nothing fetched — the bucket refused the bytes. Fall through to the
+        // paths below, which end in per-file downloads that need no such
+        // permission.
+      }
+
+      const folderName = (userData?.name || "lens-dance").trim().replace(/[\\/:*?"<>|]/g, "-");
+      const { failed } = await downloadAsZip(itemsToDownload, {
+        baseName: folderName,
+        onProgress: (p) => setZipProgress(p),
+        // Logged per photo, as before: the admin's download history is a list
+        // of pictures, and collapsing it into "downloaded a zip" would lose
+        // the only record of which ones a client actually took.
+        onItemDone: (item) => recordDownload(item),
+      });
+
+      /* Nothing came through at all.
+         That is what a bucket without a CORS policy looks like from here: the
+         pictures display perfectly (an <img> needs no permission) while
+         fetch() is refused the bytes, so the archive would be empty. Rather
+         than tell the client their photos failed, fall back to the way this
+         worked before — one download per file. Slower and noisier, but it
+         does not need CORS, and a working download beats a tidy one.
+         Fixing it properly is one command on the bucket; see the note in
+         src/lib/zipDownload.js. */
+      if (failed.length === itemsToDownload.length) {
+        console.warn("Zip produced nothing — falling back to per-file downloads.");
+        setZipProgress({ done: 0, total: itemsToDownload.length, phase: "fetching" });
+        for (const item of itemsToDownload) {
+          // eslint-disable-next-line no-await-in-loop
+          await nativeDownload(item.url, item.name, { prefer: "auto" });
+          recordDownload(item);
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      } else if (failed.length > 0) {
+        setDownloadNote(t("me.zipPartial", { count: failed.length }));
+      }
+    } catch (err) {
+      setDownloadNote(t("common.errorWithCode", { detail: err?.message || "unknown" }));
     } finally {
       setInstallingAll(false);
+      setZipProgress(null);
     }
+  };
+
+  /* The second tap. Opens the OS sheet for the current batch and advances.
+     A cancelled sheet stops the queue rather than pushing the next batch at
+     somebody who just dismissed one — but it keeps what is left, so they can
+     pick up where they stopped. */
+  const handleShareNext = async () => {
+    if (!shareQueue) return;
+    const group = shareQueue.groups[shareQueue.index];
+    if (!group) { setShareQueue(null); return; }
+
+    const result = await shareBatch(group, { title: userData?.name || "Lens Dance" });
+    if (result === "failed") {
+      setDownloadNote(t("me.shareFailed"));
+      return;
+    }
+    if (result === "cancelled") return;
+
+    const next = shareQueue.index + 1;
+    if (next >= shareQueue.groups.length) setShareQueue(null);
+    else setShareQueue({ ...shareQueue, index: next });
   };
 
   const handleToggleSelect = (item) => {
@@ -965,21 +1073,72 @@ export default function MePage() {
             {t("me.selectAll")}
           </button>
           {/* Download button */}
+          {/* Says where it has got to. Building a zip of a whole competition
+              takes a while with nothing to see — an unchanged button is read
+              as a button that did not work, and gets pressed again. */}
           <button
             onClick={handleDownloadSelected}
+            disabled={installingAll}
             style={{
               fontFamily: "Arial, sans-serif", fontSize: 9,
               letterSpacing: ".14em", textTransform: "uppercase",
               color: "#4A3525", border: "1px solid #4A3525",
-              background: "transparent", padding: "6px 16px", cursor: "pointer",
+              background: "transparent", padding: "6px 16px",
+              cursor: installingAll ? "wait" : "pointer",
+              opacity: installingAll ? 0.65 : 1,
             }}
           >
-            {t("me.downloadSelected")}
+            {!installingAll
+              ? t("me.downloadSelected")
+              : zipProgress?.phase === "packing"
+                ? t("me.zipPacking")
+                : t("me.zipProgress", {
+                    done: zipProgress?.done ?? 0,
+                    total: zipProgress?.total ?? selectedItems.length,
+                  })}
           </button>
           </>
           )}
         </div>
       </div>
+
+      {/* Ready to go into the phone. Deliberately loud and deliberately the
+          only thing to press: the photos are already downloaded at this point
+          and one tap away from the camera roll, and a client who misses this
+          step has waited for nothing. */}
+      {shareQueue && (
+        <div style={{
+          background: "#F7FBF1", borderBottom: "1px solid #C0DD97",
+          padding: "16px 22px", textAlign: "center",
+        }}>
+          <button
+            type="button"
+            onClick={handleShareNext}
+            style={{
+              fontFamily: "Arial, sans-serif", fontSize: 11, letterSpacing: ".16em",
+              textTransform: "uppercase", background: "#3B6D11", color: "#FFF",
+              border: "none", padding: "13px 30px", cursor: "pointer", minHeight: 46,
+            }}
+          >
+            {t("me.saveToPhone", { count: shareQueue.groups[shareQueue.index]?.length || 0 })}
+          </button>
+          <p style={{ fontFamily: "Arial, sans-serif", fontSize: 10.5, color: "#5A7A3A", margin: "9px 0 0", lineHeight: 1.7 }}>
+            {shareQueue.groups.length > 1
+              ? t("me.saveBatch", { index: shareQueue.index + 1, total: shareQueue.groups.length })
+              : t("me.saveHint")}
+          </p>
+        </div>
+      )}
+
+      {downloadNote && (
+        <div style={{
+          background: "#FFF6F4", borderBottom: "1px solid #E8C4BC",
+          padding: "10px 22px", textAlign: "center",
+          fontFamily: "Arial, sans-serif", fontSize: 11, color: "#8A2A1F",
+        }}>
+          {downloadNote}
+        </div>
+      )}
 
       {/* Why the photos look the way they do. Without this the client reads a
           soft, watermarked gallery as a broken one and writes to ask what
