@@ -19,7 +19,7 @@
 // Alina's list shows whether each one verifies. Prevention needs a rule; this
 // gives detection today. See the note at the top of api/spin.js.
 
-import { doc, getDoc, setDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, setDoc, arrayUnion, increment } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { RETENTION } from "./retention";
 
@@ -90,6 +90,23 @@ export async function requestSpin() {
 export async function grantSpins(uid, spins) {
   if (!uid) throw new Error("grantSpins needs a uid");
   await setDoc(doc(db, RETENTION, uid), { spins: Math.max(0, Number(spins) || 0) }, { merge: true });
+}
+
+/**
+ * Add or remove spins — the automatic path, used when Alina marks a deposit
+ * paid or unmarks it. Admin only, like grantSpins.
+ *
+ * `increment` rather than read-then-write: two bookings marked paid in quick
+ * succession would otherwise both read "0" and both write "1", and the second
+ * rider's spin would quietly vanish.
+ *
+ * Marking unpaid takes the spin back. It can leave the count below what has
+ * already been used if the rider was quick, which spinsLeft() clamps to zero —
+ * a spin already taken is not something to claw back from someone.
+ */
+export async function addSpins(uid, delta) {
+  if (!uid || !delta) return;
+  await setDoc(doc(db, RETENTION, uid), { spins: increment(delta) }, { merge: true });
 }
 
 /**

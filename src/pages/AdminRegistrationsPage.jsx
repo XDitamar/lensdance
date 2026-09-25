@@ -10,6 +10,7 @@ import { PRIORITY_PACKAGE_ID, syncPriorityCount } from "../lib/priority";
 import { SESSIONS as SESSIONS_FOR_ADMIN, SESSION_BOOKINGS, sessionById } from "../lib/sessions";
 import { fetchCompetitions } from "../lib/competitions";
 import AdminCompetitionsPanel from "../components/AdminCompetitionsPanel";
+import { addSpins } from "../lib/rewards";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 
 export default function AdminRegistrationsPage() {
@@ -41,6 +42,19 @@ export default function AdminRegistrationsPage() {
       setAllRegs((list) =>
         list.map((x) => (x.id === reg.id ? { ...x, depositPaid: next } : x))
       );
+
+      /* This mark is what pays for a spin on the prize wheel.
+         Money that Alina has confirmed is the only trigger: a form anybody can
+         fill in is not a purchase, and a spin handed out for one would be free
+         to farm. Unmarking takes it back, so a mis-click costs nothing.
+         Deliberately not awaited and never fatal — the deposit is the record
+         that matters, and a wheel that failed to credit must not make her
+         think the payment did not save. Sign-ups made before accounts existed
+         have no uid and simply earn nothing. */
+      if (reg.userId) {
+        addSpins(reg.userId, next ? 1 : -1)
+          .catch((e) => console.warn("Spin not credited:", e?.code || e));
+      }
     } catch (e) {
       setSaveError(t("registrations.updateFailed", { detail: e?.code || e?.message || "" }));
     } finally {
