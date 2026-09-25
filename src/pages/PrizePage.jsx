@@ -25,8 +25,9 @@ import "./prize.css";
 const SLICE = 360 / WHEEL.length;
 const R_RIM = 150;     // outer rim
 const R_FACE = 132;    // the segments themselves
-const R_HUB = 46;      // the centre
-const LOGO = R_HUB * 3.4;  // the mark, oversized so its margins fall outside
+const R_HUB = 46;      // where the labels stop — the hub itself is a DOM
+                       // element on top, so that it does not turn with the
+                       // wheel (see .prize-hub)
 const C = 160;         // centre point
 const rad = (deg) => ((deg - 90) * Math.PI) / 180;
 const px = (deg, r) => [C + r * Math.cos(rad(deg)), C + r * Math.sin(rad(deg))];
@@ -143,12 +144,6 @@ export default function PrizePage() {
             role="img"
             aria-label="גלגל המתנות"
           >
-            <defs>
-              <clipPath id="pz-hub">
-                <circle cx={C} cy={C} r={R_HUB - 2} />
-              </clipPath>
-            </defs>
-
             <circle cx={C} cy={C} r={R_RIM} fill="var(--pz-rim)" stroke="var(--pz-camel)" strokeWidth="1" />
             <circle cx={C} cy={C} r={R_FACE + 8} fill="none" stroke="var(--pz-camel)" strokeWidth="0.75" opacity="0.5" />
 
@@ -195,44 +190,25 @@ export default function PrizePage() {
             })}
 
             <circle cx={C} cy={C} r={R_FACE} fill="none" stroke="var(--pz-camel)" strokeWidth="1" />
-
-            {/* The hub carries Alina's mark. It is the still point the whole
-                thing turns around, which is exactly where a maker's mark
-                belongs — and it is the one place on the wheel that does not
-                need to be read while moving.
-                Falls back to the wordmark if the file is not there, so a
-                missing asset costs a logo and not a hole in the middle. */}
-            <circle cx={C} cy={C} r={R_HUB} fill="var(--pz-surface)" stroke="var(--pz-camel)" strokeWidth="1" />
-            {logoOk ? (
-              /* Enlarged past the hub and clipped back to it. The file carries
-                 a wide margin and its own outer ring, so fitted honestly the
-                 monogram ends up a speck; blown up and cropped at the hub's
-                 edge, the LD fills the space and the file's ring is simply
-                 replaced by the hub's own. */
-              <g clipPath="url(#pz-hub)">
-                <image
-                  className="prize-logo-light"
-                  href="/logo-mark.png"
-                  x={C - LOGO / 2} y={C - LOGO / 2}
-                  width={LOGO} height={LOGO}
-                  onError={() => setLogoOk(false)}
-                  preserveAspectRatio="xMidYMid meet"
-                />
-                <image
-                  className="prize-logo-dark"
-                  href="/logo-mark-white.png"
-                  x={C - LOGO / 2} y={C - LOGO / 2}
-                  width={LOGO} height={LOGO}
-                  preserveAspectRatio="xMidYMid meet"
-                />
-              </g>
-            ) : (
-              <>
-                <text x={C} y={C - 5} textAnchor="middle" fontFamily="Georgia, serif" fontSize="12" fill="var(--pz-ink)" letterSpacing="1">לנס</text>
-                <text x={C} y={C + 11} textAnchor="middle" fontFamily="Georgia, serif" fontSize="12" fill="var(--pz-ink)" letterSpacing="1">דאנס</text>
-              </>
-            )}
           </svg>
+        </div>
+
+        {/* The hub sits OUTSIDE the turning svg, on top of it.
+            Inside, it span with the wheel — six rotations of Alina's logo,
+            which is both dizzying and wrong: a maker's mark is the still point
+            a wheel turns around, not another thing being flung about. Out here
+            it also stops being clipped by the wheel's geometry, which is what
+            was cutting the monogram in half. */}
+        <div className="prize-hub" aria-hidden="true">
+          {logoOk ? (
+            <>
+              <img className="prize-logo-light" src="/logo-hub.png" alt=""
+                   onError={() => setLogoOk(false)} />
+              <img className="prize-logo-dark" src="/logo-hub-white.png" alt="" />
+            </>
+          ) : (
+            <span className="prize-hub-word">לנס<br />דאנס</span>
+          )}
         </div>
       </div>
 

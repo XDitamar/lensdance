@@ -90,9 +90,12 @@ html[data-theme="dark"] .prize-page {
 /* One mark per theme. Swapped in CSS rather than in JavaScript so it is
    already right on the first paint — a logo that flickers from black to white
    is worse than either. */
-.prize-logo-dark { display: none; }
-html[data-theme="dark"] .prize-logo-light { display: none; }
-html[data-theme="dark"] .prize-logo-dark { display: block; }
+/* Scoped tightly enough to win against the sizing rule above — the two must
+   never both be visible at once. */
+.prize-hub .prize-logo-dark { visibility: hidden; }
+.prize-hub .prize-logo-light { visibility: visible; }
+html[data-theme="dark"] .prize-hub .prize-logo-light { visibility: hidden; }
+html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
 
 /* ── The wheel ──────────────────────────────────────────────────────────── */
 
@@ -151,6 +154,54 @@ html[data-theme="dark"] .prize-logo-dark { display: block; }
    hair of overshoot at the very end so it settles rather than stops dead. */
 .prize-wheel.is-windup { transition: transform .3s cubic-bezier(.4, 0, .9, .4); }
 .prize-wheel.is-spinning { transition: transform 5.4s cubic-bezier(.12, .78, .18, 1.008); }
+
+/* The still centre. Sized as a share of the wheel so it holds at every
+   breakpoint, and pointer-events off so it never swallows a click meant for
+   the wheel beneath it. */
+.prize-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--pz-surface);
+  border: 1px solid var(--pz-camel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+/* Both marks are stacked, not laid out side by side.
+   They used to be flex siblings, and the rule that sized them also set
+   display:block — which beat the rule meant to hide the wrong one, so both
+   rendered and each shoved the other half its width off centre. Absolute
+   positioning takes them out of the flow entirely: whichever is visible is
+   centred on the hub, and no future rule can push it sideways.
+   82%, not 100%, so the mark keeps its own breathing room inside the hub
+   instead of touching the edge. */
+.prize-hub img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+}
+
+.prize-hub-word {
+  font-family: Georgia, serif;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--pz-ink);
+  letter-spacing: .06em;
+}
 
 .prize-slice { transition: fill .6s ease; }
 .prize-slice.is-winner { fill: var(--pz-win); }
