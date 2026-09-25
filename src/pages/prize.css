@@ -1,0 +1,283 @@
+/* src/pages/prize.css — the prize wheel.
+   The site's palette and typography, but built like a real wheel: a rim with
+   pegs, segments separated by hairlines rather than by colour, a weighted hub,
+   and motion that winds up, runs long and settles.
+
+   What makes a wheel look cheap is flatness and a linear spin. What makes one
+   look made is depth you barely notice and a stop you can feel. */
+
+/* Every colour on this page goes through a token, so the wheel follows the
+   site's light and dark themes instead of being a bright rectangle in the
+   middle of a dark page. The SVG reads the same tokens — fill="var(--…)"
+   works on shapes exactly as it does in CSS. */
+.prize-page {
+  --pz-bg:      #F5F1EA;
+  --pz-surface: #FDFAF5;
+  --pz-ink:     #2C1E12;
+  --pz-body:    #8A7868;
+  --pz-fine:    #A89D90;
+  --pz-line:    #E2D9CE;
+  --pz-camel:   #B2967D;
+  --pz-deep:    #4A3525;
+  --pz-rim:     #EFE7DA;
+  --pz-slice-a: #EAE0D1;
+  --pz-slice-b: #DFD2BE;
+  --pz-win:     #F7EFE2;
+  --pz-label:   #3B2A1C;
+  --pz-on-deep: #F5F1EA;
+
+  background: var(--pz-bg);
+  min-height: 100vh;
+  padding: 54px 20px 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  direction: rtl;
+  overflow-x: hidden;
+}
+
+/* Dark is not the same picture dimmed. The rim and segments move to warm
+   browns that sit on the dark page, and the hairlines that separate them get
+   LIGHTER rather than darker — on a dark ground, a dark line is a gap. */
+html[data-theme="dark"] .prize-page {
+  --pz-bg:      #171310;
+  --pz-surface: #211B15;
+  --pz-ink:     #EDE6DC;
+  --pz-body:    #A5988B;
+  --pz-fine:    #8A7D70;
+  --pz-line:    #3A3028;
+  --pz-camel:   #B2967D;
+  --pz-deep:    #D9C3A9;
+  --pz-rim:     #2A221B;
+  --pz-slice-a: #33291F;
+  --pz-slice-b: #3E3227;
+  --pz-win:     #4C3D2C;
+  --pz-label:   #EDE6DC;
+  --pz-on-deep: #1B1611;
+}
+
+.prize-eyebrow {
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--pz-camel);
+  margin: 0 0 14px;
+}
+
+.prize-title {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  font-weight: 400;
+  color: var(--pz-ink);
+  margin: 0 0 12px;
+  text-align: center;
+  letter-spacing: .01em;
+}
+
+.prize-rule { width: 54px; height: 1px; background: var(--pz-camel); margin-bottom: 18px; }
+
+.prize-lead {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--pz-body);
+  margin: 0 0 38px;
+  text-align: center;
+  max-width: 340px;
+}
+
+/* One mark per theme. Swapped in CSS rather than in JavaScript so it is
+   already right on the first paint — a logo that flickers from black to white
+   is worse than either. */
+.prize-logo-dark { display: none; }
+html[data-theme="dark"] .prize-logo-light { display: none; }
+html[data-theme="dark"] .prize-logo-dark { display: block; }
+
+/* ── The wheel ──────────────────────────────────────────────────────────── */
+
+.prize-stage { position: relative; margin-bottom: 34px; padding: 10px; }
+
+/* A ring of light behind the wheel that only appears on a win. Soft enough to
+   read as warmth rather than as a glow effect. */
+.prize-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(178, 150, 125, 0);
+  transition: box-shadow .9s ease;
+  pointer-events: none;
+}
+.prize-stage.is-won::before { box-shadow: 0 0 46px 6px rgba(178, 150, 125, .38); }
+
+/* The marker. Pinned above the rim, weighted at the tip, and it does not turn
+   with the wheel — it is the fixed thing the wheel is measured against. */
+.prize-pointer {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  filter: drop-shadow(0 1px 1px rgba(44, 30, 18, .22));
+  transform-origin: 50% 20%;
+}
+.prize-pointer.is-ticking { animation: tick .45s ease-out; }
+
+@keyframes tick {
+  0%   { transform: translateX(-50%) rotate(0deg); }
+  30%  { transform: translateX(-50%) rotate(-9deg); }
+  60%  { transform: translateX(-50%) rotate(5deg); }
+  100% { transform: translateX(-50%) rotate(0deg); }
+}
+
+/* A barely-moving drift while idle, so the wheel reads as ready rather than
+   as a picture of a wheel. Stops the moment it is spun. */
+.prize-drift { animation: drift 120s linear infinite; }
+.prize-drift.is-busy { animation: none; }
+
+@keyframes drift { to { transform: rotate(360deg); } }
+
+.prize-wheel {
+  width: 300px;
+  height: 300px;
+  display: block;
+  filter: drop-shadow(0 6px 18px rgba(44, 30, 18, .13));
+}
+
+/* Three phases, three different feelings.
+   Wind-up pulls back against the direction of travel — the flick of the wrist
+   before the throw. The spin is long and decelerates almost to nothing, with a
+   hair of overshoot at the very end so it settles rather than stops dead. */
+.prize-wheel.is-windup { transition: transform .3s cubic-bezier(.4, 0, .9, .4); }
+.prize-wheel.is-spinning { transition: transform 5.4s cubic-bezier(.12, .78, .18, 1.008); }
+
+.prize-slice { transition: fill .6s ease; }
+.prize-slice.is-winner { fill: var(--pz-win); }
+
+@media (prefers-reduced-motion: reduce) {
+  .prize-wheel.is-windup,
+  .prize-wheel.is-spinning { transition: transform .4s ease-out; }
+  .prize-drift { animation: none; }
+  .prize-pointer.is-ticking { animation: none; }
+}
+
+/* ── Controls ───────────────────────────────────────────────────────────── */
+
+.prize-btn {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--pz-deep);
+  background: transparent;
+  border: 1px solid var(--pz-camel);
+  padding: 15px 46px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  min-height: 48px;
+  transition: background .25s ease, color .25s ease, transform .15s ease;
+}
+
+.prize-btn-solid { background: var(--pz-deep); color: var(--pz-on-deep); border-color: var(--pz-deep); }
+.prize-btn-solid:hover:not(:disabled) { filter: brightness(.9); }
+.prize-btn-solid:active:not(:disabled) { transform: translateY(1px); }
+.prize-btn-solid:disabled { opacity: .5; cursor: wait; }
+
+.prize-count {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: var(--pz-camel);
+  margin: 16px 0 0;
+}
+
+.prize-error {
+  font-family: Arial, sans-serif;
+  font-size: 11.5px;
+  color: #8A2A1F;
+  background: #FFF0EE;
+  border: 1px solid #E8C4BC;
+  padding: 10px 16px;
+  margin-top: 20px;
+}
+
+/* ── The win ────────────────────────────────────────────────────────────── */
+
+.prize-card {
+  width: 100%;
+  max-width: 390px;
+  background: var(--pz-surface);
+  border: 1px solid var(--pz-line);
+  padding: 30px 28px;
+  text-align: center;
+  margin-top: 38px;
+  animation: rise .7s cubic-bezier(.16, .8, .3, 1) both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.prize-won {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--pz-ink);
+  margin: 0 0 8px;
+}
+
+.prize-muted {
+  font-family: Arial, sans-serif;
+  font-size: 11.5px;
+  color: var(--pz-body);
+  line-height: 1.85;
+  margin: 0 0 20px;
+}
+
+.prize-code {
+  display: inline-block;
+  border: 1px dashed var(--pz-camel);
+  padding: 11px 30px;
+  font-family: Georgia, serif;
+  font-size: 17px;
+  letter-spacing: .18em;
+  color: var(--pz-deep);
+}
+
+.prize-fine {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  color: var(--pz-fine);
+  line-height: 1.7;
+  margin: 16px 0 0;
+}
+
+.prize-list {
+  width: 100%;
+  max-width: 390px;
+  margin-top: 44px;
+  border-top: 1px solid var(--pz-line);
+  padding-top: 26px;
+  text-align: center;
+}
+
+.prize-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  color: var(--pz-ink);
+  border-bottom: 1px solid var(--pz-line);
+  padding: 13px 2px;
+}
+
+.prize-row-code { font-family: Georgia, serif; letter-spacing: .12em; color: var(--pz-body); }
+
+@media (max-width: 480px) {
+  .prize-page { padding: 38px 16px 60px; }
+  .prize-wheel { width: 260px; height: 260px; }
+}
