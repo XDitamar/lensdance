@@ -259,7 +259,14 @@ export default function AdminRegistrationsPage() {
     };
 
     loadData();
-  }, [user, t, reloadCompetitions]);
+    /* `t` is deliberately not a dependency. It is only used for a fallback
+       label, but react-i18next hands back a new function whenever the
+       language machinery stirs — and with Google Translate layered on top
+       that happens more than once. Every change re-ran this effect, which
+       refetched every registration and rewrote the priority tallies. Loading
+       a page should not be something that happens repeatedly. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, reloadCompetitions]);
 
   if (loadingAuth || loading) {
     return (
@@ -294,7 +301,16 @@ export default function AdminRegistrationsPage() {
   };
 
   return (
-    <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    /* translate="no" — Google Translate leaves this page alone.
+       It re-scans and rewrites text nodes every time the DOM changes, and this
+       page re-renders constantly: every keystroke in the search box, every
+       deposit toggle, every background priority sync. Translate rewrites, React
+       re-renders, translate rewrites again — which on screen is a page that
+       will not sit still, and is the same mechanism that crashed Alina's Safari
+       (see src/lib/translateDomGuard.js).
+       Nothing is lost by excluding it: this page exists for one person, in her
+       own language, and is never seen by a client. */
+    <div translate="no" className="notranslate" style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
       {/* Header */}
       <div style={{

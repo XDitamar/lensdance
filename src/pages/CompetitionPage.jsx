@@ -95,7 +95,13 @@ export default function CompetitionPage() {
   }, [user]);
   const [form, setForm] = useState({
     competitionId: "",
-    day: "",
+    /* Days are a LIST. A rider who competes on both days of a show wants to be
+       photographed on both, and a single choice quietly made that impossible —
+       they had to book twice, which the duplicate guard then refused.
+       Written back to the registration as one string so the admin list, the
+       archive and every existing record keep reading exactly as before; the
+       list is a fact about the form, not a change to the record. */
+    day: [],
     riderName: "",
     horseName: "",
     classEntry: "",
@@ -181,7 +187,7 @@ export default function CompetitionPage() {
      belong to the other event. Clearing it is better than silently submitting
      a day that is not in this competition at all. */
   useEffect(() => {
-    setForm((f) => (f.day ? { ...f, day: "" } : f));
+    setForm((f) => (f.day.length ? { ...f, day: [] } : f));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.competitionId]);
 
@@ -214,6 +220,12 @@ export default function CompetitionPage() {
      the deposit maths, the priority tally) expects `packages` to be a list,
      and the add-on is appended to it at submit time. A single choice is a
      rule about the form, not a change to the record's shape. */
+  const toggleDay = value => setForm(f => ({
+    ...f,
+    day: f.day.includes(value)
+      ? f.day.filter(d => d !== value)
+      : [...f.day, value],
+  }));
   const togglePkg = pkg => setForm(f => ({
     ...f,
     packages: f.packages.includes(pkg) ? [] : [pkg],
@@ -237,7 +249,7 @@ export default function CompetitionPage() {
     // arrives asynchronously, so on a slow connection the form can be filled in
     // and submitted before it lands.
     if (alreadyRegistered) return t("competition.errors.already");
-    if (!form.day)            return t("competition.errors.day");
+    if (form.day.length === 0) return t("competition.errors.day");
     if (!form.riderName.trim()) return t("competition.errors.rider");
     if (!form.horseName.trim()) return t("competition.errors.horse");
     if (form.packages.length === 0) return t("competition.errors.packages");
@@ -282,6 +294,16 @@ export default function CompetitionPage() {
 
       await addDoc(collection(db, "registrations"), {
         ...form,
+        /* Days go in as one string, the way every registration ever written
+           has stored them, so the admin list, the archive and the Telegram
+           alert keep reading them without knowing anything changed. The array
+           also goes in as `days` for anything that later wants them apart. */
+        /* The readable labels, joined. The raw values carry an ISO date after
+           a "·", which would make a two-day sign-up read as four things; the
+           dates are kept intact in `days` for anything that needs to compute
+           with them. */
+        day: form.day.map((v) => v.split(" · ")[0]).join(" + "),
+        days: form.day,
         // Priority is stored as a package id like any other, so the admin list
         // and the deposit maths keep working unchanged.
         packages: wantsPriority
@@ -308,9 +330,9 @@ export default function CompetitionPage() {
         competition: filedUnder,
         horse: form.horseName,
         classEntry: form.classEntry,
-        // The day value carries an ISO date for the admin list; the label in
-        // front of it is the part a person reads.
-        day: String(form.day || "").split(" · ")[0],
+        // Each value carries an ISO date after a "·"; the label in front of it
+        // is the part a person reads, and a rider may have picked several.
+        day: form.day.map((v) => v.split(" · ")[0]).join(" + "),
         contact: form.contact,
         // Labels rather than ids, and priority appended the same way it is
         // stored on the registration itself.
@@ -573,11 +595,14 @@ export default function CompetitionPage() {
         {/* Day — the real dates of the chosen competition, or the old fixed
             list when no competition has been created yet. */}
         <Field label={t("competition.dayLabel")}>
+          {/* Checkboxes, not radios: riders who compete on both days of a
+              show want both photographed, and one choice forced them to
+              either book twice or tell Alina separately. */}
           {dayOptions.map(({ value, label }) => (
-            <label key={value} style={s.radioLabel}>
-              <input type="radio" name="day" value={value}
-                checked={form.day === value} onChange={set("day")}
-                style={{ accentColor: "#B2967D" }} />
+            <label key={value} style={s.checkLabel}>
+              <input type="checkbox" name="day" value={value}
+                checked={form.day.includes(value)} onChange={() => toggleDay(value)}
+                style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
               {label}
             </label>
           ))}

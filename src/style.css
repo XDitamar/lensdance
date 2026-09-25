@@ -1,3 +1,12 @@
+/* The scrollbar always occupies its lane, whether or not it is there.
+   Without this, a page whose height crosses the viewport — a list that grows
+   by one row, a panel that opens — gains or loses a scrollbar, and everything
+   shifts sideways by its width. Repeated a few times a second while content
+   loads, that reads as the page shaking. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* =========================================
    Global tokens / reset
 ========================================= */

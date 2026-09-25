@@ -22,6 +22,7 @@ import {
   toDate,
 } from "../lib/retention";
 import { isUnlocked as isGalleryUnlocked, setUnlocked as setGalleryUnlocked } from "../lib/galleryAccess";
+import { fetchRewards, grantSpins } from "../lib/rewards";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -132,6 +133,10 @@ export default function AdminPage() {
      See src/lib/galleryAccess.js — locked is the default, by absence. */
   const [unlocked, setUnlocked] = useState(null);
   const [accessBusy, setAccessBusy] = useState(false);
+
+  /** Spins on the prize wheel for the client on screen. */
+  const [spins, setSpins] = useState(0);
+  const [spinsBusy, setSpinsBusy] = useState(false);
 
   const onToggleAccess = async () => {
     const u = userForFolder(currentFolder);
@@ -297,8 +302,10 @@ export default function AdminPage() {
     const uid = userForFolder(folder)?.uid;
     setRetention(null);
     setUnlocked(null);
+    setSpins(0);
     if (!uid) return;
     isGalleryUnlocked(uid).then(setUnlocked);
+    fetchRewards(uid).then((r) => setSpins(r.granted)).catch(() => {});
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -331,10 +338,19 @@ export default function AdminPage() {
      Storage roots that are not people are dropped at the same time: the
      public gallery, the covers folder, and stray files sitting at the root,
      which used to appear as though "pic3.png" were a client. */
+  /* NOT hidden: MainGallery. It is not a client, but it IS the public
+     gallery on the front page, and this list is the only way to upload to it
+     — filtering it out as "not a person" took away Alina's way of adding
+     photos to the home page. It is pinned to the top and labelled instead.
+     The rest really are plumbing: cover images, and stray files sitting at
+     the Storage root that used to appear as though "pic3.png" were a client. */
   const SYSTEM_FOLDERS = React.useMemo(
-    () => new Set(["MainGallery", "covers", "public", "images", "thumbs"]),
+    () => new Set(["covers", "public", "images", "thumbs"]),
     []
   );
+
+  /** The public gallery's folder — shown first, and never treated as a client. */
+  const MAIN_GALLERY = "MainGallery";
   const looksLikeFile = (name) => /\.[A-Za-z0-9]{2,5}$/.test(name);
 
   const knownFolders = React.useMemo(() => {
@@ -396,6 +412,10 @@ export default function AdminPage() {
       (userForFolder(folder)?.name || folder || "").toLocaleLowerCase("he");
 
     const sorted = [...list].sort((a, b) => {
+      // The public gallery is not a client and does not belong in the
+      // alphabet — it is the one folder Alina reaches for by name.
+      if (a === MAIN_GALLERY) return -1;
+      if (b === MAIN_GALLERY) return 1;
       if (sortBy === "discipline") {
         // Group by category, keeping the uncategorised users last, then sort
         // by name inside each group.
@@ -592,7 +612,12 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="container">
+    /* Kept out of Google Translate's reach, like /admin/registrations: it
+       rewrites text nodes on every DOM change, this page changes on every
+       upload tick, and the two take turns until the page visibly judders.
+       It is also the page Alina was on when Safari died of exactly that
+       (src/lib/translateDomGuard.js). Nothing here is ever read by a client. */
+    <main className="container" translate="no">
       <h2 className="section-title">Admin Panel</h2>
       
       {/* Search + riding-discipline filter + sort */}
@@ -655,24 +680,40 @@ export default function AdminPage() {
             <div className="gallery-grid">
               {userFolders.map((folder) => {
                 const u = userForFolder(folder);
+                const isMain = folder === MAIN_GALLERY;
                 return (
                   <button
                     key={folder}
                     className="filter-button"
                     onClick={() => openFolder(folder)}
-                    style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "center" }}
+                    style={{
+                      display: "flex", flexDirection: "column", gap: 2, textAlign: "center",
+                      // Marked out, because it is the one card here that is not
+                      // a person and the one that changes the public site.
+                      ...(isMain ? { borderColor: "#B2967D", background: "#FDF6E9" } : null),
+                    }}
                   >
-                    <span style={{ fontWeight: 700 }}>{u?.name || folder}</span>
+                    <span style={{ fontWeight: 700 }}>
+                      {isMain ? t("admin.mainGallery") : (u?.name || folder)}
+                    </span>
+                    {isMain && (
+                      <span style={{ fontSize: 10, opacity: 0.7 }}>{t("admin.mainGalleryHint")}</span>
+                    )}
                     {u?.name && (
                       <span style={{ fontSize: 10, opacity: 0.6, direction: "ltr" }}>{folder}</span>
                     )}
-                    <span style={{ fontSize: 10, opacity: u?.discipline ? 0.85 : 0.4 }}>
-                      {disciplineLabel(u?.discipline)}
-                    </span>
+                    {/* A riding category belongs to a person; the public
+                        gallery has none, and printing "no category" on it
+                        reads as a profile somebody forgot to fill in. */}
+                    {!isMain && (
+                      <span style={{ fontSize: 10, opacity: u?.discipline ? 0.85 : 0.4 }}>
+                        {disciplineLabel(u?.discipline)}
+                      </span>
+                    )}
                     {/* An account with nothing in it yet. Worth saying so —
                         otherwise opening it looks like the photos failed to
                         load rather than like there are none. */}
-                    {isEmptyFolder(folder) && (
+                    {!isMain && isEmptyFolder(folder) && (
                       <span style={{ fontSize: 9, opacity: 0.55 }}>
                         {t("admin.noPhotosYet")}
                       </span>
@@ -749,6 +790,59 @@ export default function AdminPage() {
               </button>
             )}
           </div>
+
+          {/* ── Spins on the prize wheel ──
+              One per paid order is the rule; this is the control that applies
+              it. Deliberately a number she sets rather than a "+1" button:
+              after a competition she is reconciling several bookings at once,
+              and "this client has two" is easier to get right than pressing
+              add twice and hoping. */}
+          {!!userForFolder(currentFolder)?.uid && (
+            <div style={{
+              marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
+              background: "#FDFAF5", padding: "12px 14px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, flexWrap: "wrap",
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
+                  {t("admin.spinsTitle")}
+                </div>
+                <div style={{ fontSize: 12.5, color: "#6A5A50" }}>
+                  {t("admin.spinsHint")}
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={spins}
+                  onChange={(e) => setSpins(e.target.value)}
+                  style={{ width: 62, padding: "7px 8px", border: "1px solid #D7C9B8", fontSize: 13 }}
+                />
+                <button
+                  className="filter-button"
+                  disabled={spinsBusy}
+                  style={{ opacity: spinsBusy ? 0.6 : 1 }}
+                  onClick={async () => {
+                    const u = userForFolder(currentFolder);
+                    if (!u?.uid) return;
+                    setSpinsBusy(true);
+                    try {
+                      await grantSpins(u.uid, spins);
+                    } catch (e) {
+                      setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+                    } finally {
+                      setSpinsBusy(false);
+                    }
+                  }}
+                >
+                  {t("common.save")}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── The 30-day clock ──
               Pressed when the upload for this client is finished, not when it
