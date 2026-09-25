@@ -22,7 +22,8 @@
     "changePassword": "Изменить пароль",
     "back": "← Назад",
     "eyebrow": "Настройки",
-    "myCompetitions": "Мои турниры"
+    "myCompetitions": "Мои турниры",
+    "prize": "Колесо подарков"
   },
   "theme": {
     "toLight": "Светлая тема",

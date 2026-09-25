@@ -22,7 +22,8 @@
     "changePassword": "Change Password",
     "back": "← Back",
     "eyebrow": "Settings",
-    "myCompetitions": "My competitions"
+    "myCompetitions": "My competitions",
+    "prize": "Prize wheel"
   },
   "theme": {
     "toLight": "Light mode",

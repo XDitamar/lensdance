@@ -5,6 +5,7 @@ import { auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useTranslation } from "react-i18next";
 import { isRtlLang } from "../i18n";
+import { fetchRewards, spinsLeft } from "../lib/rewards";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
 
@@ -23,6 +24,11 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
+  /* Spins waiting on the wheel, shown as a badge in the settings menu.
+     Read once when a user is present and never again: this is a nudge, not a
+     live counter, and polling it on every page would cost a Firestore read
+     per navigation for a number that changes when Alina marks a payment. */
+  const [spins, setSpins] = useState(0);
   const navigate = useNavigate();
   // Dropdowns used to hardcode direction:"rtl"; follow the active language now.
   const dir = isRtlLang(i18n.language) ? "rtl" : "ltr";
@@ -31,6 +37,15 @@ export default function Header() {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("theme", theme); } catch {}
   }, [theme]);
+
+  useEffect(() => {
+    if (!user?.uid) { setSpins(0); return undefined; }
+    let alive = true;
+    fetchRewards(user.uid)
+      .then((r) => { if (alive) setSpins(spinsLeft(r)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [user]);
 
   const toggleTheme = () => setTheme(t => (t === "dark" ? "light" : "dark"));
 
@@ -196,6 +211,13 @@ export default function Header() {
                          question it answers ("am I actually booked?") is the
                          one they arrive with. */
                       { label: t("settings.myCompetitions"),  to: "/my-competitions" },
+                      /* The wheel. Carries a count rather than a dot: "you
+                         have something" is the point, and a bare dot makes
+                         people open a menu to find out it was nothing. The
+                         row is here even at zero, so somebody who heard about
+                         it from a friend can find out how it works instead of
+                         wondering whether they imagined it. */
+                      { label: t("settings.prize"), to: "/prize", badge: spins },
                       { label: t("settings.changeName"),       to: "/change-name" },
                       { label: t("settings.changeDiscipline"), to: "/change-discipline" },
                       { label: t("settings.changePassword"),   to: "/change-password" },
@@ -218,7 +240,20 @@ export default function Header() {
                         onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
-                        {item.label}
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                          {item.label}
+                          {item.badge > 0 && (
+                            <span style={{
+                              background: "#4A3525", color: "#F5F1EA",
+                              fontFamily: "Arial, sans-serif", fontSize: 9,
+                              lineHeight: "16px", minWidth: 16, height: 16,
+                              borderRadius: 8, padding: "0 5px", textAlign: "center",
+                              letterSpacing: 0,
+                            }}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </span>
                       </Link>
                     ))}
                     <button
