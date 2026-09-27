@@ -6,6 +6,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { useTranslation } from "react-i18next";
 import { isRtlLang } from "../i18n";
 import { fetchRewards, spinsLeft } from "../lib/rewards";
+import { PRIZE_WHEEL } from "../config/features";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
 
@@ -39,7 +40,9 @@ export default function Header() {
   }, [theme]);
 
   useEffect(() => {
-    if (!user?.uid) { setSpins(0); return undefined; }
+    // No read at all while the wheel is off — a hidden feature should not
+    // cost every signed-in visitor a Firestore lookup.
+    if (!PRIZE_WHEEL || !user?.uid) { setSpins(0); return undefined; }
     let alive = true;
     fetchRewards(user.uid)
       .then((r) => { if (alive) setSpins(spinsLeft(r)); })
@@ -216,8 +219,11 @@ export default function Header() {
                          people open a menu to find out it was nothing. The
                          row is here even at zero, so somebody who heard about
                          it from a friend can find out how it works instead of
-                         wondering whether they imagined it. */
-                      { label: t("settings.prize"), to: "/prize", badge: spins },
+                         wondering whether they imagined it.
+                         Hidden while PRIZE_WHEEL is off (src/config/features.js). */
+                      ...(PRIZE_WHEEL
+                        ? [{ label: t("settings.prize"), to: "/prize", badge: spins }]
+                        : []),
                       { label: t("settings.changeName"),       to: "/change-name" },
                       { label: t("settings.changeDiscipline"), to: "/change-discipline" },
                       { label: t("settings.changePassword"),   to: "/change-password" },

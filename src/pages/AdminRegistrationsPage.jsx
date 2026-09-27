@@ -11,6 +11,7 @@ import { SESSIONS as SESSIONS_FOR_ADMIN, SESSION_BOOKINGS, sessionById } from ".
 import { fetchCompetitions } from "../lib/competitions";
 import AdminCompetitionsPanel from "../components/AdminCompetitionsPanel";
 import { addSpins } from "../lib/rewards";
+import { PRIZE_WHEEL } from "../config/features";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 
 export default function AdminRegistrationsPage() {
@@ -51,7 +52,7 @@ export default function AdminRegistrationsPage() {
          that matters, and a wheel that failed to credit must not make her
          think the payment did not save. Sign-ups made before accounts existed
          have no uid and simply earn nothing. */
-      if (reg.userId) {
+      if (PRIZE_WHEEL && reg.userId) {
         addSpins(reg.userId, next ? 1 : -1)
           .catch((e) => console.warn("Spin not credited:", e?.code || e));
       }

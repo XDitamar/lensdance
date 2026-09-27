@@ -23,6 +23,7 @@ import {
 } from "../lib/retention";
 import { isUnlocked as isGalleryUnlocked, setUnlocked as setGalleryUnlocked } from "../lib/galleryAccess";
 import { fetchRewards, grantSpins } from "../lib/rewards";
+import { PRIZE_WHEEL } from "../config/features";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -305,7 +306,7 @@ export default function AdminPage() {
     setSpins(0);
     if (!uid) return;
     isGalleryUnlocked(uid).then(setUnlocked);
-    fetchRewards(uid).then((r) => setSpins(r.granted)).catch(() => {});
+    if (PRIZE_WHEEL) fetchRewards(uid).then((r) => setSpins(r.granted)).catch(() => {});
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -797,7 +798,7 @@ export default function AdminPage() {
               after a competition she is reconciling several bookings at once,
               and "this client has two" is easier to get right than pressing
               add twice and hoping. */}
-          {!!userForFolder(currentFolder)?.uid && (
+          {PRIZE_WHEEL && !!userForFolder(currentFolder)?.uid && (
             <div style={{
               marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
               background: "#FDFAF5", padding: "12px 14px",

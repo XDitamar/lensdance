@@ -33,7 +33,8 @@ import SessionBookingPage from "./pages/SessionBookingPage";
 // A rider's own sign-ups, reached from Settings. Protected: it reads their
 // registrations, which the security rules scope to the signed-in user.
 import MyCompetitionsPage from "./pages/MyCompetitionsPage";
-import PrizePage from "./pages/PrizePage";
+// Prize wheel — kept out of the bundle while it is switched off.
+// import PrizePage from "./pages/PrizePage";
 // import AboutPage from "./pages/AboutPage";
 import ChangeName from "./pages/ChangeName";
 import ChangeDiscipline from "./pages/ChangeDiscipline";
@@ -98,7 +99,12 @@ export default function App() {
         {/* User / Admin */}
         <Route path="/me" element={<ProtectedRoute><MePage /></ProtectedRoute>} />
         <Route path="/my-competitions" element={<ProtectedRoute><MyCompetitionsPage /></ProtectedRoute>} />
-        <Route path="/prize" element={<ProtectedRoute><PrizePage /></ProtectedRoute>} />
+        {/* The prize wheel, off for now — see PRIZE_WHEEL in
+            src/config/features.js. Commented rather than flagged because the
+            route table is the one place where an unreachable page should be
+            genuinely unreachable: with this line live, anyone who knows the
+            URL gets the page. Uncomment it and flip the flag together. */}
+        {/* <Route path="/prize" element={<ProtectedRoute><PrizePage /></ProtectedRoute>} /> */}
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="/admin/registrations" element={<AdminRoute><AdminRegistrationsPage /></AdminRoute>} />
 
