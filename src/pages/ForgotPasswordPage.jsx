@@ -3,6 +3,7 @@ import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebase";
 import { Link } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
+import { getWhatsAppInternational } from "../config/contact";
 
 // Firebase error code → i18n key, so the message arrives in the visitor's language.
 const ERROR_KEYS = {
@@ -68,6 +69,32 @@ export default function ForgotPasswordPage() {
               <div style={{ ...s.error, background: "#F0F7F0", borderColor: "#C4E0C4", color: "#2A5A2A" }}>
                 <Trans i18nKey="forgot.sent" values={{ email }} components={{ strong: <strong /> }} />
               </div>
+              {/* A way out when the mail does not arrive.
+                  Reset mail is the one message a locked-out person cannot
+                  work around: if it lands in spam or nowhere, the page as it
+                  stood just said "we sent it" and left them there. The
+                  deliverability fix is a DNS one, but even a perfect sender
+                  reaches somebody's junk folder eventually, so there has to
+                  be a human at the end of it.
+                  The client sends the message themselves rather than the page
+                  notifying Alina: an endpoint that pushes to her phone without
+                  a signed-in user — and a locked-out user has none — is an
+                  open line for anyone to shout down. */}
+              <div style={{ marginTop: 26, borderTop: "1px solid #E2D9CE", paddingTop: 20 }}>
+                <p style={{ fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: 1.85, color: "#8A7868", margin: "0 0 14px", textAlign: "center" }}>
+                  {t("forgot.notArrived")}
+                </p>
+                <a
+                  href={`https://wa.me/${getWhatsAppInternational()}?text=${encodeURIComponent(
+                    t("forgot.whatsappMessage", { email })
+                  )}`}
+                  target="_blank" rel="noreferrer"
+                  style={{ ...s.btn, display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}
+                >
+                  {t("forgot.whatsapp")}
+                </a>
+              </div>
+
               <p style={{ marginTop: 22, textAlign: "center", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#8A7868" }}>
                 <Link to="/login" style={s.link}>{t("common.backToLogin")}</Link>
               </p>

@@ -503,7 +503,10 @@
     "panelTitle": "Password recovery",
     "panelBody": "We'll send a password reset link to the email address registered on the account.",
     "sent": "If an account exists for <strong>{{email}}</strong>, a reset link has been sent to it. Check your inbox (and the spam folder).",
-    "remembered": "Remembered your password?"
+    "remembered": "Remembered your password?",
+    "notArrived": "No email? Check spam and promotions. If it is not there, send Alina a message and she will get you back in.",
+    "whatsapp": "Message Alina",
+    "whatsappMessage": "Hi Alina! I asked to reset my password on the site and no email arrived. My email: {{email}}"
   },
   "reset": {
     "title": "Reset password",
