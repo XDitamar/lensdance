@@ -669,7 +669,8 @@
       "needAccount": "You need to sign in to register. Please sign in and try again.",
       "priorityTaken": "The last priority place went while you were filling this in. Choose \"No\" and send the sign-up — everything else is saved.",
       "choose": "Pick a competition.",
-      "already": "You're already signed up to this competition. Message Alina to change anything."
+      "already": "You're already signed up to this competition. Message Alina to change anything.",
+      "packagesPerDay": "Choose a package for each day you selected"
     },
     "days": {
       "thursday": "Thursday",
@@ -697,7 +698,8 @@
     "alreadyBody": "Your entry for {{name}} is in — there's no need to fill this in again. To change a day, a horse or a package, message me and I'll update it for you.",
     "alreadyWhatsapp": "Message Alina",
     "alreadyWhatsappMessage": "Hi Alina! I'm already signed up for {{name}} and I'd like to change something in my entry:",
-    "packagesOne": "Choose one package"
+    "packagesOne": "Choose one package",
+    "packagesPerDay": "You picked more than one day — you can choose a different package for each"
   },
   "quote": {
     "cta": "Request a quote",

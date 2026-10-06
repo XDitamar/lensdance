@@ -102,6 +102,10 @@ export default function CompetitionPage() {
        archive and every existing record keep reading exactly as before; the
        list is a fact about the form, not a change to the record. */
     day: [],
+    /* Which package was chosen for which day, keyed by the day's value.
+       Only used when more than one day is picked; a single-day sign-up keeps
+       using `packages` alone, so nothing about the common case changes. */
+    dayPackages: {},
     riderName: "",
     horseName: "",
     classEntry: "",
@@ -220,11 +224,27 @@ export default function CompetitionPage() {
      the deposit maths, the priority tally) expects `packages` to be a list,
      and the add-on is appended to it at submit time. A single choice is a
      rule about the form, not a change to the record's shape. */
-  const toggleDay = value => setForm(f => ({
+  const toggleDay = value => setForm(f => {
+    const on = f.day.includes(value);
+    // Unticking a day takes its package with it, so a choice cannot survive
+    // for a day nobody is attending.
+    const dayPackages = { ...f.dayPackages };
+    if (on) delete dayPackages[value];
+    return {
+      ...f,
+      day: on ? f.day.filter(d => d !== value) : [...f.day, value],
+      dayPackages,
+    };
+  });
+
+  const setDayPackage = (dayValue, pkg) => setForm(f => ({
     ...f,
-    day: f.day.includes(value)
-      ? f.day.filter(d => d !== value)
-      : [...f.day, value],
+    dayPackages: {
+      ...f.dayPackages,
+      // Clicking the chosen one again clears it, exactly as the single-day
+      // list behaves.
+      [dayValue]: f.dayPackages[dayValue] === pkg ? "" : pkg,
+    },
   }));
   const togglePkg = pkg => setForm(f => ({
     ...f,
@@ -243,6 +263,18 @@ export default function CompetitionPage() {
      stands between anyone and a form they could have filled in straight away. */
   const awaitingChoice = comps.length > 1 && !form.competitionId;
 
+  /** Two days or more: the packages are asked per day rather than once. */
+  const multiDay = form.day.length > 1;
+
+  /* What actually gets stored in `packages`. Every reader downstream — the
+     admin list, the deposit maths, the priority tally — expects a flat list of
+     package ids, so a per-day order is flattened to the distinct packages it
+     contains. The day-by-day detail rides along separately in `dayPackages`
+     and nothing is forced to understand it. */
+  const orderedPackages = multiDay
+    ? [...new Set(form.day.map((d) => form.dayPackages[d]).filter(Boolean))]
+    : form.packages;
+
   const validate = () => {
     if (comps.length > 0 && !form.competitionId) return t("competition.errors.choose");
     // Checked here as well as in the UI: the list of the rider's own sign-ups
@@ -252,7 +284,14 @@ export default function CompetitionPage() {
     if (form.day.length === 0) return t("competition.errors.day");
     if (!form.riderName.trim()) return t("competition.errors.rider");
     if (!form.horseName.trim()) return t("competition.errors.horse");
-    if (form.packages.length === 0) return t("competition.errors.packages");
+    /* With several days, every day needs an answer — a rider who filled in
+       Friday and scrolled past Saturday has not finished, and finding that out
+       from Alina two days later is worse than finding it out here. */
+    if (multiDay) {
+      if (form.day.some((d) => !form.dayPackages[d])) return t("competition.errors.packagesPerDay");
+    } else if (form.packages.length === 0) {
+      return t("competition.errors.packages");
+    }
     if (!form.contact.trim())   return t("competition.errors.contact");
     if (!form.receiptWanted)    return t("competition.errors.receipt");
     if (!form.publishPermission) return t("competition.errors.publish");
@@ -307,8 +346,18 @@ export default function CompetitionPage() {
         // Priority is stored as a package id like any other, so the admin list
         // and the deposit maths keep working unchanged.
         packages: wantsPriority
-          ? [...form.packages, PRIORITY_PACKAGE_ID]
-          : form.packages,
+          ? [...orderedPackages, PRIORITY_PACKAGE_ID]
+          : orderedPackages,
+        /* The day-by-day breakdown, as readable labels rather than ids, so the
+           admin list can print it without consulting the pricing catalogue.
+           Empty on a one-day sign-up. */
+        dayPackages: multiDay
+          ? form.day.map((d) => ({
+              day: d.split(" · ")[0],
+              package: prices.packages.find((p) => p.id === form.dayPackages[d])?.label
+                || form.dayPackages[d] || "",
+            }))
+          : [],
         // The title is what the admin list groups by, and it is written once
         // at submit time so the archive keeps reading correctly even after the
         // competition itself is removed from the list.
@@ -336,10 +385,18 @@ export default function CompetitionPage() {
         contact: form.contact,
         // Labels rather than ids, and priority appended the same way it is
         // stored on the registration itself.
+        // Per day when there is more than one, so the alert says what was
+        // ordered for which date rather than a bag of packages.
         packages: [
-          ...form.packages.map(
-            (id) => prices.packages.find((p) => p.id === id)?.label || id
-          ),
+          ...(multiDay
+            ? form.day.map((d) => {
+                const label = prices.packages.find((p) => p.id === form.dayPackages[d])?.label
+                  || form.dayPackages[d] || "";
+                return `${d.split(" · ")[0]}: ${label}`;
+              })
+            : form.packages.map(
+                (id) => prices.packages.find((p) => p.id === id)?.label || id
+              )),
           ...(wantsPriority ? [t("pricing.priority.title")] : []),
         ],
       });
@@ -663,9 +720,35 @@ export default function CompetitionPage() {
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#B2967D", marginBottom: 10, letterSpacing: ".04em" }}>
             {t("competition.packagesOne")}
           </p>
-          {packages.map(pkg => {
-            const open = openPkg === pkg.id;
+          {/* ONE PACKAGE, OR ONE PER DAY.
+              A rider entered on both days of a show is not necessarily buying
+              the same thing twice — photos on Friday and a video on Saturday
+              is an ordinary request, and until now it could only be made by
+              messaging Alina after booking. With several days chosen the list
+              repeats under each date; with one, it stays exactly as it was,
+              because most sign-ups are one day and should not pay in clutter
+              for the ones that are not. */}
+          {multiDay && (
+            <p style={{ fontFamily: "Arial,sans-serif", fontSize: 10.5, color: "#8A7868", marginBottom: 14, lineHeight: 1.7 }}>
+              {t("competition.packagesPerDay")}
+            </p>
+          )}
+
+          {(multiDay ? form.day : [null]).map((dayValue) => (
+            <div key={dayValue || "single"} style={multiDay ? {
+              border: "1px solid #E2D9CE", padding: "14px 16px", marginBottom: 14, background: "#FDFAF5",
+            } : undefined}>
+              {multiDay && (
+                <div style={{ fontFamily: "Georgia,serif", fontSize: 13, color: "#2C1E12", marginBottom: 10 }}>
+                  {dayValue.split(" · ")[0]}
+                </div>
+              )}
+              {packages.map(pkg => {
+            const open = openPkg === `${dayValue || ""}|${pkg.id}`;
             const lines = Array.isArray(pkg.includes) ? pkg.includes : [];
+            const chosen = dayValue
+              ? form.dayPackages[dayValue] === pkg.id
+              : form.packages.includes(pkg.id);
             return (
               <div key={pkg.id}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -676,11 +759,14 @@ export default function CompetitionPage() {
                         Selection runs off onClick rather than onChange so that
                         clicking the chosen one again clears it: a radio never
                         fires change when it is already checked, which would
-                        otherwise leave someone stuck with their first pick. */}
+                        otherwise leave someone stuck with their first pick.
+                        The name is per day, so the groups do not fight each
+                        other — one name across all of them would let a rider
+                        hold only a single choice for the whole competition. */}
                     <input type="radio"
-                      name="package"
-                      checked={form.packages.includes(pkg.id)}
-                      onClick={() => togglePkg(pkg.id)}
+                      name={dayValue ? `package-${dayValue}` : "package"}
+                      checked={chosen}
+                      onClick={() => (dayValue ? setDayPackage(dayValue, pkg.id) : togglePkg(pkg.id))}
                       onChange={() => {}}
                       style={{ accentColor: "#B2967D", width: 15, height: 15 }} />
                     {pkg.label}
@@ -688,7 +774,7 @@ export default function CompetitionPage() {
                   {lines.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setOpenPkg(open ? null : pkg.id)}
+                      onClick={() => setOpenPkg(open ? null : `${dayValue || ""}|${pkg.id}`)}
                       aria-expanded={open}
                       aria-label={t("competition.whatsIncluded")}
                       title={t("competition.whatsIncluded")}
@@ -722,7 +808,9 @@ export default function CompetitionPage() {
                 )}
               </div>
             );
-          })}
+              })}
+            </div>
+          ))}
         </Field>
 
         {/* Priority — its own field, because unlike the packages above there is

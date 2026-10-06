@@ -607,9 +607,25 @@ export default function AdminRegistrationsPage() {
                       {r.__session && r.preferredDate && (
                         <span style={tagStyle("#EDE8DF", "#4A3525")}>📅 {r.preferredDate}</span>
                       )}
-                      {(r.packages || []).map(p => (
-                        <span key={p} style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(p)}</span>
-                      ))}
+                      {/* A two-day sign-up can order different things on each
+                          day. When it did, the day-by-day list is what she
+                          needs to read — the flat package tags below would
+                          say "photos, video" without saying which was which. */}
+                      {Array.isArray(r.dayPackages) && r.dayPackages.length > 0
+                        ? r.dayPackages.map((d) => (
+                            <span key={d.day} style={tagStyle("#F5F0E8", "#7D5A44")}>
+                              {d.day} · {d.package}
+                            </span>
+                          ))
+                        : (r.packages || []).map(p => (
+                            <span key={p} style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(p)}</span>
+                          ))}
+                      {/* Priority is an add-on for the whole booking, not for
+                          one day, so it is shown either way. */}
+                      {Array.isArray(r.dayPackages) && r.dayPackages.length > 0
+                        && (r.packages || []).includes(PRIORITY_PACKAGE_ID) && (
+                        <span style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(PRIORITY_PACKAGE_ID)}</span>
+                      )}
                       {/* Deposit state, and the control to change it, in one
                           place — she is usually looking at this list while the
                           money lands. */}
