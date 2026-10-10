@@ -10,6 +10,7 @@ import { fetchLikedPaths, setLiked } from "../lib/likes";
 import { daysLeft, fetchRetention, toDate } from "../lib/retention";
 import { isUnlocked } from "../lib/galleryAccess";
 import { downloadAsZip } from "../lib/zipDownload";
+import { albumOf } from "../lib/albums";
 import { batches, fetchAsFiles, shareBatch, shouldOfferShare } from "../lib/shareFiles";
 import "../style.css";
 
@@ -400,6 +401,21 @@ export default function MePage() {
     return () => { alive = false; };
   }, [targetUid]);
 
+  /* The gallery split by competition, newest work first and the unfiled
+     photos last. One group when nothing was ever filed, which renders
+     identically to the way this page always looked. */
+  const albumGroups = useMemo(() => {
+    const groups = new Map();
+    for (const item of mediaItems) {
+      const key = item.album || "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+    return [...groups.entries()]
+      .map(([album, items]) => ({ album, items }))
+      .sort((a, b) => (a.album ? 0 : 1) - (b.album ? 0 : 1));
+  }, [mediaItems]);
+
   const autoCover = useMemo(() => {
     const firstPhoto = mediaItems.find((m) => !m.isVideo);
     return firstPhoto?.gridUrl || firstPhoto?.url || null;
@@ -444,6 +460,11 @@ export default function MePage() {
       console.log("Trying folders:", folderCandidates);
 
       const allFileRefsMap = new Map(); // key = fullPath
+      /* Which candidate folder each file was found under. The album is the
+         part of the path between that folder and the filename, and this
+         gallery searches several spellings of a client's folder — so the root
+         has to be remembered per file rather than assumed. */
+      const rootOf = new Map();
 
       for (const path of folderCandidates) {
         try {
@@ -452,6 +473,7 @@ export default function MePage() {
           files.forEach((f) => {
             if (!allFileRefsMap.has(f.fullPath)) {
               allFileRefsMap.set(f.fullPath, f);
+              rootOf.set(f.fullPath, path);
             }
           });
         } catch (e) {
@@ -501,6 +523,9 @@ export default function MePage() {
           isVideo: isVid,
           variant,
           lqipUrl: thumbUrl,
+          // The competition this photo was filed under, "" for anything
+          // uploaded before albums existed.
+          album: albumOf(itemRef.fullPath, rootOf.get(itemRef.fullPath) || ""),
         };
       });
 
@@ -1165,8 +1190,32 @@ export default function MePage() {
           cropped. Column count lives in style.css (.gallery-masonry).
       ══════════════════════════════════════ */}
       <div style={{ padding: "16px 22px 40px", background: "#FAFAF8" }}>
+        {albumGroups.map((group) => (
+        <React.Fragment key={group.album || "__all"}>
+        {/* A heading per competition, and only when there is more than one.
+            A client photographed three times was getting one wall of two
+            hundred pictures with no way to tell last month from last year;
+            a client photographed once should not be made to read a heading
+            that states the obvious. Photos uploaded before albums existed sit
+            under "the rest", last, because they are the oldest. */}
+        {albumGroups.length > 1 && (
+          <div style={{ margin: "10px 2px 14px" }}>
+            <span style={{
+              fontFamily: "Georgia, serif", fontSize: 17, color: "#2C1E12",
+            }}>
+              {group.album || t("me.albumOther")}
+            </span>
+            <span style={{
+              fontFamily: "Arial, sans-serif", fontSize: 10, color: "#B2967D",
+              marginInlineStart: 10, letterSpacing: ".1em",
+            }}>
+              {t("me.countLine", { count: group.items.length })}
+            </span>
+            <div style={{ height: 1, background: "#E2D9CE", marginTop: 8 }} />
+          </div>
+        )}
         <div className="gallery-masonry">
-          {mediaItems.map((item, index) => {
+          {group.items.map((item, index) => {
             const isVideo = item.isVideo;
             const isLoaded = loaded[item.id];
             const isSelected = selectedItems?.includes(item.id);
@@ -1268,6 +1317,8 @@ export default function MePage() {
             );
           })}
         </div>
+        </React.Fragment>
+        ))}
 
         {/* Watermark */}
         <div style={{ textAlign: "center", marginTop: 20 }}>

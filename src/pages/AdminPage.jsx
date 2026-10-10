@@ -24,6 +24,8 @@ import {
 import { isUnlocked as isGalleryUnlocked, setUnlocked as setGalleryUnlocked } from "../lib/galleryAccess";
 import { fetchRewards, grantSpins } from "../lib/rewards";
 import { PRIZE_WHEEL } from "../config/features";
+import { albumName, albumOf } from "../lib/albums";
+import { competitionLabel, fetchCompetitions } from "../lib/competitions";
 import { useTranslation } from "react-i18next";
 import { DISCIPLINES, disciplineKey } from "../constants";
 import "../style.css";
@@ -135,6 +137,14 @@ export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(null);
   const [accessBusy, setAccessBusy] = useState(false);
 
+  /* Which competition the next upload is filed under. "" puts the files
+     straight into the client's folder, which is how everything before this
+     was stored. Remembered between uploads on purpose: a competition weekend
+     is uploaded client after client, and re-picking it twenty times is twenty
+     chances to pick the wrong one. */
+  const [uploadAlbum, setUploadAlbum] = useState("");
+  const [albumOptions, setAlbumOptions] = useState([]);
+
   /** Spins on the prize wheel for the client on screen. */
   const [spins, setSpins] = useState(0);
   const [spinsBusy, setSpinsBusy] = useState(false);
@@ -218,12 +228,27 @@ export default function AdminPage() {
   };
 
   // --- Fetch Media from a Specific Folder (מדלגים על .placeholder) ---
+  /** listAll, but through sub-folders too — a competition album is one. */
+  const listAllDeep = async (folderRef) => {
+    const res = await listAll(folderRef);
+    const items = [...res.items];
+    for (const prefix of res.prefixes) {
+      // eslint-disable-next-line no-await-in-loop
+      items.push(...(await listAllDeep(prefix)));
+    }
+    return items;
+  };
+
   const fetchMediaInFolder = async (folderName) => {
     try {
       setBusy(true);
       setError("");
       const folderRef = ref(storage, folderName);
-      const res = await listAll(folderRef);
+      /* Deep, because photos now live one level down in a competition folder.
+         Left flat, this page would show an empty gallery the moment Alina
+         filed an upload under a competition — the files are there, just not
+         at the level the old listing looked at. */
+      const res = { items: await listAllDeep(folderRef) };
 
       /* Thumbnails, not originals.
          This grid used to point every <img> at the full-resolution download
@@ -255,6 +280,9 @@ export default function AdminPage() {
           isVideo: isVid,
           type,
           name: itemRef.name,
+          // Which competition this one was filed under, "" for the older
+          // photos that sit directly in the client's folder.
+          album: albumOf(itemRef.fullPath, folderName),
         };
       });
 
@@ -272,6 +300,21 @@ export default function AdminPage() {
     if (isAdmin) {
       fetchUserFolders();
     }
+  }, [isAdmin]);
+
+  /* The competitions Alina can file an upload under — every one she has
+     created, newest first, because photographs are uploaded days after the
+     event and almost never for something far in the past. */
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchCompetitions()
+      .then((list) => setAlbumOptions(
+        [...list]
+          .sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")))
+          .map(competitionLabel)
+          .filter(Boolean)
+      ))
+      .catch((e) => console.warn("Could not load competitions:", e));
   }, [isAdmin]);
 
   // Load Firestore user profiles so folders can show real full names
@@ -452,9 +495,19 @@ export default function AdminPage() {
       setProgress({});
       setUploadErrors({});
 
+      /* Everything in this batch goes into the competition Alina picked.
+         The album is part of the path rather than metadata on each file: a
+         listing already returns paths, so nothing extra has to be fetched to
+         know which weekend a photo belongs to, and it stays legible in the
+         Firebase console. Empty means straight into the client's folder, the
+         way every upload worked before this existed. */
+      const album = albumName(uploadAlbum);
+
       for (const f of files) {
         const safeName = sanitizeFilename(f.name, f.type);
-        const fileRef = ref(storage, `${currentFolder}/${safeName}`);
+        const fileRef = ref(storage, album
+          ? `${currentFolder}/${album}/${safeName}`
+          : `${currentFolder}/${safeName}`);
         const meta = downloadableMetadata(safeName, f.type);
 
         const task = uploadBytesResumable(fileRef, f, meta);
@@ -1023,6 +1076,29 @@ export default function AdminPage() {
                 </ul>
               )}
             </div>
+          </div>
+
+          {/* Which competition this upload belongs to.
+              Above the file picker, not beside it: it has to be answered
+              before the files are chosen, or it becomes the thing you notice
+              after pressing Upload. */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            marginBottom: 12, padding: "10px 12px",
+            border: "1px solid #E2D9CE", background: "#FDFAF5", borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{t("admin.albumLabel")}</span>
+            <select
+              value={uploadAlbum}
+              onChange={(e) => setUploadAlbum(e.target.value)}
+              style={{ padding: "7px 10px", border: "1px solid #D7C9B8", fontSize: 13, minWidth: 220 }}
+            >
+              <option value="">{t("admin.albumNone")}</option>
+              {albumOptions.map((label) => (
+                <option key={label} value={label}>{label}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 12, color: "#8A7868" }}>{t("admin.albumHint")}</span>
           </div>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>

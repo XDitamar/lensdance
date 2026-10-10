@@ -357,7 +357,10 @@
     "accessLocked": "Locked — the client sees a preview only",
     "accessUnlock": "Release for download",
     "accessLock": "Lock",
-    "unlockConfirm": "Release the full-quality photos to this client?"
+    "unlockConfirm": "Release the full-quality photos to this client?",
+    "albumLabel": "Photos from",
+    "albumNone": "No competition — straight into the folder",
+    "albumHint": "The files go into a folder named after the competition, and the client sees them under their own heading"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -584,7 +587,8 @@
     "retentionExpired": "The availability window for this gallery has passed. If you still need the files, message me and I'll see what I can do.",
     "lockedTag": "Reduced quality until payment is complete",
     "lockedTitle": "Your photos are ready to view",
-    "lockedBody": "This is a preview — the photos are shown at low quality with a watermark until payment is complete. They are released for download at full quality, without the logo, right after."
+    "lockedBody": "This is a preview — the photos are shown at low quality with a watermark until payment is complete. They are released for download at full quality, without the logo, right after.",
+    "albumOther": "Other photos"
   },
   "a11y": {
     "open": "Open accessibility menu",
