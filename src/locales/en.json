@@ -525,6 +525,11 @@
     "done": "Your password has been updated. You can sign in now.",
     "goToLogin": "Go to sign in",
     "requestNew": "Request a new reset link",
+    "pasteLabel": "Paste the link from the email here",
+    "pastePlaceholder": "https://…oobCode=…",
+    "pasteHint": "Paste the whole address from the email, or just the code. On a phone, long-press the link and choose \"Copy\".",
+    "pasteSubmit": "Continue to reset",
+    "linkOnce": "A reset link is valid for one hour and for one use only. If you asked more than once, only the link in the most recent email works — the earlier ones are cancelled.",
     "resettingFor": "Resetting the password for <strong>{{email}}</strong>",
     "newPasswordLabel": "New password",
     "confirmLabel": "Confirm new password"

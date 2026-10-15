@@ -13,7 +13,49 @@ export default function ResetPasswordPage() {
   const [pw2, setPw2] = useState("");
   const [status, setStatus] = useState("verifying"); // verifying | ready | submitting | done | error
   const [error, setError] = useState("");
+  /** What the client pasted when the link itself did not carry a usable code. */
+  const [pasted, setPasted] = useState("");
   const navigate = useNavigate();
+
+  /**
+   * Pull the reset code out of whatever was pasted.
+   *
+   * People paste the whole address from the mail, the address without its
+   * tail, or just the code. All three have to work — asking somebody locked
+   * out of their account to identify which part of a URL is "the code" is
+   * asking the wrong person at the worst moment.
+   */
+  const extractCode = (raw) => {
+    const text = String(raw || "").trim().replace(/&amp;/g, "&");
+    const fromUrl = text.match(/[?&]oobCode=([^&\s]+)/i);
+    if (fromUrl) return decodeURIComponent(fromUrl[1]);
+    // A bare code: no spaces, no scheme, long enough to be one.
+    if (!/\s/.test(text) && !/^https?:/i.test(text) && text.length > 15) return text;
+    return "";
+  };
+
+  const verify = React.useCallback(async (oob) => {
+    try {
+      const restoredEmail = await verifyPasswordResetCode(auth, oob);
+      setCode(oob);
+      setEmail(restoredEmail);
+      setError("");
+      setStatus("ready");
+      return true;
+    } catch {
+      setError(t("errors.resetLinkExpired"));
+      setStatus("error");
+      return false;
+    }
+  }, [t]);
+
+  const retryWithPasted = async (e) => {
+    e.preventDefault();
+    const oob = extractCode(pasted);
+    if (!oob) { setError(t("errors.resetLinkInvalid")); return; }
+    setStatus("verifying");
+    await verify(oob);
+  };
 
   // Extract oobCode from the URL
   useEffect(() => {
@@ -27,16 +69,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    (async () => {
-      try {
-        const restoredEmail = await verifyPasswordResetCode(auth, oob);
-        setEmail(restoredEmail);
-        setStatus("ready");
-      } catch {
-        setError(t("errors.resetLinkExpired"));
-        setStatus("error");
-      }
-    })();
+    verify(oob);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
 
@@ -122,6 +155,39 @@ export default function ResetPasswordPage() {
         {status === "error" && (
           <div>
             <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>
+
+            {/* A WAY FORWARD, NOT A DEAD END.
+                This screen used to be a red message and a link, with nowhere
+                to type anything — a client who got the mail and pressed the
+                button landed here and reported, accurately, that there was
+                nowhere to put the code. Whatever went wrong on the way (a
+                mail scanner that opened the link first and used up the code,
+                an hour gone by, a link copied without its tail), she can
+                paste what she has and try again from here. */}
+            <form onSubmit={retryWithPasted} className="auth-form">
+              <label className="auth-label">
+                {t("reset.pasteLabel")}
+                <input
+                  className="auth-input"
+                  type="text"
+                  value={pasted}
+                  onChange={(e) => setPasted(e.target.value)}
+                  placeholder={t("reset.pastePlaceholder")}
+                  style={{ direction: "ltr", textAlign: "left" }}
+                  autoComplete="off"
+                />
+              </label>
+              <p className="auth-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+                {t("reset.pasteHint")}
+              </p>
+              <button className="auth-primary" type="submit" disabled={!pasted.trim()}>
+                {t("reset.pasteSubmit")}
+              </button>
+            </form>
+
+            <p className="auth-hint" style={{ marginTop: 14 }}>
+              {t("reset.linkOnce")}
+            </p>
             <p className="auth-switch">
               <Link to="/forgot-password" className="auth-link">{t("reset.requestNew")}</Link>
             </p>

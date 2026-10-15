@@ -4,6 +4,7 @@ import { auth } from "../firebase";
 import { Link } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { getWhatsAppInternational } from "../config/contact";
+import "./auth-page.css";
 
 // Firebase error code → i18n key, so the message arrives in the visitor's language.
 const ERROR_KEYS = {
@@ -39,7 +40,14 @@ export default function ForgotPasswordPage() {
   return (
     <div style={{ background: "#F5F1EA", minHeight: "100vh", display: "flex", flexDirection: "column" }} dir={i18n.dir()}>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", flex: 1 }}>
+      {/* Two columns on a desktop, stacked on a phone.
+          The split used to be an inline style, and an inline style cannot
+          carry a media query — so on a phone the dark panel and the form
+          each took half the WIDTH, which is how a client ended up reading
+          "ellachicamella@gmail.co…" with the rest of the sentence off the
+          edge of the screen. Same mistake as the login page had; the rule
+          lives in auth-page.css now, where a breakpoint can reach it. */}
+      <div className="forgot-split">
 
         {/* ── Left dark panel ── */}
         <div style={{

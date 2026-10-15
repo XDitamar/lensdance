@@ -1,3 +1,28 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   GOOGLE TRANSLATE'S OWN BANNER — hidden
+   ─────────────────────────────────────────────────────────────────────────
+   When Google Translate runs it inserts a bar across the top of the page
+   ("Translated to: English · Show original · Options") and pushes the whole
+   document down by its height. On a phone it eats a fifth of the screen,
+   it is not styled like anything else here, and the site already has its own
+   language control — so it is a second, uglier language switcher sitting on
+   top of the real one.
+
+   The `top` reset is the important half: Google sets it inline on <body> to
+   make room for the bar, and hiding the bar without undoing that leaves a
+   blank strip where it used to be. */
+.skiptranslate,
+iframe.skiptranslate,
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
 /* The scrollbar always occupies its lane, whether or not it is there.
    Without this, a page whose height crosses the viewport — a list that grows
    by one row, a panel that opens — gains or loses a scrollbar, and everything

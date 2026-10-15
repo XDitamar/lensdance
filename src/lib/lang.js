@@ -33,8 +33,22 @@
 //
 // Why source "auto" and not "en" or "iw": the DOM is a mix of both languages,
 // so a fixed source makes Google mistranslate half the page. "auto" lets it
-// detect per block. This is also why English is not a no-op: a visitor asking
-// for English needs Google to turn the hardcoded Hebrew into English.
+// detect per block.
+//
+// ── ENGLISH USED TO GO THROUGH GOOGLE. IT NO LONGER DOES. ──────────────────
+// The reason it did was the Hebrew still hardcoded in the JSX, which i18next
+// could not reach. That reason has essentially expired: the migration is done
+// and fourteen such strings remain in the whole app, three of them in a
+// component that is a placeholder and eleven on a page that is switched off.
+//
+// What the old arrangement cost an English speaker was out of all proportion
+// to those strings: Google's banner across the top of the page — enormous on a
+// phone — a machine pass that re-translated our own hand-written English into
+// its own worse English, and Google re-parenting text nodes under React, which
+// is what crashed Safari (see src/lib/translateDomGuard.js).
+//
+// So English is served from en.json like the other three. Google now runs only
+// for languages we have no file for, which is what it is actually good at.
 //
 // Which target we pick, in priority order:
 //   1. the visitor's own choice from the floating translate button (sticky)
@@ -61,7 +75,7 @@ export const HEBREW = "iw"; // Google's legacy code for Hebrew
  * hence "iw" rather than "he". Must stay in step with NATIVE_LANGS in
  * src/i18n.js, which is the same list in i18next's code space.
  */
-export const NATIVE_TARGETS = [HEBREW, "ru", "ar"];
+export const NATIVE_TARGETS = [HEBREW, "ru", "ar", "en"];
 
 /* ── Code normalisation ─────────────────────────────────────────────────── */
 

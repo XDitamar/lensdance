@@ -38,6 +38,15 @@
   grid-template-columns: 5fr 7fr;
 }
 
+/* Password recovery. Its own class because that page styles its panel inline
+   rather than with .auth-panel — what it needs from here is the one thing an
+   inline style cannot express: a breakpoint. */
+.forgot-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+}
+
 /* ── The dark brand panel ───────────────────────────────────────────────── */
 
 .auth-panel {
@@ -215,7 +224,8 @@
      every phone, and someone who tapped "sign in" wants the form, not the
      poetry. */
   .auth-split.is-login,
-  .auth-split.is-signup {
+  .auth-split.is-signup,
+  .forgot-split {
     grid-template-columns: 1fr;
     /* `auto 1fr` matters: without it the two rows share the height evenly and
        the panel — which only holds a heading now — stretches to a third of the
