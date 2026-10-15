@@ -8,7 +8,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { logDownload } from "../lib/downloads";
 import { fetchLikedPaths, setLiked } from "../lib/likes";
 import { daysLeft, fetchRetention, toDate } from "../lib/retention";
-import { isUnlocked } from "../lib/galleryAccess";
+import { albumUnlocked, fetchAccess } from "../lib/galleryAccess";
 import { downloadAsZip } from "../lib/zipDownload";
 import { albumOf } from "../lib/albums";
 import { batches, fetchAsFiles, shareBatch, shouldOfferShare } from "../lib/shareFiles";
@@ -324,15 +324,24 @@ export default function MePage() {
      Alina always sees the real thing: she is not the one being asked to pay.
      Starts as `null` (unknown) rather than false, so the first paint does not
      flash a "locked" notice at a client whose gallery is in fact open. */
-  const [unlocked, setUnlocked] = useState(null);
-  const locked = !isAdmin && unlocked === false;
+  const [access, setAccess] = useState(null);
 
   useEffect(() => {
-    if (!targetUid) { setUnlocked(null); return undefined; }
+    if (!targetUid) { setAccess(null); return undefined; }
     let alive = true;
-    isUnlocked(targetUid).then((v) => { if (alive) setUnlocked(v); });
+    fetchAccess(targetUid).then((v) => { if (alive) setAccess(v); });
     return () => { alive = false; };
   }, [targetUid]);
+
+  /* Locked is now a question about a photo, not about a person: a rider who
+     settled one competition gets that one, and the weekend they have not paid
+     for stays a preview. Alina always sees everything — she is not the one
+     being asked to pay. `null` means not read yet, and nothing is treated as
+     locked until it has been, so an open gallery never flashes shut. */
+  const isLocked = React.useCallback(
+    (album) => !isAdmin && access !== null && !albumUnlocked(access, album || ""),
+    [isAdmin, access]
+  );
 
   useEffect(() => {
     if (!targetUid) { setLikedPaths(new Set()); return undefined; }
@@ -415,6 +424,15 @@ export default function MePage() {
       .map(([album, items]) => ({ album, items }))
       .sort((a, b) => (a.album ? 0 : 1) - (b.album ? 0 : 1));
   }, [mediaItems]);
+
+  /* The open lightbox follows its own photo: one tap can be on a competition
+     that is paid for and the next on one that is not. */
+  const modalLocked = isLocked(selectedItem?.album);
+
+  /* True only when not a single photo may be taken — the notice at the top of
+     the page says "these are previews until payment", and saying that over a
+     gallery where one competition is already open would be a lie. */
+  const nothingUnlocked = mediaItems.length > 0 && mediaItems.every((m) => isLocked(m.album));
 
   const autoCover = useMemo(() => {
     const firstPhoto = mediaItems.find((m) => !m.isVideo);
@@ -669,11 +687,13 @@ export default function MePage() {
 
   // Handler functions for new layout
   const handleSelectAll = () => {
-    if (selectedItems.length === mediaItems.length) {
-      setSelectedItems([]);
-    } else {
-      setSelectedItems(mediaItems.map(item => item.id));
-    }
+    /* Only what can actually be downloaded. Selecting a locked competition
+       would put a tick on a photo that the next button cannot deliver, and
+       "select all → download" would come back short with no explanation. */
+    const takeable = mediaItems.filter((item) => !isLocked(item.album));
+    setSelectedItems(
+      selectedItems.length === takeable.length ? [] : takeable.map((item) => item.id)
+    );
   };
 
   /* One zip, not one download per photo.
@@ -685,7 +705,9 @@ export default function MePage() {
      A lone photo still goes down as itself — wrapping one picture in an
      archive the client then has to unpack is worse than the problem. */
   const handleDownloadSelected = async () => {
-    const itemsToDownload = mediaItems.filter(item => selectedItems.includes(item.id));
+    const itemsToDownload = mediaItems.filter(
+      (item) => selectedItems.includes(item.id) && !isLocked(item.album)
+    );
     if (itemsToDownload.length === 0) return;
 
     setInstallingAll(true);
@@ -1075,7 +1097,11 @@ export default function MePage() {
             refuses is read as a fault in the site, while their absence next to
             the notice below reads as "not yet". */}
         <div style={{ display: "flex", gap: 10 }}>
-          {locked ? (
+          {/* The toolbar speaks for the whole page, so it only steps aside
+             when nothing at all can be taken. With one competition paid for
+             and another not, selecting and downloading stay available and
+             each photo answers for itself. */}
+          {nothingUnlocked ? (
             /* A sentence, not a label: "not released yet" told the client a
                state without telling them what it meant for the pictures in
                front of them. Left in normal case — uppercase letter-spacing
@@ -1168,7 +1194,7 @@ export default function MePage() {
       {/* Why the photos look the way they do. Without this the client reads a
           soft, watermarked gallery as a broken one and writes to ask what
           happened — which is the message this paragraph replaces. */}
-      {locked && (
+      {nothingUnlocked && (
         <div style={{
           background: "#FDF6E9", borderBottom: "1px solid #E8DCC4",
           padding: "14px 22px", textAlign: "center",
@@ -1205,6 +1231,15 @@ export default function MePage() {
             }}>
               {group.album || t("me.albumOther")}
             </span>
+            {isLocked(group.album) && (
+              <span style={{
+                fontFamily: "Arial, sans-serif", fontSize: 9.5, letterSpacing: ".06em",
+                color: "#8A6A22", background: "#FDF6E9", border: "1px solid #E8DCC4",
+                padding: "3px 9px", marginInlineStart: 10,
+              }}>
+                {t("me.albumLocked")}
+              </span>
+            )}
             <span style={{
               fontFamily: "Arial, sans-serif", fontSize: 10, color: "#B2967D",
               marginInlineStart: 10, letterSpacing: ".1em",
@@ -1217,6 +1252,9 @@ export default function MePage() {
         <div className="gallery-masonry">
           {group.items.map((item, index) => {
             const isVideo = item.isVideo;
+            /* Per photo, because the competition it belongs to may be paid
+               for while the next one is not. */
+            const tileLocked = isLocked(item.album);
             const isLoaded = loaded[item.id];
             const isSelected = selectedItems?.includes(item.id);
             const isLiked = likedPaths.has(item.id);
@@ -1224,14 +1262,14 @@ export default function MePage() {
             return (
               <div
                 key={item.id || index}
-                className={`gallery-tile${isLoaded ? " is-loaded" : ""}${locked ? " is-locked-tile" : ""}`}
+                className={`gallery-tile${isLoaded ? " is-loaded" : ""}${tileLocked ? " is-locked-tile" : ""}`}
                 onClick={() => handleOpenModal(item)}
                 /* Long-press-to-save and right-click-save are the casual way
                    round a locked gallery, so they are closed. Not a serious
                    barrier — anyone who opens devtools still gets the preview —
                    but the preview is all there is to get. */
-                onContextMenu={locked ? (e) => e.preventDefault() : undefined}
-                onDragStart={locked ? (e) => e.preventDefault() : undefined}
+                onContextMenu={tileLocked ? (e) => e.preventDefault() : undefined}
+                onDragStart={tileLocked ? (e) => e.preventDefault() : undefined}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleOpenModal(item)}
@@ -1248,12 +1286,12 @@ export default function MePage() {
                   </>
                 ) : (
                   <img
-                    src={locked
+                    src={tileLocked
                       ? (item.lockedUrl || item.url)
                       : (item.thumbUrl || item.gridUrl || item.url)}
                     alt=""
-                    className={`gallery-tile-media${locked ? " is-locked-media" : ""}`}
-                    draggable={!locked}
+                    className={`gallery-tile-media${tileLocked ? " is-locked-media" : ""}`}
+                    draggable={!tileLocked}
                     loading={index < 4 ? "eager" : "lazy"}
                     fetchpriority={index < 2 ? "high" : undefined}
                     decoding="async"
@@ -1299,6 +1337,7 @@ export default function MePage() {
                 {/* Selection checkbox — sits above the media, and stops the
                     click from also opening the lightbox. */}
                 <div
+                  hidden={tileLocked}
                   onClick={e => { e.stopPropagation(); handleToggleSelect(item); }}
                   style={{
                     position: "absolute", top: 8, right: 8, zIndex: 2,
@@ -1343,13 +1382,13 @@ export default function MePage() {
               />
             ) : (
               <img
-                src={locked
+                src={modalLocked
                   ? (selectedItem.lockedUrl || selectedItem.url)
                   : (selectedItem.modalUrl || selectedItem.url)}
                 alt={selectedItem.name}
-                className={`modal-media${locked ? " is-locked-media" : ""}`}
-                draggable={!locked}
-                onContextMenu={locked ? (e) => e.preventDefault() : undefined}
+                className={`modal-media${modalLocked ? " is-locked-media" : ""}`}
+                draggable={!modalLocked}
+                onContextMenu={modalLocked ? (e) => e.preventDefault() : undefined}
                 style={{
                   background: "#111",
                   maxHeight: "80vh",
@@ -1359,7 +1398,7 @@ export default function MePage() {
               />
             )}
             <div className="modal-actions">
-              {locked ? (
+              {modalLocked ? (
                 <span style={{ fontFamily: "Arial, sans-serif", fontSize: 11, color: "#B2967D" }}>
                   {t("me.lockedTag")}
                 </span>

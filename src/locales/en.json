@@ -360,7 +360,12 @@
     "unlockConfirm": "Release the full-quality photos to this client?",
     "albumLabel": "Photos from",
     "albumNone": "No competition — straight into the folder",
-    "albumHint": "The files go into a folder named after the competition, and the client sees them under their own heading"
+    "albumHint": "The files go into a folder named after the competition, and the client sees them under their own heading",
+    "accessPerAlbum": "Release by competition",
+    "accessAll": "Release everything",
+    "accessOpenShort": "open",
+    "accessLockedShort": "locked",
+    "accessLooseNote": "Older photos with no competition are released only by «Release everything»."
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -588,7 +593,8 @@
     "lockedTag": "Reduced quality until payment is complete",
     "lockedTitle": "Your photos are ready to view",
     "lockedBody": "This is a preview — the photos are shown at low quality with a watermark until payment is complete. They are released for download at full quality, without the logo, right after.",
-    "albumOther": "Other photos"
+    "albumOther": "Other photos",
+    "albumLocked": "Locked — awaiting payment"
   },
   "a11y": {
     "open": "Open accessibility menu",

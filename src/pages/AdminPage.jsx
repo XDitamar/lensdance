@@ -21,7 +21,11 @@ import {
   startRetention,
   toDate,
 } from "../lib/retention";
-import { isUnlocked as isGalleryUnlocked, setUnlocked as setGalleryUnlocked } from "../lib/galleryAccess";
+import {
+  fetchAccess,
+  setAlbumUnlocked,
+  setUnlocked as setGalleryUnlocked,
+} from "../lib/galleryAccess";
 import { fetchRewards, grantSpins } from "../lib/rewards";
 import { PRIZE_WHEEL } from "../config/features";
 import { albumName, albumOf } from "../lib/albums";
@@ -135,6 +139,10 @@ export default function AdminPage() {
      null while unknown, so the button never claims a state it has not read.
      See src/lib/galleryAccess.js — locked is the default, by absence. */
   const [unlocked, setUnlocked] = useState(null);
+  /* The full picture: whether everything is released, and which individual
+     competitions are. The boolean above is kept because the banner and the
+     all-or-nothing button read it directly. */
+  const [access, setAccess] = useState(null);
   const [accessBusy, setAccessBusy] = useState(false);
 
   /* Which competition the next upload is filed under. "" puts the files
@@ -161,6 +169,7 @@ export default function AdminPage() {
     try {
       await setGalleryUnlocked(u.uid, next);
       setUnlocked(next);
+      setAccess((a) => ({ ...(a || { albums: [] }), all: next }));
     } catch (e) {
       setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
     } finally {
@@ -348,7 +357,7 @@ export default function AdminPage() {
     setUnlocked(null);
     setSpins(0);
     if (!uid) return;
-    isGalleryUnlocked(uid).then(setUnlocked);
+    fetchAccess(uid).then((a) => { setAccess(a); setUnlocked(a.all); });
     if (PRIZE_WHEEL) fetchRewards(uid).then((r) => setSpins(r.granted)).catch(() => {});
     setLikesLoading(true);
     try {
@@ -422,6 +431,19 @@ export default function AdminPage() {
 
   /** Nothing uploaded yet — shown as a hint on the card, not hidden. */
   const isEmptyFolder = (folder) => !allFolders.includes(folder);
+
+  /* The competitions actually present in the open folder, taken from the
+     files themselves rather than from the competition list: what matters here
+     is what this client HAS, not everything Alina has ever run. "" is the
+     loose photos from before albums existed, and it sorts last. */
+  const folderAlbums = React.useMemo(() => {
+    const seen = [];
+    for (const item of mediaItems) {
+      const album = item.album || "";
+      if (!seen.includes(album)) seen.push(album);
+    }
+    return seen.sort((a, b) => (a ? 0 : 1) - (b ? 0 : 1));
+  }, [mediaItems]);
 
   // --- Live search + discipline filter + sort ---
   // Matches full name, email or folder; then narrows to one riding discipline
@@ -840,10 +862,72 @@ export default function AdminPage() {
                 disabled={accessBusy || unlocked === null}
                 style={{ opacity: accessBusy || unlocked === null ? 0.6 : 1 }}
               >
-                {unlocked ? t("admin.accessLock") : t("admin.accessUnlock")}
+                {unlocked ? t("admin.accessLock") : t("admin.accessAll")}
               </button>
             )}
           </div>
+
+          {/* ── One competition at a time ──
+              A rider pays for one weekend at a time. Releasing the whole
+              gallery because one was settled hands over work nobody has paid
+              for; holding it all back because another has not punishes them
+              for the one they did pay for. Each album is released on its own.
+              Hidden while everything is open: with the gallery fully
+              released, per-album switches would only invite someone to close
+              one and wonder why nothing changed. */}
+          {!unlocked && !!userForFolder(currentFolder)?.uid && folderAlbums.length > 0 && (
+            <div style={{
+              marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
+              background: "#FDFAF5", padding: "12px 14px",
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+                {t("admin.accessPerAlbum")}
+              </div>
+              {folderAlbums.map((album) => {
+                const open = (access?.albums || []).includes(album);
+                return (
+                  <div key={album} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    gap: 12, padding: "7px 0", borderTop: "1px solid #EDE8DF", flexWrap: "wrap",
+                  }}>
+                    <span style={{ fontSize: 13, color: open ? "#3B6D11" : "#8A6A22" }}>
+                      {album || t("admin.albumNone")}
+                      {" · "}
+                      {open ? t("admin.accessOpenShort") : t("admin.accessLockedShort")}
+                    </span>
+                    <button
+                      className="filter-button"
+                      disabled={accessBusy || !album}
+                      style={{ opacity: accessBusy || !album ? 0.6 : 1 }}
+                      onClick={async () => {
+                        const u = userForFolder(currentFolder);
+                        if (!u?.uid || !album) return;
+                        setAccessBusy(true);
+                        try {
+                          await setAlbumUnlocked(u.uid, album, !open);
+                          setAccess(await fetchAccess(u.uid));
+                        } catch (e) {
+                          setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+                        } finally {
+                          setAccessBusy(false);
+                        }
+                      }}
+                    >
+                      {open ? t("admin.accessLock") : t("admin.accessUnlock")}
+                    </button>
+                  </div>
+                );
+              })}
+              {/* Loose photos from before albums existed cannot be released on
+                  their own — there is no name to key them on. The all-or-
+                  nothing switch above is what opens them. */}
+              {folderAlbums.includes("") && (
+                <p style={{ fontSize: 11.5, color: "#8A7868", margin: "8px 0 0", lineHeight: 1.6 }}>
+                  {t("admin.accessLooseNote")}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── Spins on the prize wheel ──
               One per paid order is the rule; this is the control that applies
