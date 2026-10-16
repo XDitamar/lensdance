@@ -983,10 +983,23 @@ html[data-theme="dark"] {
 }
 .translate-check{ opacity: .9; }
 
+/* Mobile: move translate button to the left so it doesn't cover the hamburger menu */
+@media (max-width: 768px){
+  .translate-fab{
+    right: auto !important;
+    left: 18px !important;
+  }
+  .translate-popover{
+    right: auto;
+    left: 15px;
+  }
+}
+
 /* Mobile adjustments for container */
 @media (max-width: 480px){
-  .translate-popover{ 
-    right: 15px; 
+  .translate-popover{
+    right: auto;
+    left: 15px;
     bottom: 120px; 
     width: 200px; 
   }
