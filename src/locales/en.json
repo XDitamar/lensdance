@@ -586,7 +586,7 @@
     "zipProgress": "Downloading {{done}} of {{total}}…",
     "zipPacking": "Preparing the file…",
     "zipPartial": "{{count}} files could not be downloaded. Try again or contact Alina.",
-    "saveToPhone": "Save {{count}} photos to your phone",
+    "saveToPhone": "Save {{count}} files to your phone",
     "saveHint": "A share sheet will open — choose \"Save Images\" and they go to your gallery",
     "saveBatch": "Group {{index}} of {{total}} — tap again after saving to continue",
     "shareFailed": "Saving to the phone did not work. Try again, or download the photos normally.",
