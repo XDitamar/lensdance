@@ -708,6 +708,7 @@
     "noneUpcomingTitle": "No competition coming up just yet",
     "noneUpcomingBody": "There is nothing on the calendar to sign up to at the moment. New dates go up here as soon as they are set — and if you have a show in mind, tell me and I'll see whether I can be there.",
     "noneUpcomingCta": "Message me",
+    "autofill": "Fill in my details from my last sign-up",
     "choosePrompt": "Pick the competition you're entering and the rest of the form will appear.",
     "alreadyTitle": "You're already signed up to this one",
     "alreadyBody": "Your entry for {{name}} is in — there's no need to fill this in again. To change a day, a horse or a package, message me and I'll update it for you.",
