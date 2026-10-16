@@ -39,6 +39,22 @@ import { fetchMediaBlob } from "./fetchMedia";
 /** As many photos as a share sheet takes without complaining. */
 export const SHARE_BATCH = 12;
 
+const VIDEO_TYPES = {
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mkv: "video/x-matroska",
+};
+
+/* The proxy can hand videos back untyped (octet-stream), and iOS refuses to
+   share — or save to Photos — a file it cannot tell is a video. */
+function mediaType(name, blobType) {
+  if (blobType && blobType !== "application/octet-stream") return blobType;
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  return VIDEO_TYPES[ext] || blobType || "image/jpeg";
+}
+
 /** Can this browser share actual files (not just a link)? */
 export function canShareFiles() {
   try {
@@ -81,7 +97,8 @@ export async function fetchAsFiles(items, { onProgress } = {}) {
           // Direct when the bucket allows it, through /api/file when it does
           // not — see src/lib/fetchMedia.js.
           const blob = await fetchMediaBlob(item.url);
-          return { item, file: new File([blob], item.name || "photo.jpg", { type: blob.type }) };
+          const name = item.name || "photo.jpg";
+          return { item, file: new File([blob], name, { type: mediaType(name, blob.type) }) };
         } catch (err) {
           failed.push({ name: item.name || "", error: err.message });
           return null;
@@ -100,8 +117,21 @@ export async function fetchAsFiles(items, { onProgress } = {}) {
 
 /** Split into sheet-sized groups. */
 export function batches(files, size = SHARE_BATCH) {
+  // A video weighs as much as several photos, so it fills a sheet faster.
   const out = [];
-  for (let i = 0; i < files.length; i += size) out.push(files.slice(i, i + size));
+  let cur = [];
+  let weight = 0;
+  for (const f of files) {
+    const w = (f.type || "").startsWith("video/") ? 4 : 1;
+    if (cur.length && weight + w > size) {
+      out.push(cur);
+      cur = [];
+      weight = 0;
+    }
+    cur.push(f);
+    weight += w;
+  }
+  if (cur.length) out.push(cur);
   return out;
 }
 
