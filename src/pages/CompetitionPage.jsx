@@ -82,13 +82,17 @@ export default function CompetitionPage() {
      Signing up to a DIFFERENT competition stays open — that is a new booking,
      not a correction. */
   const [myTitles, setMyTitles] = useState(() => new Set());
+  // The rider's most recent sign-up, used by the "fill in my details" button.
+  const [lastReg, setLastReg] = useState(null);
 
   useEffect(() => {
-    if (!user?.uid) { setMyTitles(new Set()); return undefined; }
+    if (!user?.uid) { setMyTitles(new Set()); setLastReg(null); return undefined; }
     let alive = true;
     fetchMyRegistrations(user.uid)
       .then((rows) => {
-        if (alive) setMyTitles(new Set(rows.map((r) => r.competitionTitle).filter(Boolean)));
+        if (!alive) return;
+        setMyTitles(new Set(rows.map((r) => r.competitionTitle).filter(Boolean)));
+        setLastReg(rows[0] || null); // newest first
       })
       .catch((e) => console.warn("Could not load my registrations:", e?.code || e));
     return () => { alive = false; };
@@ -217,6 +221,20 @@ export default function CompetitionPage() {
   };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // Fill the personal details from the previous sign-up. Only the details that
+  // do not change between competitions — never the day, package or class.
+  const autofill = () => {
+    if (!lastReg) return;
+    setForm(f => ({
+      ...f,
+      riderName: lastReg.riderName || f.riderName,
+      horseName: lastReg.horseName || f.horseName,
+      contact: lastReg.contact || f.contact,
+      receiptWanted: lastReg.receiptWanted || f.receiptWanted,
+      publishPermission: lastReg.publishPermission || f.publishPermission,
+    }));
+  };
   /* One package per sign-up. Picking a second replaces the first rather than
      adding to it, and picking the chosen one again clears it — otherwise the
      only way out of a wrong choice would be to reload the form.
@@ -669,6 +687,13 @@ export default function CompetitionPage() {
             </p>
           )}
         </Field>
+
+        {lastReg && (
+          <button type="button" onClick={autofill}
+            style={{ ...s.btn, background: "transparent", color: "#4A3525", border: "1px solid #B2967D", marginBottom: 24 }}>
+            {t("competition.autofill")}
+          </button>
+        )}
 
         {/* Rider name */}
         <Field label={t("competition.riderLabel")}>
