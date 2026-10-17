@@ -1,68 +1,94 @@
-/* src/pages/prize.css — the prize wheel.
-   The site's palette and typography, but built like a real wheel: a rim with
-   pegs, segments separated by hairlines rather than by colour, a weighted hub,
-   and motion that winds up, runs long and settles.
+/* src/pages/prize.css: the prize wheel.
+   The site's palette and typography, built like a real wheel: a rim with pegs,
+   segments separated by hairlines, a still hub, and motion that winds up, runs
+   long and settles.
 
-   What makes a wheel look cheap is flatness and a linear spin. What makes one
-   look made is depth you barely notice and a stop you can feel. */
-
-/* Every colour on this page goes through a token, so the wheel follows the
-   site's light and dark themes instead of being a bright rectangle in the
-   middle of a dark page. The SVG reads the same tokens — fill="var(--…)"
-   works on shapes exactly as it does in CSS. */
+   Every colour goes through a token so the page follows the site's light and
+   dark themes (html[data-theme="dark"]). The SVG reads the same tokens.
+   Text tokens (--pz-body, --pz-fine, --pz-accent) are chosen for WCAG AA on
+   --pz-bg in both themes; --pz-camel is for hairlines and ornament only. */
 .prize-page {
   --pz-bg:      #F5F1EA;
   --pz-surface: #FDFAF5;
   --pz-ink:     #2C1E12;
-  --pz-body:    #8A7868;
-  --pz-fine:    #A89D90;
+  --pz-body:    #6B5A4A;
+  --pz-fine:    #6F6052;
+  --pz-accent:  #7A5F48;
   --pz-line:    #E2D9CE;
   --pz-camel:   #B2967D;
   --pz-deep:    #4A3525;
   --pz-rim:     #EFE7DA;
   --pz-slice-a: #EAE0D1;
   --pz-slice-b: #DFD2BE;
-  --pz-win:     #F7EFE2;
+  --pz-win:     #B2967D;
+  --pz-win-label:#2C1E12;
+  --pz-jackpot: #4A3525;
+  --pz-on-jackpot:#F5F1EA;
   --pz-label:   #3B2A1C;
   --pz-on-deep: #F5F1EA;
+  --pz-err:     #8A2A1F;
+  --pz-err-bg:  #FFF0EE;
+  --pz-err-line:#E8C4BC;
+  --pz-glow:    178, 150, 125;
+
+  --pz-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
   background: var(--pz-bg);
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 54px 20px 80px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  direction: rtl;
   overflow-x: hidden;
 }
 
-/* Dark is not the same picture dimmed. The rim and segments move to warm
-   browns that sit on the dark page, and the hairlines that separate them get
-   LIGHTER rather than darker — on a dark ground, a dark line is a gap. */
+/* Dark is not the same picture dimmed. Rim and segments move to warm browns,
+   and the hairlines that separate them get LIGHTER: on a dark ground a dark
+   line is a gap. */
 html[data-theme="dark"] .prize-page {
   --pz-bg:      #171310;
   --pz-surface: #211B15;
   --pz-ink:     #EDE6DC;
   --pz-body:    #A5988B;
-  --pz-fine:    #8A7D70;
+  --pz-fine:    #9C8F82;
+  --pz-accent:  #C2A98F;
   --pz-line:    #3A3028;
   --pz-camel:   #B2967D;
   --pz-deep:    #D9C3A9;
   --pz-rim:     #2A221B;
   --pz-slice-a: #33291F;
   --pz-slice-b: #3E3227;
-  --pz-win:     #4C3D2C;
+  --pz-win:     #B2967D;
+  --pz-win-label:#2C1E12;
+  --pz-jackpot: #5A4630;
+  --pz-on-jackpot:#F3ECE2;
   --pz-label:   #EDE6DC;
   --pz-on-deep: #1B1611;
+  --pz-err:     #F2B8AE;
+  --pz-err-bg:  #3A1F1B;
+  --pz-err-line:#6B3A33;
+}
+
+/* Visually hidden, still read by assistive tech. */
+.prize-sr {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .prize-eyebrow {
   font-family: Arial, sans-serif;
-  font-size: 9px;
-  letter-spacing: .3em;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .24em;
   text-transform: uppercase;
-  color: var(--pz-camel);
+  color: var(--pz-accent);
   margin: 0 0 14px;
+  text-align: center;
 }
 
 .prize-title {
@@ -79,19 +105,15 @@ html[data-theme="dark"] .prize-page {
 
 .prize-lead {
   font-family: Arial, sans-serif;
-  font-size: 12px;
-  line-height: 1.9;
+  font-size: 14px;
+  line-height: 1.8;
   color: var(--pz-body);
-  margin: 0 0 38px;
+  margin: 0 0 34px;
   text-align: center;
   max-width: 340px;
 }
 
-/* One mark per theme. Swapped in CSS rather than in JavaScript so it is
-   already right on the first paint — a logo that flickers from black to white
-   is worse than either. */
-/* Scoped tightly enough to win against the sizing rule above — the two must
-   never both be visible at once. */
+/* One mark per theme, swapped in CSS so it is right on the first paint. */
 .prize-hub .prize-logo-dark { visibility: hidden; }
 .prize-hub .prize-logo-light { visibility: visible; }
 html[data-theme="dark"] .prize-hub .prize-logo-light { visibility: hidden; }
@@ -99,23 +121,38 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
 
 /* ── The wheel ──────────────────────────────────────────────────────────── */
 
-.prize-stage { position: relative; margin-bottom: 34px; padding: 10px; }
+.prize-stage { position: relative; margin-bottom: 30px; padding: 10px; }
 
-/* A ring of light behind the wheel that only appears on a win. Soft enough to
-   read as warmth rather than as a glow effect. */
-.prize-stage::before {
+/* Reveal rings: drawn behind the wheel and only on a win. The rarer the prize,
+   the more there is, but it stays warmth and light, not confetti. */
+.prize-stage::before,
+.prize-stage::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  box-shadow: 0 0 0 0 rgba(178, 150, 125, 0);
-  transition: box-shadow .9s ease;
   pointer-events: none;
 }
-.prize-stage.is-won::before { box-shadow: 0 0 46px 6px rgba(178, 150, 125, .38); }
+.prize-stage::before {
+  box-shadow: 0 0 0 0 rgba(var(--pz-glow), 0);
+  transition: box-shadow .9s var(--pz-ease-out);
+}
+.prize-stage.is-won::before { box-shadow: 0 0 40px 4px rgba(var(--pz-glow), .30); }
+.prize-stage.is-won.tier-rare::before { box-shadow: 0 0 52px 8px rgba(var(--pz-glow), .42); }
+.prize-stage.is-won.tier-ultra::before,
+.prize-stage.is-won.tier-jackpot::before { box-shadow: 0 0 70px 12px rgba(var(--pz-glow), .55); }
 
-/* The marker. Pinned above the rim, weighted at the tip, and it does not turn
-   with the wheel — it is the fixed thing the wheel is measured against. */
+.prize-stage::after { border: 1px solid rgba(var(--pz-glow), 0); }
+.prize-stage.is-won.tier-rare::after { animation: ring 1.1s var(--pz-ease-out) both; }
+.prize-stage.is-won.tier-ultra::after { animation: ring 1.3s var(--pz-ease-out) both; }
+.prize-stage.is-won.tier-jackpot::after { animation: ring 1.5s var(--pz-ease-out) both; box-shadow: 0 0 0 1px rgba(var(--pz-glow), .35); }
+
+@keyframes ring {
+  from { opacity: .9; transform: scale(.96); border-color: rgba(var(--pz-glow), .8); }
+  to   { opacity: 0;  transform: scale(1.22); border-color: rgba(var(--pz-glow), 0); }
+}
+
+/* The marker: pinned above the rim, it does not turn with the wheel. */
 .prize-pointer {
   position: absolute;
   top: -2px;
@@ -123,41 +160,22 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   transform: translateX(-50%);
   z-index: 3;
   filter: drop-shadow(0 1px 1px rgba(44, 30, 18, .22));
-  transform-origin: 50% 20%;
 }
-.prize-pointer.is-ticking { animation: tick .45s ease-out; }
-
-@keyframes tick {
-  0%   { transform: translateX(-50%) rotate(0deg); }
-  30%  { transform: translateX(-50%) rotate(-9deg); }
-  60%  { transform: translateX(-50%) rotate(5deg); }
-  100% { transform: translateX(-50%) rotate(0deg); }
-}
-
-/* A barely-moving drift while idle, so the wheel reads as ready rather than
-   as a picture of a wheel. Stops the moment it is spun. */
-.prize-drift { animation: drift 120s linear infinite; }
-.prize-drift.is-busy { animation: none; }
-
-@keyframes drift { to { transform: rotate(360deg); } }
 
 .prize-wheel {
   width: 300px;
   height: 300px;
   display: block;
   filter: drop-shadow(0 6px 18px rgba(44, 30, 18, .13));
+  will-change: transform;
 }
 
-/* Three phases, three different feelings.
-   Wind-up pulls back against the direction of travel — the flick of the wrist
-   before the throw. The spin is long and decelerates almost to nothing, with a
-   hair of overshoot at the very end so it settles rather than stops dead. */
+/* Wind-up pulls back against the direction of travel. The spin is long and
+   decelerates almost to nothing, with a hair of overshoot so it settles
+   rather than stopping dead. */
 .prize-wheel.is-windup { transition: transform .3s cubic-bezier(.4, 0, .9, .4); }
 .prize-wheel.is-spinning { transition: transform 5.4s cubic-bezier(.12, .78, .18, 1.008); }
 
-/* The still centre. Sized as a share of the wheel so it holds at every
-   breakpoint, and pointer-events off so it never swallows a click meant for
-   the wheel beneath it. */
 .prize-hub {
   position: absolute;
   top: 50%;
@@ -176,14 +194,8 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   overflow: hidden;
 }
 
-/* Both marks are stacked, not laid out side by side.
-   They used to be flex siblings, and the rule that sized them also set
-   display:block — which beat the rule meant to hide the wrong one, so both
-   rendered and each shoved the other half its width off centre. Absolute
-   positioning takes them out of the flow entirely: whichever is visible is
-   centred on the hub, and no future rule can push it sideways.
-   82%, not 100%, so the mark keeps its own breathing room inside the hub
-   instead of touching the edge. */
+/* Both marks are stacked, not laid out side by side, so whichever is visible
+   is centred whatever the other does. */
 .prize-hub img {
   position: absolute;
   top: 50%;
@@ -196,29 +208,40 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
 
 .prize-hub-word {
   font-family: Georgia, serif;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.25;
   text-align: center;
   color: var(--pz-ink);
-  letter-spacing: .06em;
+  letter-spacing: .1em;
 }
 
 .prize-slice { transition: fill .6s ease; }
 .prize-slice.is-winner { fill: var(--pz-win); }
 
+/* Reduced motion: no turns, no wind-up, no rings. The answer is shown
+   directly (PrizePage skips the spin) and the glow appears without moving. */
 @media (prefers-reduced-motion: reduce) {
   .prize-wheel.is-windup,
-  .prize-wheel.is-spinning { transition: transform .4s ease-out; }
-  .prize-drift { animation: none; }
-  .prize-pointer.is-ticking { animation: none; }
+  .prize-wheel.is-spinning { transition: none; }
+  .prize-stage::before { transition: none; }
+  .prize-stage::after { animation: none !important; }
+  .prize-card { animation: none !important; }
+  .prize-btn { transition: none; }
 }
 
 /* ── Controls ───────────────────────────────────────────────────────────── */
 
+.prize-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 132px; /* holds the button, count and date so nothing jumps */
+}
+
 .prize-btn {
   font-family: Arial, sans-serif;
-  font-size: 10px;
-  letter-spacing: .26em;
+  font-size: 12px;
+  letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--pz-deep);
   background: transparent;
@@ -228,30 +251,67 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   text-decoration: none;
   display: inline-block;
   min-height: 48px;
-  transition: background .25s ease, color .25s ease, transform .15s ease;
+  min-width: 180px;
+  text-align: center;
+  transition: background .25s ease, color .25s ease, transform .16s var(--pz-ease-out);
+}
+
+.prize-btn:focus-visible,
+.prize-page input:focus-visible,
+.prize-page select:focus-visible {
+  outline: 2px solid var(--pz-deep);
+  outline-offset: 3px;
 }
 
 .prize-btn-solid { background: var(--pz-deep); color: var(--pz-on-deep); border-color: var(--pz-deep); }
-.prize-btn-solid:hover:not(:disabled) { filter: brightness(.9); }
-.prize-btn-solid:active:not(:disabled) { transform: translateY(1px); }
-.prize-btn-solid:disabled { opacity: .5; cursor: wait; }
+@media (hover: hover) and (pointer: fine) {
+  .prize-btn-solid:hover:not(:disabled) { filter: brightness(.9); }
+}
+.prize-btn:active:not(:disabled) { transform: scale(.97); }
+.prize-btn-solid:disabled { opacity: .6; cursor: wait; }
 
 .prize-count {
   font-family: Arial, sans-serif;
-  font-size: 10px;
-  letter-spacing: .14em;
-  color: var(--pz-camel);
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: var(--pz-accent);
   margin: 16px 0 0;
+  text-align: center;
+}
+
+.prize-until {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  color: var(--pz-fine);
+  margin: 8px 0 0;
+  text-align: center;
 }
 
 .prize-error {
   font-family: Arial, sans-serif;
-  font-size: 11.5px;
-  color: #8A2A1F;
-  background: #FFF0EE;
-  border: 1px solid #E8C4BC;
+  font-size: 13px;
+  color: var(--pz-err);
+  background: var(--pz-err-bg);
+  border: 1px solid var(--pz-err-line);
   padding: 10px 16px;
-  margin-top: 20px;
+  margin: 20px 0 0;
+  text-align: center;
+}
+
+.prize-ended {
+  text-align: center;
+  max-width: 340px;
+  margin: 6px 0 10px;
+  padding: 28px 24px;
+  border: 1px solid var(--pz-line);
+  background: var(--pz-surface);
+}
+.prize-ended-title {
+  font-family: Georgia, serif;
+  font-size: 21px;
+  font-weight: 400;
+  color: var(--pz-ink);
+  margin: 0 0 10px;
 }
 
 /* ── The win ────────────────────────────────────────────────────────────── */
@@ -263,29 +323,34 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   border: 1px solid var(--pz-line);
   padding: 30px 28px;
   text-align: center;
-  margin-top: 38px;
-  animation: rise .7s cubic-bezier(.16, .8, .3, 1) both;
+  margin-top: 34px;
+  animation: rise .6s var(--pz-ease-out) both;
 }
+.prize-card.tier-rare { border-color: var(--pz-camel); }
+.prize-card.tier-ultra,
+.prize-card.tier-jackpot { border-color: var(--pz-camel); box-shadow: 0 0 0 3px var(--pz-surface), 0 0 0 4px var(--pz-camel); }
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 .prize-won {
   font-family: Georgia, serif;
-  font-size: 22px;
+  font-size: 21px;
+  line-height: 1.4;
   font-weight: 400;
   color: var(--pz-ink);
-  margin: 0 0 8px;
+  margin: 0 0 12px;
 }
 
 .prize-muted {
   font-family: Arial, sans-serif;
-  font-size: 11.5px;
+  font-size: 14px;
   color: var(--pz-body);
-  line-height: 1.85;
+  line-height: 1.8;
   margin: 0 0 20px;
+  text-align: center;
 }
 
 .prize-code {
@@ -300,11 +365,12 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
 
 .prize-fine {
   font-family: Arial, sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--pz-fine);
   line-height: 1.7;
   margin: 16px 0 0;
 }
+.prize-fine-center { text-align: center; margin: 6px 0 0; }
 
 .prize-list {
   width: 100%;
@@ -312,21 +378,108 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   margin-top: 44px;
   border-top: 1px solid var(--pz-line);
   padding-top: 26px;
-  text-align: center;
 }
+.prize-list ul { list-style: none; margin: 0; padding: 0; }
 
 .prize-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   font-family: Arial, sans-serif;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--pz-ink);
   border-bottom: 1px solid var(--pz-line);
   padding: 13px 2px;
 }
+.prize-row-main { display: flex; flex-direction: column; gap: 3px; }
+.prize-row-state { font-size: 12px; color: var(--pz-accent); }
+.prize-row-code { font-family: Georgia, serif; letter-spacing: .12em; color: var(--pz-body); flex: none; }
 
-.prize-row-code { font-family: Georgia, serif; letter-spacing: .12em; color: var(--pz-body); }
+/* ── Special-prize forms ────────────────────────────────────────────────── */
+
+.prize-form-card { text-align: start; }
+.prize-form-card .prize-eyebrow,
+.prize-form-card .prize-won,
+.prize-form-card .prize-muted { text-align: center; }
+
+.prize-friend { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+.prize-friend legend {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  letter-spacing: .08em;
+  color: var(--pz-accent);
+  padding: 0;
+  margin-bottom: 6px;
+}
+.prize-friend label,
+.prize-field { display: grid; gap: 4px; font-family: Arial, sans-serif; font-size: 12px; color: var(--pz-body); margin-bottom: 14px; }
+.prize-friend label { margin-bottom: 0; }
+
+.prize-page input[type="text"],
+.prize-page select {
+  font-family: Arial, sans-serif;
+  font-size: 16px; /* 16px stops iOS zooming into the field */
+  color: var(--pz-ink);
+  background: var(--pz-bg);
+  border: 1px solid var(--pz-camel);
+  border-radius: 0;
+  padding: 10px 12px;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.prize-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pz-body);
+  margin: 10px 0 18px;
+}
+.prize-check input { width: 20px; height: 20px; flex: none; margin: 1px 0 0; accent-color: var(--pz-deep); }
+.prize-form-card .prize-btn { display: block; margin: 0 auto; }
+
+/* ── Small print ────────────────────────────────────────────────────────── */
+
+.prize-small {
+  width: 100%;
+  max-width: 520px;
+  margin-top: 56px;
+  padding-top: 22px;
+  border-top: 1px solid var(--pz-line);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--pz-fine);
+}
+.prize-small p { margin: 0 0 6px; }
+.prize-small-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--pz-body);
+  margin: 0 0 10px;
+}
+
+.prize-odds { width: 100%; border-collapse: collapse; margin-top: 14px; }
+.prize-odds caption { text-align: start; padding-bottom: 6px; color: var(--pz-body); }
+.prize-odds td { padding: 5px 0; vertical-align: top; }
+.prize-odds td:last-child {
+  text-align: end;
+  white-space: nowrap;
+  padding-inline-start: 16px;
+  font-variant-numeric: tabular-nums;
+}
+/* Air between rarity groups: common | medium | low | rare | ultra + jackpot. */
+.prize-odds tr:nth-child(2) td,
+.prize-odds tr:nth-child(4) td,
+.prize-odds tr:nth-child(5) td,
+.prize-odds tr:nth-child(8) td { padding-bottom: 12px; }
 
 @media (max-width: 480px) {
   .prize-page { padding: 38px 16px 60px; }

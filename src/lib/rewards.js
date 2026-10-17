@@ -19,38 +19,39 @@
 // Alina's list shows whether each one verifies. Prevention needs a rule; this
 // gives detection today. See the note at the top of api/spin.js.
 
-import { doc, getDoc, setDoc, arrayUnion, increment } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, increment, deleteField } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { RETENTION } from "./retention";
+import { PRIZES, prizeById } from "../config/prizes";
 
-/** The wheel, in the order it is drawn. Must match PRIZES in api/spin.js. */
-export const WHEEL = [
-  { id: "extra-photo", label: "תמונה נוספת ערוכה", note: "עוד תמונה אחת מהתחרות, ערוכה במלואה" },
-  { id: "fast-delivery", label: "מסירה מהירה", note: "התמונות שלך תוך 48 שעות" },
-  { id: "discount", label: "15% על ההזמנה הבאה", note: "תקף לתחרות או לסשן אישי" },
-  { id: "reel", label: "ריל קצר", note: "סרטון קצר לאינסטגרם מהתמונות שלך" },
-];
-
-export const prizeById = (id) => WHEEL.find((p) => p.id === id) || null;
+/** The wheel, in the order it is drawn. The table lives in src/config/prizes.js. */
+export const WHEEL = PRIZES;
+export { prizeById };
 
 /**
  * How many spins this person has, and what they have already won.
  * A failed read answers "none" — never invent a spin nobody granted.
  */
 export async function fetchRewards(uid) {
-  if (!uid) return { granted: 0, prizes: [] };
-  const out = { granted: 0, prizes: [] };
+  if (!uid) return { granted: 0, prizes: [], extras: {}, redeemed: {} };
+  const out = { granted: 0, prizes: [], extras: {}, redeemed: {} };
 
   try {
     const snap = await getDoc(doc(db, RETENTION, uid));
-    if (snap.exists()) out.granted = Number(snap.data().spins) || 0;
+    if (snap.exists()) {
+      out.granted = Number(snap.data().spins) || 0;
+      out.redeemed = snap.data().redeemed || {};
+    }
   } catch (err) {
     console.warn("Could not read spins:", err?.code || err);
   }
 
   try {
     const snap = await getDoc(doc(db, "users", uid));
-    if (snap.exists()) out.prizes = Array.isArray(snap.data().prizes) ? snap.data().prizes : [];
+    if (snap.exists()) {
+      out.prizes = Array.isArray(snap.data().prizes) ? snap.data().prizes : [];
+      out.extras = snap.data().prizeExtras || {};
+    }
   } catch (err) {
     console.warn("Could not read prizes:", err?.code || err);
   }
@@ -121,12 +122,69 @@ export async function recordPrize(uid, result) {
       prizes: arrayUnion({
         prizeId: result.prize.id,
         label: result.prize.label,
+        tier: result.prize.tier || null,
         code: result.code,
         issuedAt: result.issuedAt,
         signature: result.signature || null,
-        redeemedAt: null,
       }),
     },
     { merge: true }
   );
+}
+
+/**
+ * The follow-up a special prize needs (the five friends for the team prize,
+ * the two competitions for the jackpot). Written to the winner's own
+ * `users/{uid}` document, which they may write, under prizeExtras.<code>.
+ *
+ * One submission per prize: it refuses if something is already there. That is
+ * a client-side guard (a determined client could write the field by hand,
+ * like the prize itself), but it is read fresh from Firestore, so a second
+ * tab or a reload cannot submit twice.
+ */
+export async function submitPrizeExtra(uid, code, extra) {
+  if (!uid || !code) throw new Error("submitPrizeExtra needs a uid and a code");
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists() && snap.data().prizeExtras?.[code]) throw new Error("already-submitted");
+  await updateDoc(ref, { [`prizeExtras.${code}`]: { ...extra, submittedAt: Date.now() } });
+}
+
+/**
+ * Alina marks a prize redeemed (or undoes it). Lives on `retention/{uid}`
+ * because that is the document only the admin can write. Keyed by prize code.
+ */
+export async function setRedeemed(uid, code, redeemed) {
+  if (!uid || !code) return;
+  await setDoc(
+    doc(db, RETENTION, uid),
+    { redeemed: { [code]: redeemed ? Date.now() : deleteField() } },
+    { merge: true }
+  );
+}
+
+/** Team prize: five distinct friends, each with a name and a way to reach them. */
+export function validateTeam(friends, consent) {
+  if (!consent) return "consent";
+  if (!Array.isArray(friends) || friends.length !== 5) return "count";
+  const keys = new Set();
+  for (const f of friends) {
+    const name = (f.name || "").trim();
+    const contact = (f.contact || "").trim().toLowerCase();
+    if (!name || !contact) return "incomplete";
+    const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact);
+    const isPhone = /^\+?[0-9\s\-()]{7,}$/.test(contact);
+    if (!isEmail && !isPhone) return "contact";
+    const key = isPhone ? contact.replace(/\D/g, "") : contact;
+    if (keys.has(key)) return "duplicate";
+    keys.add(key);
+  }
+  return null;
+}
+
+/** Jackpot: two competitions, one per reward, never the same one. */
+export function validateJackpot(videoComp, packComp) {
+  if (!videoComp || !packComp) return "incomplete";
+  if (videoComp === packComp) return "same";
+  return null;
 }

@@ -365,7 +365,17 @@
     "accessAll": "Release everything",
     "accessOpenShort": "open",
     "accessLockedShort": "locked",
-    "accessLooseNote": "Older photos with no competition are released only by «Release everything»."
+    "accessLooseNote": "Older photos with no competition are released only by «Release everything».",
+    "prizesTitle": "Wheel gifts",
+    "prizesNone": "No gifts won yet",
+    "prizeMarkRedeemed": "Mark redeemed",
+    "prizeUndoRedeemed": "Undo redeemed",
+    "prizeRedeemedOn": "Redeemed {{date}}",
+    "prizeAwaiting": "Waiting for details from the winner",
+    "prizeTeamFriends": "The five friends",
+    "prizeJackpotVideo": "Long video at",
+    "prizeJackpotPack": "Extended pack at",
+    "prizeConsentYes": "The winner confirmed the friends agreed"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -880,5 +890,125 @@
     "day": "Day",
     "horse": "Horse",
     "class": "Class"
+  },
+  "prize": {
+    "eyebrow": "A gift for you",
+    "title": "Thank you for your order",
+    "lead": "Spin the wheel. Every slice is a gift.",
+    "until": "The wheel is available until {{date}}",
+    "loading": "Loading…",
+    "loginTitle": "Your gifts",
+    "loginBody": "Sign in to see them",
+    "login": "Sign in",
+    "wheelLabel": "Prize wheel",
+    "spin": "Spin",
+    "spinning": "Spinning…",
+    "spinsOne": "You have one spin left",
+    "spinsMany": "You have {{count}} spins left",
+    "noSpins": "You have no spins yet",
+    "usedAll": "You have used all your spins",
+    "noSpinsHint": "A spin is added for every paid order.",
+    "endedTitle": "The wheel has ended",
+    "endedBody": "The wheel was available until {{date}} and can no longer be spun. The gifts you won stay here.",
+    "errorSignedOut": "Please sign in",
+    "errorEnded": "The wheel has ended and can no longer be spun.",
+    "errorGeneric": "Something went wrong. Please try again in a moment.",
+    "won": "You won",
+    "announce": "You won: {{prize}}",
+    "codeNote": "Your code is saved here. Show it to Alina to redeem.",
+    "yourPrizes": "Your gifts",
+    "redeemed": "Redeemed",
+    "pending": "Waiting for your details",
+    "tier": {
+      "rare": "A rare gift",
+      "ultra": "A very rare gift",
+      "jackpot": "The jackpot"
+    },
+    "listTitle": "All gifts and odds",
+    "list_odds": "Odds",
+    "team": {
+      "title": "Choose five friends",
+      "lead": "Five friends get 50% off packages of their choice together with you. This can be filled in once only.",
+      "name": "Name",
+      "contact": "Email or phone",
+      "friend": "Friend {{n}}",
+      "consent": "I confirm that my friends agreed to be contacted.",
+      "submit": "Send",
+      "sending": "Sending…",
+      "done": "Details sent. Alina will be in touch.",
+      "errConsent": "Please confirm your friends agreed.",
+      "errIncomplete": "Please fill in a name and contact for every friend.",
+      "errContact": "Invalid email or phone.",
+      "errDuplicate": "The same friend cannot be entered twice.",
+      "errAlready": "You have already sent these details."
+    },
+    "jackpot": {
+      "title": "Choose two competitions",
+      "lead": "A long video for one competition and an extended photo package for a different one. This can be filled in once only.",
+      "video": "Competition for the long video",
+      "pack": "Competition for the extended photo package",
+      "choose": "Choose a competition",
+      "noComps": "There are no competitions to choose from right now. Alina will be in touch.",
+      "submit": "Send",
+      "sending": "Sending…",
+      "done": "Choice sent. Alina will be in touch.",
+      "errIncomplete": "Please choose two competitions.",
+      "errSame": "You cannot choose the same competition for both.",
+      "errAlready": "You have already sent your choice."
+    },
+    "fine": {
+      "title": "Details",
+      "until": "The wheel is available until {{date}}.",
+      "noCash": "Benefits cannot be redeemed for cash and cannot be combined with each other unless stated otherwise.",
+      "confirm": "Gifts are subject to Alina's confirmation.",
+      "odds": "Odds for each gift on every spin:",
+      "terms": "Subject to the site terms."
+    },
+    "items": {
+      "disc-5": {
+        "label": "5% off a package of your choice",
+        "short": "5%"
+      },
+      "disc-10": {
+        "label": "10% off photo packages of your choice (at a competition)",
+        "short": "10%"
+      },
+      "fast-delivery": {
+        "label": "Upgrade to fast delivery",
+        "short": "Fast"
+      },
+      "disc-15-two": {
+        "label": "15% off photos at the next two competitions of your choice",
+        "short": "15%"
+      },
+      "disc-20-video": {
+        "label": "20% off a reel or a long video",
+        "short": "20%"
+      },
+      "disc-50": {
+        "label": "50% off a package of your choice (at one competition)",
+        "short": "50%"
+      },
+      "pack-gift": {
+        "label": "Extended photo package as a gift",
+        "short": "Pack"
+      },
+      "reel-gift": {
+        "label": "Reel video as a gift",
+        "short": "Reel"
+      },
+      "three-free": {
+        "label": "Punch card: the next three competitions free",
+        "short": "3 free"
+      },
+      "team": {
+        "label": "Winning team: the winner picks 5 friends who get 50% off packages of their choice together with them",
+        "short": "Team"
+      },
+      "jackpot": {
+        "label": "Jackpot: a long video as a gift plus an extended photo package, for two competitions of your choice (not both at the same competition)",
+        "short": "Jackpot"
+      }
+    }
   }
 }

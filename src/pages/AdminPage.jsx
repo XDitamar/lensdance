@@ -26,8 +26,9 @@ import {
   setAlbumUnlocked,
   setUnlocked as setGalleryUnlocked,
 } from "../lib/galleryAccess";
-import { fetchRewards, grantSpins } from "../lib/rewards";
+import { fetchRewards, grantSpins, setRedeemed } from "../lib/rewards";
 import { PRIZE_WHEEL } from "../config/features";
+import { prizeById } from "../config/prizes";
 import { albumName, albumOf } from "../lib/albums";
 import { competitionLabel, fetchCompetitions } from "../lib/competitions";
 import { useTranslation } from "react-i18next";
@@ -156,6 +157,8 @@ export default function AdminPage() {
   /** Spins on the prize wheel for the client on screen. */
   const [spins, setSpins] = useState(0);
   const [spinsBusy, setSpinsBusy] = useState(false);
+  /** Everything the wheel holds for that client: prizes, follow-up details, redeemed marks. */
+  const [wheelData, setWheelData] = useState(null);
 
   const onToggleAccess = async () => {
     const u = userForFolder(currentFolder);
@@ -356,9 +359,10 @@ export default function AdminPage() {
     setRetention(null);
     setUnlocked(null);
     setSpins(0);
+    setWheelData(null);
     if (!uid) return;
     fetchAccess(uid).then((a) => { setAccess(a); setUnlocked(a.all); });
-    if (PRIZE_WHEEL) fetchRewards(uid).then((r) => setSpins(r.granted)).catch(() => {});
+    if (PRIZE_WHEEL) fetchRewards(uid).then((r) => { setSpins(r.granted); setWheelData(r); }).catch(() => {});
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -979,6 +983,84 @@ export default function AdminPage() {
                   {t("common.save")}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ── Gifts won on the wheel ──
+              What each prize is, the details the winner had to add (the five
+              friends, the two competitions), and a mark for when Alina has
+              honoured it. The mark lives on retention/{uid}, which only the
+              admin can write. */}
+          {PRIZE_WHEEL && !!userForFolder(currentFolder)?.uid && wheelData && (
+            <div style={{
+              marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
+              background: "#FDFAF5", padding: "12px 14px",
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+                {t("admin.prizesTitle")}
+              </div>
+              {wheelData.prizes.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: "#6A5A50" }}>{t("admin.prizesNone")}</div>
+              ) : (
+                wheelData.prizes.map((p) => {
+                  const done = wheelData.redeemed?.[p.code];
+                  const extra = wheelData.extras?.[p.code];
+                  const special = prizeById(p.prizeId)?.special;
+                  const u = userForFolder(currentFolder);
+                  return (
+                    <div key={p.code} style={{ borderTop: "1px solid #EFE7DA", padding: "10px 0", fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div>
+                          <strong>{p.label || prizeById(p.prizeId)?.label}</strong>
+                          <span style={{ color: "#6A5A50", marginInlineStart: 8, letterSpacing: ".08em" }}>{p.code}</span>
+                        </div>
+                        <button
+                          className="filter-button"
+                          onClick={async () => {
+                            try {
+                              await setRedeemed(u.uid, p.code, !done);
+                              setWheelData((w) => {
+                                const redeemed = { ...(w.redeemed || {}) };
+                                if (done) delete redeemed[p.code]; else redeemed[p.code] = Date.now();
+                                return { ...w, redeemed };
+                              });
+                            } catch (e) {
+                              setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+                            }
+                          }}
+                        >
+                          {done ? t("admin.prizeUndoRedeemed") : t("admin.prizeMarkRedeemed")}
+                        </button>
+                      </div>
+                      {done && (
+                        <div style={{ color: "#5B7A3A", fontSize: 12.5, marginTop: 3 }}>
+                          {t("admin.prizeRedeemedOn", { date: new Date(done).toLocaleDateString("en-GB") })}
+                        </div>
+                      )}
+                      {special && !extra && (
+                        <div style={{ color: "#8A5A1F", fontSize: 12.5, marginTop: 3 }}>{t("admin.prizeAwaiting")}</div>
+                      )}
+                      {extra?.type === "team" && (
+                        <div style={{ marginTop: 6, fontSize: 12.5 }}>
+                          <div style={{ color: "#6A5A50" }}>{t("admin.prizeTeamFriends")}</div>
+                          <ol style={{ margin: "3px 0 0", paddingInlineStart: 20 }}>
+                            {(extra.friends || []).map((f, i) => (
+                              <li key={i}>{f.name} <span dir="ltr" style={{ color: "#6A5A50" }}>{f.contact}</span></li>
+                            ))}
+                          </ol>
+                          {extra.consent && <div style={{ color: "#5B7A3A", marginTop: 3 }}>{t("admin.prizeConsentYes")}</div>}
+                        </div>
+                      )}
+                      {extra?.type === "jackpot" && (
+                        <div style={{ marginTop: 6, fontSize: 12.5 }}>
+                          <div>{t("admin.prizeJackpotVideo")}: <strong>{extra.video?.label}</strong></div>
+                          <div>{t("admin.prizeJackpotPack")}: <strong>{extra.pack?.label}</strong></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
 
