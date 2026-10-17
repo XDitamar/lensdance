@@ -63,18 +63,51 @@ export async function fetchRewards(uid) {
 export const spinsLeft = ({ granted, prizes }) =>
   Math.max(0, (granted || 0) - (prizes?.length || 0));
 
+/** The fields the server signed: all it needs to check a prize. */
+const signedFields = (p) => ({
+  prizeId: p.prizeId, code: p.code, issuedAt: p.issuedAt, validUntil: p.validUntil, signature: p.signature,
+});
+
+/**
+ * Ask the server which of these prizes are genuine, unexpired and redeemable
+ * (api/verify-prize.js). A customer can only check their own; the admin passes
+ * `uid` to check a client's. Resolves to { secretConfigured, byCode } or
+ * rejects when the endpoint is unreachable (for example under plain
+ * `npm start`, which has no /api).
+ */
+export async function verifyPrizes(prizes, uid) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("not-signed-in");
+  const idToken = await user.getIdToken();
+  const res = await fetch("/api/verify-prize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ uid, prizes: prizes.map(signedFields) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return {
+    secretConfigured: data.secretConfigured,
+    byCode: Object.fromEntries((data.results || []).map((r) => [r.code, r])),
+  };
+}
+
 /**
  * Ask the server to draw. The wheel animates to whatever comes back; nothing
  * here decides anything.
  */
-export async function requestSpin() {
+export async function requestSpin(priorPrizes = []) {
   const user = auth.currentUser;
   if (!user) throw new Error("not-signed-in");
   const idToken = await user.getIdToken();
 
+  // The signed history lets the server redraw away from a second capped prize.
+  // A client could simply not send it: the real enforcement is at redemption
+  // (api/verify-prize.js). See api/_verify.js.
   const res = await fetch("/api/spin", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ prizes: priorPrizes.map(signedFields) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -125,6 +158,7 @@ export async function recordPrize(uid, result) {
         tier: result.prize.tier || null,
         code: result.code,
         issuedAt: result.issuedAt,
+        validUntil: result.validUntil || null,
         signature: result.signature || null,
       }),
     },

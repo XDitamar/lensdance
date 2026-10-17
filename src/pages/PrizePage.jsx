@@ -11,8 +11,14 @@
 // and rotates until it arrives there, so what the animation shows and what the
 // client actually won cannot come apart.
 //
-// The prize table (labels, odds, tiers) is src/config/prizes.js, mirrored from
-// api/_prizes.js. All copy is in src/locales/*.json under `prize`.
+// ODDS ARE NOT ON THIS PAGE, on purpose: no percentages and no "rare" or
+// "common" wording anywhere here. They are published in the rules page
+// (/prize-terms), generated from the same weights the server draws with, and
+// this page links to it from the small print and from the result. Rarity
+// (`tier`) only decides how much celebration the reveal gets.
+//
+// The prize table is src/config/prizes.js (a generated copy of
+// api/_prizes.js). All copy is in src/locales/*.json under `prize`.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -29,7 +35,7 @@ import {
   validateJackpot,
   validateTeam,
 } from "../lib/rewards";
-import { PRIZE_WHEEL_UNTIL, TOTAL_WEIGHT, prizeById, wheelOpen } from "../config/prizes";
+import { PRIZE_VALID_UNTIL, PRIZE_WHEEL_UNTIL, dmy, isExpired, prizeById, wheelOpen } from "../config/prizes";
 import { competitionLabel, fetchCompetitions, hasEnded } from "../lib/competitions";
 import "./prize.css";
 
@@ -46,16 +52,49 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 /** The pegs around the rim, what a pointer would tick against. */
 const PEGS = Array.from({ length: 24 }, (_, i) => (i * 360) / 24);
 
-/** 2026-12-31 -> 31.12.2026 (numeric, so it reads the same in every language). */
-const untilLabel = () => PRIZE_WHEEL_UNTIL.split("-").reverse().join(".");
+/**
+ * A wedge as a clip-path polygon, in % of the wheel's box, so that a plain
+ * <button> can be exactly one slice (clipping also clips where it can be
+ * tapped). The face is R_FACE of a 320-unit box.
+ */
+const wedge = (i) => {
+  const r = (R_FACE / 320) * 100;
+  const pts = [[50, 50]];
+  for (let k = 0; k <= 4; k += 1) {
+    const deg = i * SLICE + (SLICE * k) / 4;
+    pts.push([50 + r * Math.sin((deg * Math.PI) / 180), 50 - r * Math.cos((deg * Math.PI) / 180)]);
+  }
+  return `polygon(${pts.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(",")})`;
+};
+const WEDGES = WHEEL.map((_, i) => wedge(i));
+
+/**
+ * Split a short label over at most two lines, as evenly as the words allow,
+ * so that a two-word name fits the narrow end of a slice.
+ */
+function lines(label) {
+  const words = String(label).split(" ");
+  if (words.length < 2) return [label];
+  let best = [label];
+  let bestMax = Infinity;
+  for (let k = 1; k < words.length; k += 1) {
+    const pair = [words.slice(0, k).join(" "), words.slice(k).join(" ")];
+    const max = Math.max(pair[0].length, pair[1].length);
+    if (max < bestMax) { best = pair; bestMax = max; }
+  }
+  return best;
+}
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   !!window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const isWide = () =>
+  typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(min-width: 1024px)").matches;
+
 export default function PrizePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rewards, setRewards] = useState({ granted: 0, prizes: [], extras: {}, redeemed: {} });
@@ -64,11 +103,18 @@ export default function PrizePage() {
   const [won, setWon] = useState(null);
   const [error, setError] = useState("");
   const [ended, setEnded] = useState(!wheelOpen());
+  /* The slice being looked at (hovered, tapped or focused). */
+  const [peek, setPeek] = useState(null);
+  /* Which slice holds the single tab stop (arrow keys move it). */
+  const [rove, setRove] = useState(0);
+  /* "What can I win": open on desktop, collapsed on a phone. */
+  const [canOpen, setCanOpen] = useState(isWide);
   /* The mark in the hub. If the file is not in public/ the wordmark takes its
      place: a missing asset should cost a logo, not leave a hole in the middle
      of the wheel. */
   const [logoOk, setLogoOk] = useState(true);
   const alive = useRef(true);
+  const hitRefs = useRef([]);
 
   useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); if (!u) setLoading(false); }), []);
@@ -86,20 +132,20 @@ export default function PrizePage() {
     (id, fallback) => t(`prize.items.${id}.label`, { defaultValue: fallback || "" }),
     [t]
   );
-  const pct = (weight) =>
-    `${((weight / TOTAL_WEIGHT) * 100).toLocaleString(i18n.language, { maximumFractionDigits: 1 })}%`;
+  const explain = useCallback((id) => t(`prize.items.${id}.explain`, { defaultValue: "" }), [t]);
 
   const onSpin = async () => {
     if (busy || left <= 0) return;
     setError("");
     setWon(null);
+    setPeek(null);
 
     let result;
     try {
       // Asked for FIRST, so the wheel never starts a spin it cannot finish:
       // a wheel that turns and then apologises is worse than a button that
       // waits half a second.
-      result = await requestSpin();
+      result = await requestSpin(rewards.prizes);
     } catch (err) {
       if (err?.message === "wheel-ended") setEnded(true);
       setError(
@@ -144,6 +190,8 @@ export default function PrizePage() {
           tier: result.prize.tier,
           code: result.code,
           issuedAt: result.issuedAt,
+          validUntil: result.validUntil,
+          signature: result.signature,
         },
       ],
     }));
@@ -151,6 +199,17 @@ export default function PrizePage() {
     // Saved after it is shown: the client has won either way, and a slow write
     // must not hold up the moment they are waiting for.
     recordPrize(user.uid, result).catch((e) => console.warn("Prize not saved:", e?.code || e));
+  };
+
+  /* Arrow keys move between slices (one tab stop for the whole wheel, not
+     eleven). Right/Down go forward, Left/Up back, in any text direction. */
+  const onHitKey = (e, i) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + WHEEL.length) % WHEEL.length;
+    setRove(next);
+    hitRefs.current[next]?.focus();
   };
 
   if (loading) {
@@ -171,150 +230,232 @@ export default function PrizePage() {
     (p) => prizeById(p.prizeId)?.special && !rewards.extras?.[p.code]
   );
   const wonTier = won?.prize?.tier || "common";
+  const peeked = peek !== null ? WHEEL[peek] : null;
 
   return (
     <div className="prize-page">
-      <p className="prize-eyebrow">{t("prize.eyebrow")}</p>
-      <h1 className="prize-title">{t("prize.title")}</h1>
-      <div className="prize-rule" />
+      <div className={`prize-layout${ended ? " is-ended" : ""}`}>
+        <header className="prize-intro">
+          <p className="prize-eyebrow">{t("prize.eyebrow")}</p>
+          <h1 className="prize-title">{t("prize.title")}</h1>
+          <div className="prize-rule" />
+          {!ended && <p className="prize-lead">{t("prize.lead")}</p>}
+        </header>
 
-      {ended ? (
-        <section className="prize-ended">
-          <h2 className="prize-ended-title">{t("prize.endedTitle")}</h2>
-          <p className="prize-muted">{t("prize.endedBody", { date: untilLabel() })}</p>
-        </section>
-      ) : (
-        <>
-          <p className="prize-lead">{t("prize.lead")}</p>
+        {ended ? (
+          <section className="prize-ended">
+            <h2 className="prize-ended-title">{t("prize.endedTitle")}</h2>
+            <p className="prize-muted">{t("prize.endedBody", { date: dmy(PRIZE_WHEEL_UNTIL) })}</p>
+          </section>
+        ) : (
+          <>
+            {/* The wheel is a picture (aria-hidden). Everything it says is also
+                real text: the "what can I win" list below, the slice buttons
+                laid over it, and the announcement of the result. */}
+            <div className="prize-stagecol">
+              <div className={`prize-stage${won ? ` is-won tier-${wonTier}` : ""}`}>
+                <svg
+                  className="prize-pointer"
+                  width="26" height="34" viewBox="0 0 26 34" aria-hidden="true"
+                >
+                  <path d="M13 33 L3 11 A11 11 0 1 1 23 11 Z" fill="var(--pz-deep)" />
+                  <circle cx="13" cy="11" r="4" fill="var(--pz-bg)" />
+                </svg>
 
-          {/* The wheel is a picture; the prizes are listed as text further down
-              (and announced when won), so none of it is lost to a screen reader. */}
-          <div className={`prize-stage${won ? ` is-won tier-${wonTier}` : ""}`}>
-            <svg
-              className="prize-pointer"
-              width="26" height="34" viewBox="0 0 26 34" aria-hidden="true"
-            >
-              <path d="M13 33 L3 11 A11 11 0 1 1 23 11 Z" fill="var(--pz-deep)" />
-              <circle cx="13" cy="11" r="4" fill="var(--pz-bg)" />
-            </svg>
+                <svg
+                  className={`prize-wheel${phase === "windup" ? " is-windup" : ""}${phase === "spinning" ? " is-spinning" : ""}`}
+                  viewBox="0 0 320 320"
+                  style={{ transform: `rotate(${angle}deg)` }}
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <circle cx={C} cy={C} r={R_RIM} fill="var(--pz-rim)" stroke="var(--pz-camel)" strokeWidth="1" />
+                  <circle cx={C} cy={C} r={R_FACE + 8} fill="none" stroke="var(--pz-camel)" strokeWidth="0.75" opacity="0.5" />
 
-            <svg
-              className={`prize-wheel${phase === "windup" ? " is-windup" : ""}${phase === "spinning" ? " is-spinning" : ""}`}
-              viewBox="0 0 320 320"
-              style={{ transform: `rotate(${angle}deg)` }}
-              aria-hidden="true"
-              focusable="false"
-            >
-              <circle cx={C} cy={C} r={R_RIM} fill="var(--pz-rim)" stroke="var(--pz-camel)" strokeWidth="1" />
-              <circle cx={C} cy={C} r={R_FACE + 8} fill="none" stroke="var(--pz-camel)" strokeWidth="0.75" opacity="0.5" />
+                  {PEGS.map((deg) => {
+                    const [x, y] = px(deg, (R_RIM + R_FACE) / 2 + 3);
+                    return <circle key={deg} cx={x} cy={y} r="2.1" fill="var(--pz-camel)" opacity="0.65" />;
+                  })}
 
-              {PEGS.map((deg) => {
-                const [x, y] = px(deg, (R_RIM + R_FACE) / 2 + 3);
-                return <circle key={deg} cx={x} cy={y} r="2.1" fill="var(--pz-camel)" opacity="0.65" />;
-              })}
+                  {WHEEL.map((prize, i) => {
+                    const start = i * SLICE;
+                    const end = start + SLICE;
+                    const [x1, y1] = px(start, R_FACE);
+                    const [x2, y2] = px(end, R_FACE);
+                    const mid = start + SLICE / 2;
+                    const isWinner = won?.prize?.id === prize.id;
+                    const isPeek = peek === i && !isWinner;
+                    const isJackpot = prize.tier === "jackpot";
+                    // Labels run along the radius. Flipped on the left half so no
+                    // word is ever read upside down.
+                    const flip = mid > 180;
+                    const rotation = flip ? mid + 90 : mid - 90;
+                    const [lx, ly] = px(mid, (R_FACE + R_HUB) / 2 + 4);
+                    const rows = lines(t(`prize.items.${prize.id}.short`));
+                    /* Eleven slices is odd, so strict alternation would put two
+                       of the same linen side by side where the wheel closes. The
+                       jackpot takes that seat in a deep brown: it is also the
+                       one slice that should be easy to find. */
+                    const fill = isJackpot
+                      ? "var(--pz-jackpot)"
+                      : i % 2 === 0 ? "var(--pz-slice-a)" : "var(--pz-slice-b)";
+                    return (
+                      <g key={prize.id}>
+                        <path
+                          className={`prize-slice${isWinner ? " is-winner" : ""}${isPeek ? " is-peek" : ""}`}
+                          d={`M${C} ${C} L${x1} ${y1} A${R_FACE} ${R_FACE} 0 0 1 ${x2} ${y2} Z`}
+                          fill={isWinner || isPeek ? undefined : fill}
+                          stroke="var(--pz-camel)"
+                          strokeWidth="0.6"
+                        />
+                        <text
+                          transform={`rotate(${rotation} ${lx} ${ly})`}
+                          textAnchor="middle"
+                          fontFamily="Georgia, serif"
+                          fontSize="11.5"
+                          fill={isWinner ? "var(--pz-win-label)" : isJackpot && !isPeek ? "var(--pz-on-jackpot)" : "var(--pz-label)"}
+                          letterSpacing="0.2"
+                        >
+                          {rows.map((row, k) => (
+                            <tspan
+                              key={k}
+                              x={lx}
+                              y={ly}
+                              dy={k === 0 ? `${0.35 - (rows.length - 1) * 0.55}em` : `${0.35 + 0.55 * (rows.length - 1)}em`}
+                            >
+                              {row}
+                            </tspan>
+                          ))}
+                        </text>
+                      </g>
+                    );
+                  })}
 
-              {WHEEL.map((prize, i) => {
-                const start = i * SLICE;
-                const end = start + SLICE;
-                const [x1, y1] = px(start, R_FACE);
-                const [x2, y2] = px(end, R_FACE);
-                const mid = start + SLICE / 2;
-                const isWinner = won?.prize?.id === prize.id;
-                const isJackpot = prize.tier === "jackpot";
-                // Labels run along the radius. Flipped on the left half so no
-                // word is ever read upside down.
-                const flip = mid > 180;
-                const rotation = flip ? mid + 90 : mid - 90;
-                const [lx, ly] = px(mid, (R_FACE + R_HUB) / 2 + 4);
-                /* Eleven slices is odd, so strict alternation would put two
-                   of the same linen side by side where the wheel closes. The
-                   jackpot takes that seat in a deep brown: it is also the
-                   one slice that should be easy to find. */
-                const fill = isJackpot
-                  ? "var(--pz-jackpot)"
-                  : i % 2 === 0 ? "var(--pz-slice-a)" : "var(--pz-slice-b)";
-                return (
-                  <g key={prize.id}>
-                    <path
-                      className={`prize-slice${isWinner ? " is-winner" : ""}`}
-                      d={`M${C} ${C} L${x1} ${y1} A${R_FACE} ${R_FACE} 0 0 1 ${x2} ${y2} Z`}
-                      fill={isWinner ? undefined : fill}
-                      stroke="var(--pz-camel)"
-                      strokeWidth="0.6"
+                  <circle cx={C} cy={C} r={R_FACE} fill="none" stroke="var(--pz-camel)" strokeWidth="1" />
+                </svg>
+
+                {/* One transparent button per slice, turning with the wheel
+                    (same angle, same transition), so a slice can be tapped,
+                    hovered or reached with the keyboard wherever it stopped.
+                    While it is spinning they are switched off. */}
+                <div
+                  className={`prize-hits${phase === "windup" ? " is-windup" : ""}${phase === "spinning" ? " is-spinning" : ""}`}
+                  style={{ transform: `rotate(${angle}deg)` }}
+                  role="group"
+                  aria-label={t("prize.canWin")}
+                >
+                  {WHEEL.map((prize, i) => (
+                    <button
+                      key={prize.id}
+                      type="button"
+                      ref={(el) => { hitRefs.current[i] = el; }}
+                      className="prize-hit"
+                      style={{ clipPath: WEDGES[i] }}
+                      disabled={busy}
+                      tabIndex={rove === i ? 0 : -1}
+                      aria-label={`${t(`prize.items.${prize.id}.short`)}. ${explain(prize.id)}`}
+                      onClick={() => { setPeek(i); setRove(i); }}
+                      onMouseEnter={() => setPeek(i)}
+                      onMouseLeave={() => setPeek(null)}
+                      onFocus={() => { setPeek(i); setRove(i); }}
+                      onBlur={() => setPeek((p) => (p === i ? null : p))}
+                      onKeyDown={(e) => onHitKey(e, i)}
                     />
-                    <text
-                      x={lx} y={ly}
-                      transform={`rotate(${rotation} ${lx} ${ly})`}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontFamily="Georgia, serif"
-                      fontSize="12"
-                      fill={isWinner ? "var(--pz-win-label)" : isJackpot ? "var(--pz-on-jackpot)" : "var(--pz-label)"}
-                      letterSpacing="0.3"
-                    >
-                      {t(`prize.items.${prize.id}.short`)}
-                    </text>
-                  </g>
-                );
-              })}
+                  ))}
+                </div>
 
-              <circle cx={C} cy={C} r={R_FACE} fill="none" stroke="var(--pz-camel)" strokeWidth="1" />
-            </svg>
+                {/* A maker's mark is the still point a wheel turns around, not
+                    another thing being flung about: it sits OUTSIDE the turning
+                    layers, on top. */}
+                <div className="prize-hub" aria-hidden="true">
+                  {logoOk ? (
+                    <>
+                      <img className="prize-logo-light" src="/logo-hub.png" alt=""
+                           onError={() => setLogoOk(false)} />
+                      <img className="prize-logo-dark" src="/logo-hub-white.png" alt="" />
+                    </>
+                  ) : (
+                    <span className="prize-hub-word">LENS<br />DANCE</span>
+                  )}
+                </div>
+              </div>
 
-            {/* The hub sits OUTSIDE the turning svg, on top of it: a maker's
-                mark is the still point a wheel turns around, not another thing
-                being flung about. */}
-            <div className="prize-hub" aria-hidden="true">
-              {logoOk ? (
+            </div>
+
+            {/* What the looked-at slice is. Fixed height, so reading it never
+                moves the page. Not a live region: a screen reader already
+                gets the same text from the slice button's own label. */}
+            <p className={`prize-peek${peeked ? " has-peek" : ""}`}>
+              {peeked ? (
                 <>
-                  <img className="prize-logo-light" src="/logo-hub.png" alt=""
-                       onError={() => setLogoOk(false)} />
-                  <img className="prize-logo-dark" src="/logo-hub-white.png" alt="" />
+                  <strong>{t(`prize.items.${peeked.id}.short`)}</strong>
+                  <span>{explain(peeked.id)}</span>
                 </>
               ) : (
-                <span className="prize-hub-word">LENS<br />DANCE</span>
+                <span>{t("prize.hint")}</span>
               )}
-            </div>
-          </div>
-
-          <div className="prize-action">
-            {left > 0 ? (
-              <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
-                {busy ? t("prize.spinning") : t("prize.spin")}
-              </button>
-            ) : null}
-            <p className="prize-count">
-              {left > 1 ? t("prize.spinsMany", { count: left })
-                : left === 1 ? t("prize.spinsOne")
-                : rewards.prizes.length > 0 ? t("prize.usedAll")
-                : t("prize.noSpins")}
             </p>
-            {left === 0 && rewards.prizes.length === 0 && (
-              <p className="prize-fine prize-fine-center">{t("prize.noSpinsHint")}</p>
-            )}
-            <p className="prize-until">{t("prize.until", { date: untilLabel() })}</p>
-          </div>
-        </>
-      )}
 
-      {/* Announced once, politely, when the answer arrives. */}
-      <div className="prize-sr" role="status" aria-live="polite">
-        {won ? t("prize.announce", { prize: prizeName(won.prize.id, won.prize.label) }) : ""}
-      </div>
+            <div className="prize-action">
+              {left > 0 ? (
+                <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
+                  {busy ? t("prize.spinning") : t("prize.spin")}
+                </button>
+              ) : null}
+              <p className="prize-count">
+                {left > 1 ? t("prize.spinsMany", { count: left })
+                  : left === 1 ? t("prize.spinsOne")
+                  : rewards.prizes.length > 0 ? t("prize.usedAll")
+                  : t("prize.noSpins")}
+              </p>
+              {left === 0 && rewards.prizes.length === 0 && (
+                <p className="prize-fine prize-fine-center">{t("prize.noSpinsHint")}</p>
+              )}
+              <p className="prize-until">{t("prize.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</p>
+            </div>
+          </>
+        )}
 
-      {error && <p className="prize-error" role="alert">{error}</p>}
-
-      {won && (
-        <div className={`prize-card tier-${wonTier}`}>
-          <p className="prize-eyebrow">
-            {t("prize.won")}
-            {t(`prize.tier.${wonTier}`, { defaultValue: "" }) ? ` / ${t(`prize.tier.${wonTier}`)}` : ""}
-          </p>
-          <h2 className="prize-won">{prizeName(won.prize.id, won.prize.label)}</h2>
-          <div className="prize-code">{won.code}</div>
-          <p className="prize-fine">{t("prize.codeNote")}</p>
+        {/* Announced once, politely, when the answer arrives. */}
+        <div className="prize-sr" role="status" aria-live="polite">
+          {won ? t("prize.announce", { prize: explain(won.prize.id) || prizeName(won.prize.id, won.prize.label) }) : ""}
         </div>
-      )}
+
+        <div className="prize-result">
+          {error && <p className="prize-error" role="alert">{error}</p>}
+
+          {won && (
+            <div className={`prize-card tier-${wonTier}`}>
+              <p className="prize-eyebrow">{t("prize.won")}</p>
+              <h2 className="prize-won">{explain(won.prize.id) || prizeName(won.prize.id, won.prize.label)}</h2>
+              <div className="prize-code">{won.code}</div>
+              <p className="prize-fine">
+                {t("prize.validUntil", { date: dmy(won.validUntil || PRIZE_VALID_UNTIL) })}
+              </p>
+              <p className="prize-fine">{t("prize.codeNote")}</p>
+              <p className="prize-fine"><Link className="prize-link" to="/prize-terms">{t("prize.rulesLink")}</Link></p>
+            </div>
+          )}
+        </div>
+
+        {!ended && (
+          <details
+            className="prize-can"
+            open={canOpen}
+            onToggle={(e) => setCanOpen(e.currentTarget.open)}
+          >
+            <summary>{t("prize.canWin")}</summary>
+            <ul>
+              {WHEEL.map((p) => (
+                <li key={p.id}>
+                  <strong>{t(`prize.items.${p.id}.short`)}</strong>
+                  <span>{explain(p.id)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
 
       {pending.map((p) => (
         <ExtraForm
@@ -334,15 +475,17 @@ export default function PrizePage() {
             {rewards.prizes.map((p) => {
               const redeemed = !!rewards.redeemed?.[p.code];
               const needsDetails = prizeById(p.prizeId)?.special && !rewards.extras?.[p.code];
+              const expired = !redeemed && isExpired(p.validUntil);
               return (
                 <li key={p.code} className="prize-row">
                   <span className="prize-row-main">
                     <span>{prizeName(p.prizeId, p.label)}</span>
-                    {(redeemed || needsDetails) && (
-                      <span className="prize-row-state">
-                        {redeemed ? t("prize.redeemed") : t("prize.pending")}
-                      </span>
-                    )}
+                    <span className="prize-row-state">
+                      {redeemed ? t("prize.redeemed")
+                        : expired ? t("prize.expired")
+                        : needsDetails ? t("prize.pending")
+                        : p.validUntil ? t("prize.validUntil", { date: dmy(p.validUntil) }) : ""}
+                    </span>
                   </span>
                   <span className="prize-row-code">{p.code}</span>
                 </li>
@@ -355,27 +498,17 @@ export default function PrizePage() {
       {/* TODO: legal review. A prize wheel tied to a purchase may count as a
           promotion under Israeli law and may need a published terms document
           (and possibly a permit). This is plain disclosure, not reviewed text.
-          Do not add claims that are not in WHEEL-BRIEF.md. */}
+          No percentages here: the odds are in /prize-terms, linked below. */}
       <section className="prize-small" aria-labelledby="prize-small-title">
         <h2 id="prize-small-title" className="prize-small-title">{t("prize.fine.title")}</h2>
-        <p>{t("prize.fine.until", { date: untilLabel() })}</p>
-        <p>{t("prize.fine.noCash")}</p>
-        <p>{t("prize.fine.confirm")}</p>
-        <p>{t("prize.fine.terms")}</p>
-        <table className="prize-odds">
-          <caption>{t("prize.fine.odds")}</caption>
-          <thead className="prize-sr">
-            <tr><th scope="col">{t("prize.listTitle")}</th><th scope="col">{t("prize.list_odds")}</th></tr>
-          </thead>
-          <tbody>
-            {WHEEL.map((p) => (
-              <tr key={p.id} className={`tier-${p.tier}`}>
-                <td>{t(`prize.items.${p.id}.label`)}</td>
-                <td>{pct(p.weight)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul>
+          <li>{t("prize.fine.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</li>
+          <li>{t("prize.fine.noCash")}</li>
+          <li>{t("prize.fine.validity", { date: dmy(PRIZE_VALID_UNTIL) })}</li>
+          <li>{t("prize.fine.capped")}</li>
+          <li>{t("prize.fine.confirm")}</li>
+        </ul>
+        <p><Link className="prize-link" to="/prize-terms">{t("prize.rulesLink")}</Link></p>
       </section>
     </div>
   );

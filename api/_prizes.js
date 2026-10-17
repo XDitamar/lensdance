@@ -16,6 +16,8 @@ const TOTAL_WEIGHT = 1000;
  * Slice order on the wheel is the order here. Slice ANGLES are equal on
  * purpose (readability); probability comes from `weight` alone.
  * `label` is the final Hebrew copy and is what Alina sees on the admin page.
+ * `capped` prizes (the six biggest) are honoured ONCE per customer in total:
+ * see evaluatePrizes() in ./_verify.js and the redraw in pickPrize() below.
  * `special` names a follow-up the winner has to complete (see PrizePage).
  */
 const PRIZES = [
@@ -24,12 +26,13 @@ const PRIZES = [
   { id: "fast-delivery", tier: "medium", weight: 150, label: "שדרוג לאספקה מהירה" },
   { id: "disc-15-two", tier: "medium", weight: 130, label: "15% הנחה על תמונות בשתי התחרויות הבאות לבחירתך" },
   { id: "disc-20-video", tier: "low", weight: 80, label: "20% הנחה על סרטון ריל / סרטון ארוך" },
-  { id: "disc-50", tier: "rare", weight: 25, label: "50% הנחה על חבילה לבחירתך (בתחרות אחת)" },
-  { id: "pack-gift", tier: "rare", weight: 12, label: "חבילת תמונות מורחבת במתנה" },
-  { id: "reel-gift", tier: "rare", weight: 8, label: "סרטון ריל במתנה" },
-  { id: "three-free", tier: "ultra", weight: 10, label: "כרטיסייה: שלוש התחרויות הבאות בחינם" },
+  { id: "disc-50", capped: true, tier: "rare", weight: 25, label: "50% הנחה על חבילה לבחירתך (בתחרות אחת)" },
+  { id: "pack-gift", capped: true, tier: "rare", weight: 12, label: "חבילת תמונות מורחבת במתנה" },
+  { id: "reel-gift", capped: true, tier: "rare", weight: 8, label: "סרטון ריל במתנה" },
+  { id: "three-free", capped: true, tier: "ultra", weight: 10, label: "כרטיסייה: שלוש התחרויות הבאות בחינם" },
   {
     id: "team",
+    capped: true,
     tier: "ultra",
     weight: 4,
     special: "team",
@@ -37,6 +40,7 @@ const PRIZES = [
   },
   {
     id: "jackpot",
+    capped: true,
     tier: "jackpot",
     weight: 1,
     special: "jackpot",
@@ -47,25 +51,65 @@ const PRIZES = [
 /** Last day the wheel can be spun, end of day Asia/Jerusalem. */
 const PRIZE_WHEEL_UNTIL = "2026-12-31";
 
-/** Is the wheel still open at `now`? Compares the calendar date in Israel. */
-function wheelOpen(now = new Date()) {
-  const israelDay = new Intl.DateTimeFormat("en-CA", {
+/**
+ * Every prize is valid until the end of this day (Asia/Jerusalem). Signed into
+ * each prize at draw time.
+ * PLACEHOLDER: Itamar to set the real end of season. Mirrored in
+ * src/config/features.js; prizes.test.js fails if the two differ.
+ */
+const PRIZE_VALID_UNTIL = "2027-06-30";
+
+/** The calendar date in Israel, "YYYY-MM-DD". */
+function israelDay(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jerusalem",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(now);
-  return israelDay <= PRIZE_WHEEL_UNTIL;
 }
 
-/** Pure weighted pick. `roll` is an integer in [0, TOTAL_WEIGHT). */
-function pickPrize(roll) {
+/** Is the wheel still open at `now`? */
+function wheelOpen(now = new Date()) {
+  return israelDay(now) <= PRIZE_WHEEL_UNTIL;
+}
+
+/** Has a prize that was valid until `validUntil` ("YYYY-MM-DD") run out? */
+function isExpired(validUntil, now = new Date()) {
+  return !validUntil || israelDay(now) > validUntil;
+}
+
+const isCapped = (id) => !!PRIZES.find((p) => p.id === id)?.capped;
+
+/**
+ * Pure weighted pick. `roll` is an integer in [0, poolWeight).
+ * With `excludeCapped`, only the non-capped prizes are in the pool and the
+ * weights are renormalised by construction (the roll range shrinks to their
+ * sum). The weights table itself never changes.
+ */
+function pickPrize(roll, { excludeCapped = false } = {}) {
+  const pool = excludeCapped ? PRIZES.filter((p) => !p.capped) : PRIZES;
   let r = roll;
-  for (const prize of PRIZES) {
+  for (const prize of pool) {
     if (r < prize.weight) return prize;
     r -= prize.weight;
   }
-  return PRIZES[PRIZES.length - 1];
+  return pool[pool.length - 1];
 }
 
-module.exports = { PRIZES, TOTAL_WEIGHT, PRIZE_WHEEL_UNTIL, wheelOpen, pickPrize };
+/** Size of the roll range for pickPrize. */
+const poolWeight = ({ excludeCapped = false } = {}) =>
+  PRIZES.filter((p) => !(excludeCapped && p.capped)).reduce((s, p) => s + p.weight, 0);
+
+module.exports = {
+  PRIZES,
+  TOTAL_WEIGHT,
+  PRIZE_WHEEL_UNTIL,
+  PRIZE_VALID_UNTIL,
+  israelDay,
+  wheelOpen,
+  isExpired,
+  isCapped,
+  pickPrize,
+  poolWeight,
+};

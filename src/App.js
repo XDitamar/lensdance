@@ -35,6 +35,7 @@ import SessionBookingPage from "./pages/SessionBookingPage";
 import MyCompetitionsPage from "./pages/MyCompetitionsPage";
 // Prize wheel (switched by PRIZE_WHEEL in src/config/features.js).
 import PrizePage from "./pages/PrizePage";
+import PrizeTermsPage from "./pages/PrizeTermsPage";
 // import AboutPage from "./pages/AboutPage";
 import ChangeName from "./pages/ChangeName";
 import ChangeDiscipline from "./pages/ChangeDiscipline";
@@ -99,6 +100,8 @@ export default function App() {
         {/* User / Admin */}
         <Route path="/me" element={<ProtectedRoute><MePage /></ProtectedRoute>} />
         <Route path="/my-competitions" element={<ProtectedRoute><MyCompetitionsPage /></ProtectedRoute>} />
+        {/* Public on purpose: the odds and rules must be readable without an account. */}
+        <Route path="/prize-terms" element={<PrizeTermsPage />} />
         <Route path="/prize" element={<ProtectedRoute><PrizePage /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="/admin/registrations" element={<AdminRoute><AdminRegistrationsPage /></AdminRoute>} />

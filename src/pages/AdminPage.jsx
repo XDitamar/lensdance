@@ -26,9 +26,9 @@ import {
   setAlbumUnlocked,
   setUnlocked as setGalleryUnlocked,
 } from "../lib/galleryAccess";
-import { fetchRewards, grantSpins, setRedeemed } from "../lib/rewards";
+import { fetchRewards, grantSpins, setRedeemed, verifyPrizes } from "../lib/rewards";
 import { PRIZE_WHEEL } from "../config/features";
-import { prizeById } from "../config/prizes";
+import { dmy, prizeById } from "../config/prizes";
 import { albumName, albumOf } from "../lib/albums";
 import { competitionLabel, fetchCompetitions } from "../lib/competitions";
 import { useTranslation } from "react-i18next";
@@ -159,6 +159,8 @@ export default function AdminPage() {
   const [spinsBusy, setSpinsBusy] = useState(false);
   /** Everything the wheel holds for that client: prizes, follow-up details, redeemed marks. */
   const [wheelData, setWheelData] = useState(null);
+  /** The server's verdict on each prize: { state: "loading" | "ok" | "unavailable", byCode, secretConfigured }. */
+  const [verdicts, setVerdicts] = useState(null);
 
   const onToggleAccess = async () => {
     const u = userForFolder(currentFolder);
@@ -360,9 +362,26 @@ export default function AdminPage() {
     setUnlocked(null);
     setSpins(0);
     setWheelData(null);
+    setVerdicts(null);
     if (!uid) return;
     fetchAccess(uid).then((a) => { setAccess(a); setUnlocked(a.all); });
-    if (PRIZE_WHEEL) fetchRewards(uid).then((r) => { setSpins(r.granted); setWheelData(r); }).catch(() => {});
+    if (PRIZE_WHEEL) {
+      fetchRewards(uid)
+        .then((r) => {
+          setSpins(r.granted);
+          setWheelData(r);
+          if (!r.prizes.length) return;
+          /* A prize in `users` is something the winner wrote themselves, so
+             nothing about it is believed until the server has checked its
+             signature (api/verify-prize.js). If that check cannot run, the
+             redeem button stays off: unverified is never treated as fine. */
+          setVerdicts({ state: "loading" });
+          verifyPrizes(r.prizes, uid)
+            .then((v) => setVerdicts({ state: "ok", ...v }))
+            .catch(() => setVerdicts({ state: "unavailable" }));
+        })
+        .catch(() => {});
+    }
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -1007,15 +1026,30 @@ export default function AdminPage() {
                   const extra = wheelData.extras?.[p.code];
                   const special = prizeById(p.prizeId)?.special;
                   const u = userForFolder(currentFolder);
+                  const verdict = verdicts?.state === "ok" ? verdicts.byCode?.[p.code] : null;
+                  const canRedeem = !!verdict?.redeemable;
+                  const verdictLine =
+                    verdicts?.state === "loading" ? { c: "#6A5A50", text: t("admin.prizeChecking") }
+                    : verdicts?.state === "unavailable" ? { c: "#8A5A1F", text: t("admin.prizeVerifyUnavailable") }
+                    : verdicts?.state === "ok" && !verdicts.secretConfigured ? { c: "#8A2A1F", text: t("admin.prizeNoSecret") }
+                    : verdict?.valid ? { c: "#3F6B22", text: t("admin.prizeVerified") }
+                    : { c: "#8A2A1F", text: t("admin.prizeNotVerified") };
+                  const whyNot = verdict && !verdict.redeemable && verdict.valid
+                    ? (verdict.reason === "expired" ? t("admin.prizeExpired") : t("admin.prizeCappedLimit"))
+                    : null;
                   return (
                     <div key={p.code} style={{ borderTop: "1px solid #EFE7DA", padding: "10px 0", fontSize: 13 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                         <div>
-                          <strong>{p.label || prizeById(p.prizeId)?.label}</strong>
+                          {/* The name comes from the prize id, never from the stored
+                              label: the label is text the winner could have edited. */}
+                          <strong>{prizeById(p.prizeId)?.label || p.prizeId}</strong>
                           <span style={{ color: "#6A5A50", marginInlineStart: 8, letterSpacing: ".08em" }}>{p.code}</span>
                         </div>
                         <button
                           className="filter-button"
+                          disabled={!done && !canRedeem}
+                          style={{ opacity: !done && !canRedeem ? 0.5 : 1 }}
                           onClick={async () => {
                             try {
                               await setRedeemed(u.uid, p.code, !done);
@@ -1031,6 +1065,15 @@ export default function AdminPage() {
                         >
                           {done ? t("admin.prizeUndoRedeemed") : t("admin.prizeMarkRedeemed")}
                         </button>
+                      </div>
+                      <div style={{ fontSize: 12.5, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ color: verdictLine.c, fontWeight: 600 }}>{verdictLine.text}</span>
+                        {p.validUntil && (
+                          <span style={{ color: verdict?.expired ? "#8A2A1F" : "#6A5A50" }}>
+                            {t("admin.prizeValidUntil", { date: dmy(p.validUntil) })}
+                          </span>
+                        )}
+                        {whyNot && <span style={{ color: "#8A5A1F" }}>{whyNot}</span>}
                       </div>
                       {done && (
                         <div style={{ color: "#5B7A3A", fontSize: 12.5, marginTop: 3 }}>

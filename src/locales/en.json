@@ -375,7 +375,15 @@
     "prizeTeamFriends": "The five friends",
     "prizeJackpotVideo": "Long video at",
     "prizeJackpotPack": "Extended pack at",
-    "prizeConsentYes": "The winner confirmed the friends agreed"
+    "prizeConsentYes": "The winner confirmed the friends agreed",
+    "prizeVerified": "Verified",
+    "prizeNotVerified": "Not verified",
+    "prizeChecking": "Checking…",
+    "prizeVerifyUnavailable": "Verification unavailable right now, cannot redeem",
+    "prizeNoSecret": "The server is not set up to verify (SPIN_SECRET missing), cannot redeem",
+    "prizeValidUntil": "Valid until {{date}}",
+    "prizeExpired": "Expired, cannot redeem",
+    "prizeCappedLimit": "Cannot redeem: one limited gift per customer"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -919,13 +927,6 @@
     "yourPrizes": "Your gifts",
     "redeemed": "Redeemed",
     "pending": "Waiting for your details",
-    "tier": {
-      "rare": "A rare gift",
-      "ultra": "A very rare gift",
-      "jackpot": "The jackpot"
-    },
-    "listTitle": "All gifts and odds",
-    "list_odds": "Odds",
     "team": {
       "title": "Choose five friends",
       "lead": "Five friends get 50% off packages of their choice together with you. This can be filled in once only.",
@@ -960,55 +961,100 @@
       "title": "Details",
       "until": "The wheel is available until {{date}}.",
       "noCash": "Benefits cannot be redeemed for cash and cannot be combined with each other unless stated otherwise.",
-      "confirm": "Gifts are subject to Alina's confirmation.",
-      "odds": "Odds for each gift on every spin:",
-      "terms": "Subject to the site terms."
+      "validity": "Gifts are valid until {{date}}.",
+      "capped": "One limited gift is honoured per customer.",
+      "confirm": "Gifts are subject to Alina's confirmation."
     },
     "items": {
       "disc-5": {
         "label": "5% off a package of your choice",
-        "short": "5%"
+        "short": "5% off",
+        "explain": "5% off one package of your choice"
       },
       "disc-10": {
         "label": "10% off photo packages of your choice (at a competition)",
-        "short": "10%"
+        "short": "10% off",
+        "explain": "10% off photo packages at a competition of your choice"
       },
       "fast-delivery": {
         "label": "Upgrade to fast delivery",
-        "short": "Fast"
+        "short": "Fast delivery",
+        "explain": "Upgrade to fast delivery of your photos"
       },
       "disc-15-two": {
         "label": "15% off photos at the next two competitions of your choice",
-        "short": "15%"
+        "short": "15% off",
+        "explain": "15% off photos at the next two competitions of your choice"
       },
       "disc-20-video": {
         "label": "20% off a reel or a long video",
-        "short": "20%"
+        "short": "20% video",
+        "explain": "20% off a reel or a long video"
       },
       "disc-50": {
         "label": "50% off a package of your choice (at one competition)",
-        "short": "50%"
+        "short": "50% off",
+        "explain": "50% off one package at a competition of your choice"
       },
       "pack-gift": {
         "label": "Extended photo package as a gift",
-        "short": "Pack"
+        "short": "Extended pack",
+        "explain": "An extended photo package as a gift"
       },
       "reel-gift": {
         "label": "Reel video as a gift",
-        "short": "Reel"
+        "short": "Free reel",
+        "explain": "A reel video as a gift"
       },
       "three-free": {
         "label": "Punch card: the next three competitions free",
-        "short": "3 free"
+        "short": "3 competitions",
+        "explain": "Punch card: the next three competitions free"
       },
       "team": {
         "label": "Winning team: the winner picks 5 friends who get 50% off packages of their choice together with them",
-        "short": "Team"
+        "short": "Winning team",
+        "explain": "Choose 5 friends and you all get 50% off packages of your choice"
       },
       "jackpot": {
         "label": "Jackpot: a long video as a gift plus an extended photo package, for two competitions of your choice (not both at the same competition)",
-        "short": "Jackpot"
+        "short": "Jackpot",
+        "explain": "A long video as a gift and an extended photo package, at two competitions of your choice (not both at the same one)"
       }
-    }
+    },
+    "hint": "Tap a slice to see what it is",
+    "canWin": "What can I win?",
+    "validUntil": "Valid until {{date}}",
+    "expired": "Expired",
+    "rulesLink": "Full rules and odds"
+  },
+  "prizeTerms": {
+    "eyebrow": "Prize wheel",
+    "title": "Prize wheel rules",
+    "whoTitle": "Who can spin and how spins are earned",
+    "whoBody": "The wheel is open to registered customers who are signed in to their account. One spin is added to the account for every order whose deposit Alina has marked as paid. Each spin gives one gift from the list below.",
+    "periodTitle": "Period",
+    "periodBody": "The wheel can be spun until {{date}} (inclusive, Israel time). After that it can no longer be spun. Gifts already won stay valid until the date set for them.",
+    "prizesTitle": "The gifts",
+    "prizesIntro": "The wheel has {{count}} gifts:",
+    "followUps": "For the winning team, the winner gives the details of five friends on the site and confirms that they agreed to be contacted. For the jackpot, the winner chooses two different competitions on the site.",
+    "cappedTitle": "One limited gift per customer",
+    "cappedBody": "Six of the gifts are limited gifts. Each customer is entitled to have one limited gift honoured: the first limited gift they won. Any further limited gifts they win cannot be redeemed. The limited gifts are:",
+    "cappedRedraw": "Once a customer already holds a limited gift, their further spins are drawn only from the other gifts, in proportion to the odds in the table.",
+    "validityTitle": "Validity",
+    "validityBody": "Every gift is valid until {{date}}. After that date it can no longer be redeemed.",
+    "generalTitle": "General terms",
+    "generalNoCash": "A gift cannot be redeemed for cash.",
+    "generalNoCombine": "Gifts cannot be combined with each other unless stated otherwise.",
+    "generalConfirm": "Gifts are subject to Alina's confirmation.",
+    "generalCode": "To redeem a gift, show Alina its code.",
+    "oddsTitle": "Odds",
+    "oddsIntro": "The probability of each gift on every spin:",
+    "colPrize": "Gift",
+    "colOdds": "Probability",
+    "colOddsHeld": "When a limited gift is already held",
+    "notDrawn": "Not drawn",
+    "oddsNote": "The probabilities are calculated from the same weights the server uses for the draw.",
+    "back": "Back to the wheel"
   }
 }

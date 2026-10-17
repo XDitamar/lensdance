@@ -23,3 +23,14 @@ export const PRIZE_WHEEL = true;
  * src/config/prizes.test.js.
  */
 export const PRIZE_WHEEL_UNTIL = "2026-12-31";
+
+/**
+ * Every prize is valid until the end of this day (Asia/Jerusalem): after it a
+ * prize can no longer be redeemed. Signed into each prize at draw time.
+ *
+ * PLACEHOLDER: "2027-06-30" is a guess at the end of the season. Itamar to set
+ * the real date. Mirrored in api/_prizes.js (prizes.test.js fails if they
+ * differ); change both. Prizes already drawn keep the date they were signed
+ * with.
+ */
+export const PRIZE_VALID_UNTIL = "2027-06-30";
