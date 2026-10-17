@@ -26,9 +26,6 @@ import {
   setAlbumUnlocked,
   setUnlocked as setGalleryUnlocked,
 } from "../lib/galleryAccess";
-import { fetchRewards, grantSpins, setRedeemed, verifyPrizes } from "../lib/rewards";
-import { PRIZE_WHEEL } from "../config/features";
-import { dmy, prizeById } from "../config/prizes";
 import { albumName, albumOf } from "../lib/albums";
 import { competitionLabel, fetchCompetitions } from "../lib/competitions";
 import { useTranslation } from "react-i18next";
@@ -154,13 +151,6 @@ export default function AdminPage() {
   const [uploadAlbum, setUploadAlbum] = useState("");
   const [albumOptions, setAlbumOptions] = useState([]);
 
-  /** Spins on the prize wheel for the client on screen. */
-  const [spins, setSpins] = useState(0);
-  const [spinsBusy, setSpinsBusy] = useState(false);
-  /** Everything the wheel holds for that client: prizes, follow-up details, redeemed marks. */
-  const [wheelData, setWheelData] = useState(null);
-  /** The server's verdict on each prize: { state: "loading" | "ok" | "unavailable", byCode, secretConfigured }. */
-  const [verdicts, setVerdicts] = useState(null);
 
   const onToggleAccess = async () => {
     const u = userForFolder(currentFolder);
@@ -360,28 +350,8 @@ export default function AdminPage() {
     const uid = userForFolder(folder)?.uid;
     setRetention(null);
     setUnlocked(null);
-    setSpins(0);
-    setWheelData(null);
-    setVerdicts(null);
     if (!uid) return;
     fetchAccess(uid).then((a) => { setAccess(a); setUnlocked(a.all); });
-    if (PRIZE_WHEEL) {
-      fetchRewards(uid)
-        .then((r) => {
-          setSpins(r.granted);
-          setWheelData(r);
-          if (!r.prizes.length) return;
-          /* A prize in `users` is something the winner wrote themselves, so
-             nothing about it is believed until the server has checked its
-             signature (api/verify-prize.js). If that check cannot run, the
-             redeem button stays off: unverified is never treated as fine. */
-          setVerdicts({ state: "loading" });
-          verifyPrizes(r.prizes, uid)
-            .then((v) => setVerdicts({ state: "ok", ...v }))
-            .catch(() => setVerdicts({ state: "unavailable" }));
-        })
-        .catch(() => {});
-    }
     setLikesLoading(true);
     try {
       setLikes(await fetchLikesForUser(uid));
@@ -948,161 +918,6 @@ export default function AdminPage() {
                 <p style={{ fontSize: 11.5, color: "#8A7868", margin: "8px 0 0", lineHeight: 1.6 }}>
                   {t("admin.accessLooseNote")}
                 </p>
-              )}
-            </div>
-          )}
-
-          {/* ── Spins on the prize wheel ──
-              One per paid order is the rule; this is the control that applies
-              it. Deliberately a number she sets rather than a "+1" button:
-              after a competition she is reconciling several bookings at once,
-              and "this client has two" is easier to get right than pressing
-              add twice and hoping. */}
-          {PRIZE_WHEEL && !!userForFolder(currentFolder)?.uid && (
-            <div style={{
-              marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
-              background: "#FDFAF5", padding: "12px 14px",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              gap: 12, flexWrap: "wrap",
-            }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
-                  {t("admin.spinsTitle")}
-                </div>
-                <div style={{ fontSize: 12.5, color: "#6A5A50" }}>
-                  {t("admin.spinsHint")}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={spins}
-                  onChange={(e) => setSpins(e.target.value)}
-                  style={{ width: 62, padding: "7px 8px", border: "1px solid #D7C9B8", fontSize: 13 }}
-                />
-                <button
-                  className="filter-button"
-                  disabled={spinsBusy}
-                  style={{ opacity: spinsBusy ? 0.6 : 1 }}
-                  onClick={async () => {
-                    const u = userForFolder(currentFolder);
-                    if (!u?.uid) return;
-                    setSpinsBusy(true);
-                    try {
-                      await grantSpins(u.uid, spins);
-                    } catch (e) {
-                      setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
-                    } finally {
-                      setSpinsBusy(false);
-                    }
-                  }}
-                >
-                  {t("common.save")}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Gifts won on the wheel ──
-              What each prize is, the details the winner had to add (the five
-              friends, the two competitions), and a mark for when Alina has
-              honoured it. The mark lives on retention/{uid}, which only the
-              admin can write. */}
-          {PRIZE_WHEEL && !!userForFolder(currentFolder)?.uid && wheelData && (
-            <div style={{
-              marginBottom: 16, border: "1px solid #E2D9CE", borderRadius: 8,
-              background: "#FDFAF5", padding: "12px 14px",
-            }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-                {t("admin.prizesTitle")}
-              </div>
-              {wheelData.prizes.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "#6A5A50" }}>{t("admin.prizesNone")}</div>
-              ) : (
-                wheelData.prizes.map((p) => {
-                  const done = wheelData.redeemed?.[p.code];
-                  const extra = wheelData.extras?.[p.code];
-                  const special = prizeById(p.prizeId)?.special;
-                  const u = userForFolder(currentFolder);
-                  const verdict = verdicts?.state === "ok" ? verdicts.byCode?.[p.code] : null;
-                  const canRedeem = !!verdict?.redeemable;
-                  const verdictLine =
-                    verdicts?.state === "loading" ? { c: "#6A5A50", text: t("admin.prizeChecking") }
-                    : verdicts?.state === "unavailable" ? { c: "#8A5A1F", text: t("admin.prizeVerifyUnavailable") }
-                    : verdicts?.state === "ok" && !verdicts.secretConfigured ? { c: "#8A2A1F", text: t("admin.prizeNoSecret") }
-                    : verdict?.valid ? { c: "#3F6B22", text: t("admin.prizeVerified") }
-                    : { c: "#8A2A1F", text: t("admin.prizeNotVerified") };
-                  const whyNot = verdict && !verdict.redeemable && verdict.valid
-                    ? (verdict.reason === "expired" ? t("admin.prizeExpired") : t("admin.prizeCappedLimit"))
-                    : null;
-                  return (
-                    <div key={p.code} style={{ borderTop: "1px solid #EFE7DA", padding: "10px 0", fontSize: 13 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                        <div>
-                          {/* The name comes from the prize id, never from the stored
-                              label: the label is text the winner could have edited. */}
-                          <strong>{prizeById(p.prizeId)?.label || p.prizeId}</strong>
-                          <span style={{ color: "#6A5A50", marginInlineStart: 8, letterSpacing: ".08em" }}>{p.code}</span>
-                        </div>
-                        <button
-                          className="filter-button"
-                          disabled={!done && !canRedeem}
-                          style={{ opacity: !done && !canRedeem ? 0.5 : 1 }}
-                          onClick={async () => {
-                            try {
-                              await setRedeemed(u.uid, p.code, !done);
-                              setWheelData((w) => {
-                                const redeemed = { ...(w.redeemed || {}) };
-                                if (done) delete redeemed[p.code]; else redeemed[p.code] = Date.now();
-                                return { ...w, redeemed };
-                              });
-                            } catch (e) {
-                              setError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
-                            }
-                          }}
-                        >
-                          {done ? t("admin.prizeUndoRedeemed") : t("admin.prizeMarkRedeemed")}
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 12.5, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ color: verdictLine.c, fontWeight: 600 }}>{verdictLine.text}</span>
-                        {p.validUntil && (
-                          <span style={{ color: verdict?.expired ? "#8A2A1F" : "#6A5A50" }}>
-                            {t("admin.prizeValidUntil", { date: dmy(p.validUntil) })}
-                          </span>
-                        )}
-                        {whyNot && <span style={{ color: "#8A5A1F" }}>{whyNot}</span>}
-                      </div>
-                      {done && (
-                        <div style={{ color: "#5B7A3A", fontSize: 12.5, marginTop: 3 }}>
-                          {t("admin.prizeRedeemedOn", { date: new Date(done).toLocaleDateString("en-GB") })}
-                        </div>
-                      )}
-                      {special && !extra && (
-                        <div style={{ color: "#8A5A1F", fontSize: 12.5, marginTop: 3 }}>{t("admin.prizeAwaiting")}</div>
-                      )}
-                      {extra?.type === "team" && (
-                        <div style={{ marginTop: 6, fontSize: 12.5 }}>
-                          <div style={{ color: "#6A5A50" }}>{t("admin.prizeTeamFriends")}</div>
-                          <ol style={{ margin: "3px 0 0", paddingInlineStart: 20 }}>
-                            {(extra.friends || []).map((f, i) => (
-                              <li key={i}>{f.name} <span dir="ltr" style={{ color: "#6A5A50" }}>{f.contact}</span></li>
-                            ))}
-                          </ol>
-                          {extra.consent && <div style={{ color: "#5B7A3A", marginTop: 3 }}>{t("admin.prizeConsentYes")}</div>}
-                        </div>
-                      )}
-                      {extra?.type === "jackpot" && (
-                        <div style={{ marginTop: 6, fontSize: 12.5 }}>
-                          <div>{t("admin.prizeJackpotVideo")}: <strong>{extra.video?.label}</strong></div>
-                          <div>{t("admin.prizeJackpotPack")}: <strong>{extra.pack?.label}</strong></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
               )}
             </div>
           )}

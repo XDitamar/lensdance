@@ -5,7 +5,8 @@ import { auth } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useTranslation } from "react-i18next";
 import { isRtlLang } from "../i18n";
-import { fetchRewards, spinsLeft } from "../lib/rewards";
+import { fetchRewards, fetchWheelOrders, orderStates } from "../lib/rewards";
+import { wheelOpen } from "../config/prizes";
 import { PRIZE_WHEEL } from "../config/features";
 
 const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL || "lensdance29@gmail.com";
@@ -25,10 +26,10 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
-  /* Spins waiting on the wheel, shown as a badge in the settings menu.
+  /* Orders still waiting for a spin, shown as a badge in the settings menu.
      Read once when a user is present and never again: this is a nudge, not a
-     live counter, and polling it on every page would cost a Firestore read
-     per navigation for a number that changes when Alina marks a payment. */
+     live counter, and polling it on every page would cost Firestore reads per
+     navigation for a number that only changes when somebody orders or spins. */
   const [spins, setSpins] = useState(0);
   const navigate = useNavigate();
   // Dropdowns used to hardcode direction:"rtl"; follow the active language now.
@@ -42,10 +43,12 @@ export default function Header() {
   useEffect(() => {
     // No read at all while the wheel is off — a hidden feature should not
     // cost every signed-in visitor a Firestore lookup.
-    if (!PRIZE_WHEEL || !user?.uid) { setSpins(0); return undefined; }
+    if (!PRIZE_WHEEL || !user?.uid || !wheelOpen()) { setSpins(0); return undefined; }
     let alive = true;
-    fetchRewards(user.uid)
-      .then((r) => { if (alive) setSpins(spinsLeft(r)); })
+    Promise.all([fetchRewards(user.uid), fetchWheelOrders(user.uid)])
+      .then(([r, orders]) => {
+        if (alive) setSpins(orderStates(orders, r.prizes).filter((o) => o.spinnable).length);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [user]);

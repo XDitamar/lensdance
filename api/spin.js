@@ -1,65 +1,53 @@
 // api/spin.js
 //
+// POST { orderId }   Authorization: Bearer <Firebase ID token>
+//
 // ─────────────────────────────────────────────────────────────────────────────
-// DRAWS THE PRIZE. THE BROWSER ONLY ANIMATES TO IT.
+// ONE SPIN PER ORDER. THE BROWSER ONLY ANIMATES TO THE ANSWER.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // The prizes are worth real money (an edited pack, a reel, a discount), so the
-// draw cannot happen in the page. Anyone who can open devtools can make a
-// client-side draw return whatever they like, and a wheel that can be told what
-// to land on is a decoration, not a promotion.
+// draw cannot happen in the page: anyone with devtools could make it return
+// whatever they liked.
 //
-// So: the browser asks, this function decides, and the browser spins until it
-// reaches the answer it was given.
+// What this function does, in order:
+//   1. checks who is calling (a real signed-in user),
+//   2. checks the wheel is still open (31.12.2026, Israel time, server clock),
+//   3. checks the ORDER exists, is the caller's own, and was placed before the
+//      wheel closed, by reading registrations/{orderId} through the Firestore
+//      REST API with the caller's own token (the rules let an owner read their
+//      own registration, and nobody else's),
+//   4. answers with the prize for that order.
+//
+// The prize is a pure function of (uid, orderId) and SPIN_SECRET (see
+// drawForOrder in ./_verify.js): asking again for the same order returns the
+// same prize, so there is nothing to reroll and no "used" flag to store (this
+// server cannot write to Firestore). The client's prize history plays no part
+// in the draw, so it cannot be used to steer it. The one-capped-prize rule is
+// enforced at redemption instead (see ./_verify.js).
 //
 // ── EVERY SLICE IS A PRIZE ─────────────────────────────────────────────────
-// There is no "you lost" segment, on purpose. Every slice is a benefit, of very
-// different sizes (the table and its odds are in ./_prizes.js).
+// There is no "you lost" segment, on purpose. The table and its odds are in
+// ./_prizes.js.
 //
 // ── SIGNED, BECAUSE THE SERVER CANNOT WRITE ────────────────────────────────
 // The deployment's firebase-admin credentials do not work (api/media.js fails
-// on them in production), so this function cannot record the result itself. The
-// browser stores it instead, and a record the winner writes is a record the
-// winner could invent. Each result is therefore returned with an HMAC over
-// { uid, prizeId, code, issuedAt, validUntil }, which only this server can
-// produce. api/verify-prize.js checks it, and Alina's admin page offers
-// "redeemed" only on a prize that verifies. See ./_verify.js for the honest
-// limits and for the real fix (working FIREBASE_* credentials on Vercel).
+// on them in production), so the result is returned signed and the browser
+// stores it. api/verify-prize.js checks it. See ./_verify.js for the limits and
+// for the real fix (working FIREBASE_* credentials on Vercel).
+//
+// Errors are short machine codes the page turns into friendly messages:
+//   missing-token / invalid-token  not signed in
+//   wheel-ended                    after 31.12.2026
+//   bad-order / order-not-found / order-not-yours / order-too-late
+//   not-configured                 SPIN_SECRET is not set on the server
+//   verification-unavailable       the sign-in check or the order lookup failed
 
-const crypto = require("crypto");
-
-const {
-  PRIZES, wheelOpen, pickPrize, poolWeight, PRIZE_VALID_UNTIL,
-} = require("./_prizes");
-const { payloadOf, sign, holdsCapped, verifyCaller } = require("./_verify");
+const { PRIZES, wheelOpen, israelDay, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL } = require("./_prizes");
+const { payloadOf, sign, drawForOrder, verifyCaller, isOrderId, fetchOrder } = require("./_verify");
 
 function safeParse(s) {
   try { return JSON.parse(s); } catch (e) { return {}; }
-}
-
-/**
- * Weighted draw over the table in ./_prizes.js.
- *
- * randomInt rather than Math.random: this decides who gets something worth
- * money, and a predictable sequence is a way to farm the good slice.
- *
- * ONE CAPPED PRIZE PER CUSTOMER, best effort: if the customer already holds a
- * capped prize (checked from the signed history the browser sends), the draw
- * is among the non-capped prizes only, weights renormalised. A client can
- * simply not send its history, so this is a courtesy, not the rule. The rule
- * is enforced at redemption (evaluatePrizes in ./_verify.js).
- */
-function draw(excludeCapped) {
-  return pickPrize(crypto.randomInt(poolWeight({ excludeCapped })), { excludeCapped });
-}
-
-/** A short human code: what the client shows Alina to claim the prize. */
-function prizeCode() {
-  // No 0/O/1/I: this gets read aloud and typed from a screenshot.
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 4; i += 1) out += alphabet[crypto.randomInt(0, alphabet.length)];
-  return `LD-${out}`;
 }
 
 module.exports = async function handler(req, res) {
@@ -79,7 +67,7 @@ module.exports = async function handler(req, res) {
     uid = (await verifyCaller(idToken))?.uid || null;
   } catch (err) {
     console.error("Spin could not verify the caller:", err);
-    res.status(500).json({ ok: false, error: "verification-unavailable" });
+    res.status(502).json({ ok: false, error: "verification-unavailable" });
     return;
   }
   if (!uid) {
@@ -87,20 +75,59 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // The end date is enforced here, not only on the page: a client clock can be
-  // set to anything. Checked after the caller is verified so an anonymous
-  // request learns nothing.
+  // Enforced here, not only on the page: a client clock can be set to anything.
+  // Checked after the caller is verified so an anonymous request learns nothing.
   if (!wheelOpen()) {
     res.status(410).json({ ok: false, error: "wheel-ended" });
     return;
   }
 
+  // Not configured is a deployment problem, not the customer's: say so plainly
+  // rather than drawing a prize that nobody could ever verify.
+  if (!process.env.SPIN_SECRET) {
+    console.error("SPIN_SECRET is not set: the wheel cannot draw.");
+    res.status(503).json({ ok: false, error: "not-configured" });
+    return;
+  }
+
   const body = typeof req.body === "string" ? safeParse(req.body) : req.body || {};
-  const prize = draw(holdsCapped(uid, body.prizes));
-  const issuedAt = Date.now();
-  const code = prizeCode();
+  if (!isOrderId(body.orderId)) {
+    res.status(400).json({ ok: false, error: "bad-order" });
+    return;
+  }
+
+  let found;
+  try {
+    found = await fetchOrder(body.orderId, idToken);
+  } catch (err) {
+    console.error("Spin could not read the order:", err);
+    res.status(502).json({ ok: false, error: "verification-unavailable" });
+    return;
+  }
+  // The rules answer "denied" for an order that does not exist AND for one that
+  // belongs to somebody else; the two cannot be told apart, and need not be.
+  if (found.status !== "ok") {
+    res.status(404).json({ ok: false, error: "order-not-found" });
+    return;
+  }
+  const order = found.order;
+  if (order.userId !== uid) {
+    res.status(403).json({ ok: false, error: "order-not-yours" });
+    return;
+  }
+  // An order with no timestamp, or one placed after the wheel closed, earns no spin.
+  if (!order.submittedAt || israelDay(new Date(order.submittedAt)) > PRIZE_WHEEL_UNTIL) {
+    res.status(410).json({ ok: false, error: "order-too-late" });
+    return;
+  }
+
+  const { prize, code } = drawForOrder(uid, order.id);
+  // issuedAt is the ORDER's submission time, not "now": it keeps the record
+  // identical however many times the same order is asked for, and it is what
+  // redemption compares against ("a later order").
+  const issuedAt = order.submittedAt;
   const validUntil = PRIZE_VALID_UNTIL;
-  const signature = sign(payloadOf(uid, prize.id, code, issuedAt, validUntil));
+  const signature = sign(payloadOf(uid, prize.id, code, issuedAt, validUntil, order.id));
 
   res.status(200).json({
     ok: true,
@@ -108,6 +135,7 @@ module.exports = async function handler(req, res) {
     code,
     issuedAt,
     validUntil,
+    orderId: order.id,
     signature,
     // The wheel needs to know which slice to stop on, and the order here is
     // the order it is drawn in.

@@ -17,7 +17,7 @@ const TOTAL_WEIGHT = 1000;
  * purpose (readability); probability comes from `weight` alone.
  * `label` is the final Hebrew copy and is what Alina sees on the admin page.
  * `capped` prizes (the six biggest) are honoured ONCE per customer in total:
- * see evaluatePrizes() in ./_verify.js and the redraw in pickPrize() below.
+ * see evaluatePrizes() in ./_verify.js: the rule is enforced at redemption.
  * `special` names a follow-up the winner has to complete (see PrizePage).
  */
 const PRIZES = [
@@ -82,24 +82,17 @@ function isExpired(validUntil, now = new Date()) {
 const isCapped = (id) => !!PRIZES.find((p) => p.id === id)?.capped;
 
 /**
- * Pure weighted pick. `roll` is an integer in [0, poolWeight).
- * With `excludeCapped`, only the non-capped prizes are in the pool and the
- * weights are renormalised by construction (the roll range shrinks to their
- * sum). The weights table itself never changes.
+ * Pure weighted pick. `roll` is an integer in [0, TOTAL_WEIGHT). The weights
+ * table is the only place the odds live.
  */
-function pickPrize(roll, { excludeCapped = false } = {}) {
-  const pool = excludeCapped ? PRIZES.filter((p) => !p.capped) : PRIZES;
+function pickPrize(roll) {
   let r = roll;
-  for (const prize of pool) {
+  for (const prize of PRIZES) {
     if (r < prize.weight) return prize;
     r -= prize.weight;
   }
-  return pool[pool.length - 1];
+  return PRIZES[PRIZES.length - 1];
 }
-
-/** Size of the roll range for pickPrize. */
-const poolWeight = ({ excludeCapped = false } = {}) =>
-  PRIZES.filter((p) => !(excludeCapped && p.capped)).reduce((s, p) => s + p.weight, 0);
 
 module.exports = {
   PRIZES,
@@ -111,5 +104,4 @@ module.exports = {
   isExpired,
   isCapped,
   pickPrize,
-  poolWeight,
 };

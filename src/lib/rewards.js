@@ -1,49 +1,59 @@
 // src/lib/rewards.js
 //
-// The client side of the prize wheel: how many spins someone has, and where a
-// prize goes once it has been won.
+// The client side of the prize wheel.
 //
-// ── WHERE THE SPIN COUNT LIVES ─────────────────────────────────────────────
-// On `retention/{uid}`, the same document that already carries the 30-day
-// clock and the download lock. Not because they are related, but because that
-// document has the one permission this needs and no other collection does:
-// ADMIN WRITES, CLIENT READS. A spin count the client could write is not a
-// spin count. Adding a collection of its own would mean publishing new
-// Firestore rules by hand, and until that happens the new collection is denied
-// outright — which would read as "nobody has any spins, ever".
+// ── THE MODEL ──────────────────────────────────────────────────────────────
+// One spin per ORDER (a registration), available the moment it is submitted;
+// no deposit is needed to spin. The prize for an order is a pure function of
+// the order, drawn by api/spin.js, so spinning again returns the same prize.
+// A prize can be REDEEMED only on a later order whose deposit is marked paid,
+// never on the order that produced it, and only if it is verified, unexpired
+// and (for the six capped prizes) the customer's earliest one. Alina does the
+// redeeming from the admin registrations page.
 //
-// ── AND WHERE THE PRIZE GOES ───────────────────────────────────────────────
-// Into the client's own `users/{uid}` document, which they may write. Yes,
-// that means a determined client could add a prize by hand — so every prize
-// carries a signature from api/spin.js that only the server can produce, and
-// Alina's list shows whether each one verifies. Prevention needs a rule; this
-// gives detection today. See the note at the top of api/spin.js.
+// Spins are therefore not stored or counted anywhere: "this order has no
+// prize yet" IS the spin. (The old spin counter on retention/{uid}, credited
+// when a deposit was marked paid, is gone.)
+//
+// ── WHERE THINGS LIVE ──────────────────────────────────────────────────────
+// A won prize goes into the customer's own `users/{uid}` document, which they
+// may write. Yes, that means a determined client could add a prize by hand, so
+// every prize carries a signature from api/spin.js that only the server can
+// produce, and nothing is redeemed until api/verify-prize.js has checked it.
+// Prevention needs a rule or working admin credentials on Vercel; this gives
+// detection at redemption. See api/_verify.js.
+//
+// Redemptions (which order, when) are recorded on `retention/{uid}`, the one
+// document only the admin can write, under `redeemed.<code>`.
 
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, increment, deleteField } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, deleteField } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { RETENTION } from "./retention";
-import { PRIZES, prizeById } from "../config/prizes";
+import { PRIZES, PRIZE_WHEEL_UNTIL, israelDay, prizeById, wheelOpen } from "../config/prizes";
+import { fetchMyRegistrations } from "./competitions";
 
 /** The wheel, in the order it is drawn. The table lives in src/config/prizes.js. */
 export const WHEEL = PRIZES;
 export { prizeById };
 
+/** Firestore Timestamp | millis | null -> millis | null. */
+export const toMillis = (v) =>
+  !v ? null : typeof v === "number" ? v : typeof v.toMillis === "function" ? v.toMillis() : v.seconds ? v.seconds * 1000 : null;
+
 /**
- * How many spins this person has, and what they have already won.
- * A failed read answers "none" — never invent a spin nobody granted.
+ * What this customer has won, the follow-up details they filled in, and what
+ * Alina has redeemed. A failed read answers "nothing": never invent a prize.
+ * `redeemed.<code>` is { at, orderId }, or a bare timestamp on older records.
  */
 export async function fetchRewards(uid) {
-  if (!uid) return { granted: 0, prizes: [], extras: {}, redeemed: {} };
-  const out = { granted: 0, prizes: [], extras: {}, redeemed: {} };
+  const out = { prizes: [], extras: {}, redeemed: {} };
+  if (!uid) return out;
 
   try {
     const snap = await getDoc(doc(db, RETENTION, uid));
-    if (snap.exists()) {
-      out.granted = Number(snap.data().spins) || 0;
-      out.redeemed = snap.data().redeemed || {};
-    }
+    if (snap.exists()) out.redeemed = snap.data().redeemed || {};
   } catch (err) {
-    console.warn("Could not read spins:", err?.code || err);
+    console.warn("Could not read redemptions:", err?.code || err);
   }
 
   try {
@@ -59,30 +69,118 @@ export async function fetchRewards(uid) {
   return out;
 }
 
-/** Spins left to use. */
-export const spinsLeft = ({ granted, prizes }) =>
-  Math.max(0, (granted || 0) - (prizes?.length || 0));
+/**
+ * The customer's orders, newest first, shaped for the wheel. Uses the same
+ * owner-scoped query as /my-competitions (the rules refuse an unscoped one).
+ */
+export async function fetchWheelOrders(uid) {
+  const regs = await fetchMyRegistrations(uid);
+  return regs.map((r) => ({
+    id: r.id,
+    label: r.competitionTitle || "",
+    submittedAt: toMillis(r.submittedAt),
+    depositPaid: r.depositPaid === true,
+  }));
+}
+
+/** Was this order placed before the wheel closed? */
+export const orderInTime = (order) =>
+  !!order?.submittedAt && israelDay(new Date(order.submittedAt)) <= PRIZE_WHEEL_UNTIL;
+
+/**
+ * Pair each order with the prize it won, if any. An order can be spun when it
+ * has no prize yet, the wheel is open and the order was placed in time.
+ */
+export function orderStates(orders, prizes, now = new Date()) {
+  const byOrder = new Map((prizes || []).filter((p) => p.orderId).map((p) => [p.orderId, p]));
+  return (orders || []).map((o) => {
+    const prize = byOrder.get(o.id) || null;
+    return { ...o, prize, spinnable: !prize && wheelOpen(now) && orderInTime(o) };
+  });
+}
+
+/**
+ * Ask the server for the prize for one order. The wheel animates to whatever
+ * comes back; nothing here decides anything. The same order always returns the
+ * same prize.
+ *
+ * Failures carry a short `code` (see spinErrorKey) so the page can say what
+ * actually went wrong, in plain words, without exposing internals.
+ */
+export async function requestSpin(orderId) {
+  const fail = (code) => Object.assign(new Error(code), { code });
+  const user = auth.currentUser;
+  if (!user) throw fail("not-signed-in");
+
+  let res;
+  try {
+    const idToken = await user.getIdToken();
+    res = await fetch("/api/spin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch (e) {
+    throw fail("network");
+  }
+  const data = await res.json().catch(() => null);
+  // Not JSON at all: nothing is answering /api/spin (a dev server without the
+  // functions, or a deployment that does not have it yet).
+  if (!data) throw fail("unavailable");
+  if (!res.ok || !data.ok) throw fail(data.error || `http-${res.status}`);
+  return data;
+}
+
+/** The locale key (under prize.*) for a failed spin. */
+export function spinErrorKey(err) {
+  switch (err?.code) {
+    case "not-signed-in":
+    case "missing-token":
+    case "invalid-token":
+      return "errorSignedOut";
+    case "wheel-ended":
+      return "errorEnded";
+    case "order-too-late":
+      return "errorOrderLate";
+    case "order-not-found":
+    case "bad-order":
+      return "errorOrderNotFound";
+    case "order-not-yours":
+      return "errorOrderNotYours";
+    case "not-configured":
+      return "errorNotConfigured";
+    case "network":
+      return "errorNetwork";
+    case "unavailable":
+    case "verification-unavailable":
+      return "errorUnavailable";
+    default:
+      return "errorGeneric";
+  }
+}
 
 /** The fields the server signed: all it needs to check a prize. */
 const signedFields = (p) => ({
-  prizeId: p.prizeId, code: p.code, issuedAt: p.issuedAt, validUntil: p.validUntil, signature: p.signature,
+  prizeId: p.prizeId, code: p.code, issuedAt: p.issuedAt, validUntil: p.validUntil,
+  orderId: p.orderId || undefined, signature: p.signature,
 });
 
 /**
  * Ask the server which of these prizes are genuine, unexpired and redeemable
  * (api/verify-prize.js). A customer can only check their own; the admin passes
- * `uid` to check a client's. Resolves to { secretConfigured, byCode } or
- * rejects when the endpoint is unreachable (for example under plain
- * `npm start`, which has no /api).
+ * `uid` to check a client's, and `redeemOnOrderId` to also ask whether each
+ * prize may be spent on that particular order. Resolves to
+ * { secretConfigured, byCode } or rejects when the endpoint is unreachable
+ * (for example under plain `npm start`, which has no /api).
  */
-export async function verifyPrizes(prizes, uid) {
+export async function verifyPrizes(prizes, uid, redeemOnOrderId) {
   const user = auth.currentUser;
   if (!user) throw new Error("not-signed-in");
   const idToken = await user.getIdToken();
   const res = await fetch("/api/verify-prize", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ uid, prizes: prizes.map(signedFields) }),
+    body: JSON.stringify({ uid, prizes: prizes.map(signedFields), redeemOnOrderId }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -93,59 +191,10 @@ export async function verifyPrizes(prizes, uid) {
 }
 
 /**
- * Ask the server to draw. The wheel animates to whatever comes back; nothing
- * here decides anything.
- */
-export async function requestSpin(priorPrizes = []) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("not-signed-in");
-  const idToken = await user.getIdToken();
-
-  // The signed history lets the server redraw away from a second capped prize.
-  // A client could simply not send it: the real enforcement is at redemption
-  // (api/verify-prize.js). See api/_verify.js.
-  const res = await fetch("/api/spin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ prizes: priorPrizes.map(signedFields) }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
-}
-
-/**
- * Give someone a spin (or take one back). Admin only — enforced by the rule on
- * `retention`, which is the whole reason the count lives there.
- *
- * Merged, never overwritten: this document also carries the 30-day clock and
- * the download lock, and granting a spin must not disturb either.
- */
-export async function grantSpins(uid, spins) {
-  if (!uid) throw new Error("grantSpins needs a uid");
-  await setDoc(doc(db, RETENTION, uid), { spins: Math.max(0, Number(spins) || 0) }, { merge: true });
-}
-
-/**
- * Add or remove spins — the automatic path, used when Alina marks a deposit
- * paid or unmarks it. Admin only, like grantSpins.
- *
- * `increment` rather than read-then-write: two bookings marked paid in quick
- * succession would otherwise both read "0" and both write "1", and the second
- * rider's spin would quietly vanish.
- *
- * Marking unpaid takes the spin back. It can leave the count below what has
- * already been used if the rider was quick, which spinsLeft() clamps to zero —
- * a spin already taken is not something to claw back from someone.
- */
-export async function addSpins(uid, delta) {
-  if (!uid || !delta) return;
-  await setDoc(doc(db, RETENTION, uid), { spins: increment(delta) }, { merge: true });
-}
-
-/**
  * Keep a won prize. arrayUnion so two tabs cannot overwrite each other's
- * winnings, and `merge` so nothing else on the profile is touched.
+ * winnings (and an identical record, which is what asking for the same order
+ * again produces, is not added twice), and `merge` so nothing else on the
+ * profile is touched.
  */
 export async function recordPrize(uid, result) {
   if (!uid || !result) return;
@@ -159,6 +208,7 @@ export async function recordPrize(uid, result) {
         code: result.code,
         issuedAt: result.issuedAt,
         validUntil: result.validUntil || null,
+        orderId: result.orderId || null,
         signature: result.signature || null,
       }),
     },
@@ -185,17 +235,22 @@ export async function submitPrizeExtra(uid, code, extra) {
 }
 
 /**
- * Alina marks a prize redeemed (or undoes it). Lives on `retention/{uid}`
- * because that is the document only the admin can write. Keyed by prize code.
+ * Alina marks a prize redeemed AGAINST a specific later order (or undoes it).
+ * Lives on `retention/{uid}` because that is the document only the admin can
+ * write. Keyed by prize code; the value says which order it was spent on and
+ * when. The admin page only offers this after api/verify-prize.js has agreed.
  */
-export async function setRedeemed(uid, code, redeemed) {
+export async function setRedeemed(uid, code, orderId) {
   if (!uid || !code) return;
   await setDoc(
     doc(db, RETENTION, uid),
-    { redeemed: { [code]: redeemed ? Date.now() : deleteField() } },
+    { redeemed: { [code]: orderId ? { at: Date.now(), orderId } : deleteField() } },
     { merge: true }
   );
 }
+
+/** When was it redeemed (millis), tolerating the older bare-timestamp shape? */
+export const redeemedAt = (v) => (v && typeof v === "object" ? v.at : v) || null;
 
 /** Team prize: five distinct friends, each with a name and a way to reach them. */
 export function validateTeam(friends, consent) {

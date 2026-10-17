@@ -24,7 +24,6 @@ export default function PrizeTermsPage() {
   const { t, i18n } = useTranslation();
 
   const capped = PRIZES.filter((p) => p.capped);
-  const nonCappedTotal = PRIZES.filter((p) => !p.capped).reduce((s, p) => s + p.weight, 0);
   const pct = (part, whole) =>
     `${((part / whole) * 100).toLocaleString(i18n.language, { maximumFractionDigits: 2 })}%`;
   const name = (id) => t(`prize.items.${id}.label`);
@@ -61,7 +60,16 @@ export default function PrizeTermsPage() {
           <ul>
             {capped.map((p) => <li key={p.id}>{t(`prize.items.${p.id}.short`)}</li>)}
           </ul>
-          <p>{t("prizeTerms.cappedRedraw")}</p>
+          <p>{t("prizeTerms.cappedNote")}</p>
+        </section>
+
+        <section>
+          <h2>{t("prizeTerms.redeemTitle")}</h2>
+          <ul>
+            <li>{t("prizeTerms.redeemLater")}</li>
+            <li>{t("prizeTerms.redeemNotSame")}</li>
+            <li>{t("prizeTerms.redeemAlina")}</li>
+          </ul>
         </section>
 
         <section>
@@ -88,7 +96,6 @@ export default function PrizeTermsPage() {
                 <tr>
                   <th scope="col">{t("prizeTerms.colPrize")}</th>
                   <th scope="col">{t("prizeTerms.colOdds")}</th>
-                  <th scope="col">{t("prizeTerms.colOddsHeld")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -96,7 +103,6 @@ export default function PrizeTermsPage() {
                   <tr key={p.id}>
                     <th scope="row">{name(p.id)}</th>
                     <td>{pct(p.weight, TOTAL_WEIGHT)}</td>
-                    <td>{p.capped ? t("prizeTerms.notDrawn") : pct(p.weight, nonCappedTotal)}</td>
                   </tr>
                 ))}
               </tbody>

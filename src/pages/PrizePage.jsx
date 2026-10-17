@@ -17,20 +17,30 @@
 // this page links to it from the small print and from the result. Rarity
 // (`tier`) only decides how much celebration the reveal gets.
 //
+// ONE SPIN PER ORDER. /prize?order=<registrationId> is the wheel for that order:
+// if the order has no prize yet it can be spun (no deposit needed), otherwise
+// the prize it already won is shown, parked under the pointer. /prize with no
+// order lists the orders still waiting for a spin. The prize is a pure function
+// of the order (api/spin.js), so there is nothing to reroll, and it can only be
+// redeemed later, on another order whose deposit is paid (see src/lib/rewards.js
+// and the admin registrations page).
+//
 // The prize table is src/config/prizes.js (a generated copy of
 // api/_prizes.js). All copy is in src/locales/*.json under `prize`.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase";
 import {
   WHEEL,
   fetchRewards,
+  fetchWheelOrders,
+  orderStates,
   recordPrize,
   requestSpin,
-  spinsLeft,
+  spinErrorKey,
   submitPrizeExtra,
   validateJackpot,
   validateTeam,
@@ -94,10 +104,15 @@ const isWide = () =>
   typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(min-width: 1024px)").matches;
 
 export default function PrizePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [rewards, setRewards] = useState({ granted: 0, prizes: [], extras: {}, redeemed: {} });
+  const [params] = useSearchParams();
+  const orderParam = params.get("order");
+  const [rewards, setRewards] = useState({ prizes: [], extras: {}, redeemed: {} });
+  /* The customer's orders. null until read; [] when they have none (or the
+     read failed, which is treated the same: nothing to spin for). */
+  const [orders, setOrders] = useState(null);
   const [angle, setAngle] = useState(0);
   const [phase, setPhase] = useState("idle"); // idle | windup | spinning
   const [won, setWon] = useState(null);
@@ -122,11 +137,30 @@ export default function PrizePage() {
   useEffect(() => {
     if (!user?.uid) return undefined;
     let on = true;
-    fetchRewards(user.uid).then((r) => { if (on) { setRewards(r); setLoading(false); } });
+    Promise.all([
+      fetchRewards(user.uid),
+      fetchWheelOrders(user.uid).catch((e) => { console.warn("Could not read orders:", e?.code || e); return []; }),
+    ]).then(([r, o]) => { if (on) { setRewards(r); setOrders(o); setLoading(false); } });
     return () => { on = false; };
   }, [user]);
 
-  const left = useMemo(() => spinsLeft(rewards), [rewards]);
+  const states = useMemo(() => orderStates(orders || [], rewards.prizes), [orders, rewards.prizes]);
+  const selected = orderParam ? states.find((o) => o.id === orderParam) || null : null;
+  const waiting = states.filter((o) => o.spinnable);
+  const canSpin = !!selected?.spinnable;
+  /* What the result card shows: the prize just won, or, when an order that was
+     already spun is opened, the prize it won earlier. */
+  const shown = won || (selected?.prize
+    ? { prize: { id: selected.prize.prizeId, tier: selected.prize.tier }, code: selected.prize.code, validUntil: selected.prize.validUntil }
+    : null);
+  const dateOf = (ms) => (ms ? new Date(ms).toLocaleDateString(i18n.language) : "");
+
+  /* An order that was spun before is parked on its prize, so the wheel and the
+     card agree on a reload. The angle that puts that slice under the pointer. */
+  const parkedIndex = selected?.prize ? WHEEL.findIndex((p) => p.id === selected.prize.prizeId) : -1;
+  useEffect(() => {
+    if (parkedIndex >= 0 && !won && phase === "idle") setAngle(-(parkedIndex * SLICE + SLICE / 2));
+  }, [parkedIndex, won, phase]);
   const busy = phase !== "idle";
   const prizeName = useCallback(
     (id, fallback) => t(`prize.items.${id}.label`, { defaultValue: fallback || "" }),
@@ -135,7 +169,7 @@ export default function PrizePage() {
   const explain = useCallback((id) => t(`prize.items.${id}.explain`, { defaultValue: "" }), [t]);
 
   const onSpin = async () => {
-    if (busy || left <= 0) return;
+    if (busy || !canSpin) return;
     setError("");
     setWon(null);
     setPeek(null);
@@ -145,14 +179,13 @@ export default function PrizePage() {
       // Asked for FIRST, so the wheel never starts a spin it cannot finish:
       // a wheel that turns and then apologises is worse than a button that
       // waits half a second.
-      result = await requestSpin(rewards.prizes);
+      result = await requestSpin(selected.id);
     } catch (err) {
-      if (err?.message === "wheel-ended") setEnded(true);
-      setError(
-        err?.message === "not-signed-in" ? t("prize.errorSignedOut")
-          : err?.message === "wheel-ended" ? t("prize.errorEnded")
-          : t("prize.errorGeneric")
-      );
+      if (err?.code === "wheel-ended") setEnded(true);
+      // Each cause gets its own plain-language message (see spinErrorKey);
+      // the technical code stays in the console for whoever is debugging.
+      console.warn("Spin failed:", err?.code || err);
+      setError(t(`prize.${spinErrorKey(err)}`));
       return;
     }
 
@@ -191,6 +224,7 @@ export default function PrizePage() {
           code: result.code,
           issuedAt: result.issuedAt,
           validUntil: result.validUntil,
+          orderId: result.orderId,
           signature: result.signature,
         },
       ],
@@ -229,7 +263,7 @@ export default function PrizePage() {
   const pending = rewards.prizes.filter(
     (p) => prizeById(p.prizeId)?.special && !rewards.extras?.[p.code]
   );
-  const wonTier = won?.prize?.tier || "common";
+  const wonTier = shown?.prize?.tier || "common";
   const peeked = peek !== null ? WHEEL[peek] : null;
 
   return (
@@ -283,7 +317,7 @@ export default function PrizePage() {
                     const [x1, y1] = px(start, R_FACE);
                     const [x2, y2] = px(end, R_FACE);
                     const mid = start + SLICE / 2;
-                    const isWinner = won?.prize?.id === prize.id;
+                    const isWinner = shown?.prize?.id === prize.id;
                     const isPeek = peek === i && !isWinner;
                     const isJackpot = prize.tier === "jackpot";
                     // Labels run along the radius. Flipped on the left half so no
@@ -397,19 +431,44 @@ export default function PrizePage() {
             </p>
 
             <div className="prize-action">
-              {left > 0 ? (
-                <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
-                  {busy ? t("prize.spinning") : t("prize.spin")}
-                </button>
-              ) : null}
-              <p className="prize-count">
-                {left > 1 ? t("prize.spinsMany", { count: left })
-                  : left === 1 ? t("prize.spinsOne")
-                  : rewards.prizes.length > 0 ? t("prize.usedAll")
-                  : t("prize.noSpins")}
-              </p>
-              {left === 0 && rewards.prizes.length === 0 && (
-                <p className="prize-fine prize-fine-center">{t("prize.noSpinsHint")}</p>
+              {canSpin ? (
+                <>
+                  <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
+                    {busy ? t("prize.spinning") : t("prize.spin")}
+                  </button>
+                  <p className="prize-count">{t("prize.orderReady", { order: selected.label || dateOf(selected.submittedAt) })}</p>
+                </>
+              ) : selected ? (
+                <p className="prize-count">
+                  {selected.prize ? t("prize.alreadySpun") : t("prize.errorOrderLate")}
+                </p>
+              ) : (
+                <>
+                  {orderParam && orders && <p className="prize-count prize-count-warn">{t("prize.errorOrderNotFound")}</p>}
+                  {waiting.length > 0 ? (
+                    <div className="prize-orders">
+                      <p className="prize-count">{t("prize.ordersWaiting", { count: waiting.length })}</p>
+                      <ul>
+                        {waiting.map((o) => (
+                          <li key={o.id}>
+                            <span>
+                              <strong>{o.label || t("prize.order")}</strong>
+                              <small>{dateOf(o.submittedAt)}</small>
+                            </span>
+                            <Link className="prize-btn prize-btn-solid prize-btn-small" to={`/prize?order=${o.id}`}>
+                              {t("prize.spin")}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="prize-count">{t("prize.noOrders")}</p>
+                      <Link className="prize-link" to="/register">{t("prize.toRegister")}</Link>
+                    </>
+                  )}
+                </>
               )}
               <p className="prize-until">{t("prize.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</p>
             </div>
@@ -424,14 +483,15 @@ export default function PrizePage() {
         <div className="prize-result">
           {error && <p className="prize-error" role="alert">{error}</p>}
 
-          {won && (
+          {shown && (
             <div className={`prize-card tier-${wonTier}`}>
               <p className="prize-eyebrow">{t("prize.won")}</p>
-              <h2 className="prize-won">{explain(won.prize.id) || prizeName(won.prize.id, won.prize.label)}</h2>
-              <div className="prize-code">{won.code}</div>
+              <h2 className="prize-won">{explain(shown.prize.id) || prizeName(shown.prize.id, shown.prize.label)}</h2>
+              <div className="prize-code">{shown.code}</div>
               <p className="prize-fine">
-                {t("prize.validUntil", { date: dmy(won.validUntil || PRIZE_VALID_UNTIL) })}
+                {t("prize.validUntil", { date: dmy(shown.validUntil || PRIZE_VALID_UNTIL) })}
               </p>
+              <p className="prize-fine">{t("prize.redeemNote")}</p>
               <p className="prize-fine">{t("prize.codeNote")}</p>
               <p className="prize-fine"><Link className="prize-link" to="/prize-terms">{t("prize.rulesLink")}</Link></p>
             </div>
@@ -503,6 +563,8 @@ export default function PrizePage() {
         <h2 id="prize-small-title" className="prize-small-title">{t("prize.fine.title")}</h2>
         <ul>
           <li>{t("prize.fine.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</li>
+          <li>{t("prize.fine.oncePerOrder")}</li>
+          <li>{t("prize.fine.redeemLater")}</li>
           <li>{t("prize.fine.noCash")}</li>
           <li>{t("prize.fine.validity", { date: dmy(PRIZE_VALID_UNTIL) })}</li>
           <li>{t("prize.fine.capped")}</li>

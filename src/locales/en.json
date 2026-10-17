@@ -348,8 +348,6 @@
     "retentionStopConfirm": "Stop the clock? The gallery stays up until someone starts it again.",
     "retentionNoAccount": "This folder has no account linked, so there is nobody to run a clock for.",
     "noPhotosYet": "No photos yet",
-    "spinsTitle": "Wheel spins",
-    "spinsHint": "One spin per paid order",
     "mainGallery": "Main gallery",
     "mainGalleryHint": "The photos everyone sees on the site",
     "accessTitle": "Photo downloads",
@@ -370,7 +368,6 @@
     "prizesNone": "No gifts won yet",
     "prizeMarkRedeemed": "Mark redeemed",
     "prizeUndoRedeemed": "Undo redeemed",
-    "prizeRedeemedOn": "Redeemed {{date}}",
     "prizeAwaiting": "Waiting for details from the winner",
     "prizeTeamFriends": "The five friends",
     "prizeJackpotVideo": "Long video at",
@@ -383,7 +380,20 @@
     "prizeNoSecret": "The server is not set up to verify (SPIN_SECRET missing), cannot redeem",
     "prizeValidUntil": "Valid until {{date}}",
     "prizeExpired": "Expired, cannot redeem",
-    "prizeCappedLimit": "Cannot redeem: one limited gift per customer"
+    "prizeCappedLimit": "Cannot redeem: one limited gift per customer",
+    "prizeDuplicateOrder": "Duplicate record for the same order",
+    "prizeWonOn": "Won on order: {{order}}",
+    "prizeUnknownOrder": "unknown order (earlier prize)",
+    "prizeRedeemableYes": "Redeemable",
+    "prizeRedeemableNo": "Not redeemable",
+    "prizeRedeemOn": "Redeem on order",
+    "prizeChooseOrder": "Choose a later, paid order",
+    "prizeNoEligibleOrder": "No later order with a paid deposit yet",
+    "prizeRedeemedOnOrder": "Redeemed on order {{order}} ({{date}})",
+    "prizeWhySameOrder": "A prize cannot be used on the order it was won on",
+    "prizeWhyUnpaid": "The deposit on this order is not marked paid",
+    "prizeWhyNotLater": "This order is not later than the order it was won on",
+    "prizeWhyWrongOwner": "This order does not belong to this customer"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -732,7 +742,9 @@
     "alreadyWhatsapp": "Message Alina",
     "alreadyWhatsappMessage": "Hi Alina! I'm already signed up for {{name}} and I'd like to change something in my entry:",
     "packagesOne": "Choose one package",
-    "packagesPerDay": "You picked more than one day — you can choose a different package for each"
+    "packagesPerDay": "You picked more than one day — you can choose a different package for each",
+    "wheelButton": "Spin the prize wheel",
+    "wheelLine": "A small gift for your order: spin the wheel and see what you won. You can spin until {{date}}."
   },
   "quote": {
     "cta": "Request a quote",
@@ -911,11 +923,6 @@
     "wheelLabel": "Prize wheel",
     "spin": "Spin",
     "spinning": "Spinning…",
-    "spinsOne": "You have one spin left",
-    "spinsMany": "You have {{count}} spins left",
-    "noSpins": "You have no spins yet",
-    "usedAll": "You have used all your spins",
-    "noSpinsHint": "A spin is added for every paid order.",
     "endedTitle": "The wheel has ended",
     "endedBody": "The wheel was available until {{date}} and can no longer be spun. The gifts you won stay here.",
     "errorSignedOut": "Please sign in",
@@ -963,7 +970,9 @@
       "noCash": "Benefits cannot be redeemed for cash and cannot be combined with each other unless stated otherwise.",
       "validity": "Gifts are valid until {{date}}.",
       "capped": "One limited gift is honoured per customer.",
-      "confirm": "Gifts are subject to Alina's confirmation."
+      "confirm": "Gifts are subject to Alina's confirmation.",
+      "oncePerOrder": "One spin per order.",
+      "redeemLater": "A gift can be used on a later order, once that order's deposit is paid. It cannot be used on the order it was won on."
     },
     "items": {
       "disc-5": {
@@ -1026,13 +1035,26 @@
     "canWin": "What can I win?",
     "validUntil": "Valid until {{date}}",
     "expired": "Expired",
-    "rulesLink": "Full rules and odds"
+    "rulesLink": "Full rules and odds",
+    "orderReady": "Your spin for this order is ready: {{order}}",
+    "alreadySpun": "You have already spun for this order",
+    "ordersWaiting": "Orders waiting for a spin",
+    "order": "Order",
+    "noOrders": "No orders are waiting for a spin right now. Every order comes with one spin.",
+    "toRegister": "Sign up for a competition",
+    "redeemNote": "The gift can be used on a later order, once its deposit is paid. It cannot be used on this order.",
+    "errorNotConfigured": "The wheel is not ready to run yet. Please try again soon.",
+    "errorUnavailable": "The service is not available right now. Please try again in a few minutes.",
+    "errorNetwork": "No internet connection. Check your connection and try again.",
+    "errorOrderNotFound": "We could not find that order in your account.",
+    "errorOrderNotYours": "That order belongs to a different account.",
+    "errorOrderLate": "That order was placed after the wheel closed, so it has no spin."
   },
   "prizeTerms": {
     "eyebrow": "Prize wheel",
     "title": "Prize wheel rules",
     "whoTitle": "Who can spin and how spins are earned",
-    "whoBody": "The wheel is open to registered customers who are signed in to their account. One spin is added to the account for every order whose deposit Alina has marked as paid. Each spin gives one gift from the list below.",
+    "whoBody": "The wheel is open to registered customers who are signed in to their account. Every order (a competition sign-up) comes with one spin, and you can spin right after ordering, without waiting for the deposit to be paid. The result is fixed once per order and does not change if you spin again.",
     "periodTitle": "Period",
     "periodBody": "The wheel can be spun until {{date}} (inclusive, Israel time). After that it can no longer be spun. Gifts already won stay valid until the date set for them.",
     "prizesTitle": "The gifts",
@@ -1040,7 +1062,6 @@
     "followUps": "For the winning team, the winner gives the details of five friends on the site and confirms that they agreed to be contacted. For the jackpot, the winner chooses two different competitions on the site.",
     "cappedTitle": "One limited gift per customer",
     "cappedBody": "Six of the gifts are limited gifts. Each customer is entitled to have one limited gift honoured: the first limited gift they won. Any further limited gifts they win cannot be redeemed. The limited gifts are:",
-    "cappedRedraw": "Once a customer already holds a limited gift, their further spins are drawn only from the other gifts, in proportion to the odds in the table.",
     "validityTitle": "Validity",
     "validityBody": "Every gift is valid until {{date}}. After that date it can no longer be redeemed.",
     "generalTitle": "General terms",
@@ -1052,9 +1073,12 @@
     "oddsIntro": "The probability of each gift on every spin:",
     "colPrize": "Gift",
     "colOdds": "Probability",
-    "colOddsHeld": "When a limited gift is already held",
-    "notDrawn": "Not drawn",
     "oddsNote": "The probabilities are calculated from the same weights the server uses for the draw.",
-    "back": "Back to the wheel"
+    "back": "Back to the wheel",
+    "cappedNote": "The limit is checked when a gift is redeemed: only the first limited gift won is honoured.",
+    "redeemTitle": "Redeeming a gift",
+    "redeemLater": "A gift can only be redeemed on a later order, once the deposit on that order has been paid.",
+    "redeemNotSame": "A gift cannot be redeemed on the order it was won on.",
+    "redeemAlina": "Redemption is recorded with Alina and subject to her confirmation."
   }
 }

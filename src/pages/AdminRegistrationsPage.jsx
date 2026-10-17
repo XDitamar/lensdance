@@ -10,8 +10,9 @@ import { PRIORITY_PACKAGE_ID, syncPriorityCount } from "../lib/priority";
 import { SESSIONS as SESSIONS_FOR_ADMIN, SESSION_BOOKINGS, sessionById } from "../lib/sessions";
 import { fetchCompetitions } from "../lib/competitions";
 import AdminCompetitionsPanel from "../components/AdminCompetitionsPanel";
-import { addSpins } from "../lib/rewards";
 import { PRIZE_WHEEL } from "../config/features";
+import PrizeAdminPanel from "../components/PrizeAdminPanel";
+import { toMillis } from "../lib/rewards";
 import { useGeoPrice } from "../hooks/useGeoPrice";
 
 export default function AdminRegistrationsPage() {
@@ -44,18 +45,9 @@ export default function AdminRegistrationsPage() {
         list.map((x) => (x.id === reg.id ? { ...x, depositPaid: next } : x))
       );
 
-      /* This mark is what pays for a spin on the prize wheel.
-         Money that Alina has confirmed is the only trigger: a form anybody can
-         fill in is not a purchase, and a spin handed out for one would be free
-         to farm. Unmarking takes it back, so a mis-click costs nothing.
-         Deliberately not awaited and never fatal — the deposit is the record
-         that matters, and a wheel that failed to credit must not make her
-         think the payment did not save. Sign-ups made before accounts existed
-         have no uid and simply earn nothing. */
-      if (PRIZE_WHEEL && reg.userId) {
-        addSpins(reg.userId, next ? 1 : -1)
-          .catch((e) => console.warn("Spin not credited:", e?.code || e));
-      }
+      /* The deposit mark no longer credits a spin: a spin comes with the order
+         itself. What this mark does now is make the order one a prize can be
+         REDEEMED on (the prize panel below checks it, server side). */
     } catch (e) {
       setSaveError(t("registrations.updateFailed", { detail: e?.code || e?.message || "" }));
     } finally {
@@ -731,6 +723,24 @@ export default function AdminRegistrationsPage() {
                       </div>
                     );
                   })()}
+
+                  {/* The customer's wheel gifts, with the server's verdict on each and
+                      the control to redeem one against a LATER, paid order. Only
+                      for competition sign-ups made while signed in: those are the
+                      orders the wheel counts. */}
+                  {PRIZE_WHEEL && !r.__session && r.userId && (
+                    <PrizeAdminPanel
+                      uid={r.userId}
+                      orders={allRegs
+                        .filter((x) => x.userId === r.userId && !x.__session)
+                        .map((x) => ({
+                          id: x.id,
+                          label: x.competitionTitle || "",
+                          depositPaid: x.depositPaid === true,
+                          submittedAt: toMillis(x.submittedAt),
+                        }))}
+                    />
+                  )}
 
                   {/* Row 3 — Permissions + terms + receipt */}
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid #EDE8DF" }}>

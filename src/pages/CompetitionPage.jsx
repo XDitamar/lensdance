@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
+import { Link } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useTranslation } from "react-i18next";
 import { useGeoPrice } from "../hooks/useGeoPrice";
@@ -22,6 +23,8 @@ import {
 import { detectCountry } from "../hooks/useGeoPrice";
 import { notifyNewRegistration } from "../lib/notify";
 import { getWhatsAppInternational } from "../config/contact";
+import { PRIZE_WHEEL } from "../config/features";
+import { PRIZE_WHEEL_UNTIL, dmy, wheelOpen } from "../config/prizes";
 
 // The packages come from useGeoPrice: amounts/currency per the visitor's
 // country (src/config/pricing.js), wording per their language
@@ -119,6 +122,9 @@ export default function CompetitionPage() {
   /** Which package's "?" is open. One at a time — this is a form, not a menu. */
   const [openPkg, setOpenPkg] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  /* The id of the registration just made: the wheel is one spin per order, and
+     the thank-you screen links to the spin for exactly this one. */
+  const [orderId, setOrderId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -331,7 +337,7 @@ export default function CompetitionPage() {
         }
       }
 
-      await addDoc(collection(db, "registrations"), {
+      const created = await addDoc(collection(db, "registrations"), {
         ...form,
         /* Days go in as one string, the way every registration ever written
            has stored them, so the admin list, the archive and the Telegram
@@ -368,6 +374,7 @@ export default function CompetitionPage() {
         userName: user?.displayName || null,
         submittedAt: serverTimestamp(),
       });
+      setOrderId(created.id);
       setSubmitted(true);
 
       /* Ping Alina's phone. Deliberately after setSubmitted and deliberately
@@ -560,6 +567,29 @@ export default function CompetitionPage() {
           <p style={{ fontFamily: "Arial,sans-serif", fontSize: 11, color: "#B2967D" }}>
             {t("competition.successFooter")}
           </p>
+
+          {/* A gift for ordering, offered once and plainly: one spin for THIS
+              order, no deposit needed to spin. Only shown when the spin can
+              actually happen (signed in, so the order is theirs; before the
+              wheel closes). The prize itself is spent on a later order. */}
+          {PRIZE_WHEEL && orderId && user?.uid && wheelOpen() && (
+            <div style={{ marginTop: 34, paddingTop: 26, borderTop: "1px solid #E2D9CE" }}>
+              <p style={{ fontFamily: "Arial,sans-serif", fontSize: 13, color: "#6B5A4A", lineHeight: 1.8, margin: "0 auto 16px", maxWidth: 340 }}>
+                {t("competition.wheelLine", { date: dmy(PRIZE_WHEEL_UNTIL) })}
+              </p>
+              <Link
+                to={`/prize?order=${orderId}`}
+                style={{
+                  display: "inline-block", minHeight: 48, boxSizing: "border-box", padding: "15px 34px",
+                  background: "#4A3525", color: "#F5F1EA", border: "1px solid #4A3525",
+                  fontFamily: "Arial,sans-serif", fontSize: 12, letterSpacing: "0.18em",
+                  textTransform: "uppercase", textDecoration: "none",
+                }}
+              >
+                {t("competition.wheelButton")}
+              </Link>
+            </div>
+          )}
         </div>
       </Page>
     );
