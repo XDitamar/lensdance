@@ -12,13 +12,14 @@
  * The prize wheel: /prize, the settings row, the admin spin field, and the
  * spin credited when a deposit is marked paid.
  *
- * Off while the prizes themselves are still being decided. The page, the
- * server draw (api/spin.js) and the data helpers all stay in the codebase —
- * nothing here is deleted, only unreachable. Flip to true and it returns
- * exactly as it was.
- *
- * NOTE: the /prize route is commented out in src/App.js as well, so the URL
- * itself answers "not found" rather than rendering a page nobody is meant to
- * reach yet. That line has to be uncommented at the same time.
+ * The /prize route in src/App.js is live while this is true. Switch both off
+ * together if it ever has to be pulled again.
  */
-export const PRIZE_WHEEL = false;
+export const PRIZE_WHEEL = true;
+
+/**
+ * Last day the wheel can be spun (end of day, Asia/Jerusalem). api/spin.js
+ * enforces it too; the copy in api/_prizes.js is checked against this one by
+ * src/config/prizes.test.js.
+ */
+export const PRIZE_WHEEL_UNTIL = "2026-12-31";

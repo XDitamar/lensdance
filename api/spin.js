@@ -13,10 +13,8 @@
 // reaches the answer it was given.
 //
 // ── EVERY SLICE IS A PRIZE ─────────────────────────────────────────────────
-// There is no "you lost" segment, on purpose. A draw where you can come away
-// with nothing is a lottery, and promotional lotteries in Israel are regulated;
-// four gifts of different sizes is a thank-you with an animation. It also reads
-// better — nobody spins Alina's wheel and feels cheated.
+// There is no "you lost" segment, on purpose. Every slice is a benefit, of very
+// different sizes (the table and its odds are in ./_prizes.js).
 //
 // ── SIGNED, BECAUSE THE SERVER CANNOT WRITE ────────────────────────────────
 // The deployment's firebase-admin credentials do not work (api/media.js fails
@@ -33,13 +31,7 @@
 
 const crypto = require("crypto");
 
-/** The wheel. Weights are relative, not percentages — they need not total 100. */
-const PRIZES = [
-  { id: "extra-photo", label: "תמונה נוספת ערוכה", weight: 40 },
-  { id: "fast-delivery", label: "מסירה מהירה", weight: 30 },
-  { id: "discount", label: "15% על ההזמנה הבאה", weight: 20 },
-  { id: "reel", label: "ריל קצר", weight: 10 },
-];
+const { PRIZES, TOTAL_WEIGHT, wheelOpen, pickPrize } = require("./_prizes");
 
 const WEB_API_KEY =
   process.env.FIREBASE_WEB_API_KEY || "AIzaSyCTL0IcIZ4cXhevCucMDJdTn5SKUArbdw8";
@@ -61,19 +53,13 @@ async function verifyUser(idToken) {
 }
 
 /**
- * Weighted draw.
+ * Weighted draw over the table in ./_prizes.js.
  *
  * randomInt rather than Math.random: this decides who gets something worth
  * money, and a predictable sequence is a way to farm the good slice.
  */
 function draw() {
-  const total = PRIZES.reduce((sum, p) => sum + p.weight, 0);
-  let roll = crypto.randomInt(0, total);
-  for (const prize of PRIZES) {
-    if (roll < prize.weight) return prize;
-    roll -= prize.weight;
-  }
-  return PRIZES[PRIZES.length - 1];
+  return pickPrize(crypto.randomInt(TOTAL_WEIGHT));
 }
 
 /** A short human code — what the client shows Alina to claim the prize. */
@@ -116,6 +102,14 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // The end date is enforced here, not only on the page: a client clock can be
+  // set to anything. Checked after the caller is verified so an anonymous
+  // request learns nothing.
+  if (!wheelOpen()) {
+    res.status(410).json({ ok: false, error: "wheel-ended" });
+    return;
+  }
+
   const prize = draw();
   const issuedAt = Date.now();
   const code = prizeCode();
@@ -123,13 +117,13 @@ module.exports = async function handler(req, res) {
 
   res.status(200).json({
     ok: true,
-    prize: { id: prize.id, label: prize.label },
+    prize: { id: prize.id, label: prize.label, tier: prize.tier },
     code,
     issuedAt,
     signature,
     // The wheel needs to know which slice to stop on, and the order here is
     // the order it is drawn in.
     index: PRIZES.findIndex((p) => p.id === prize.id),
-    wheel: PRIZES.map((p) => ({ id: p.id, label: p.label })),
+    wheel: PRIZES.map((p) => ({ id: p.id, label: p.label, tier: p.tier })),
   });
 };
