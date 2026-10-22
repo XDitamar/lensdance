@@ -11,6 +11,9 @@ export { PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL };
 
 export const TOTAL_WEIGHT = 1000;
 
+/** The Cloud Functions region the wheel is deployed to (one constant, see api/_prizes.js). */
+export const FUNCTIONS_REGION = "europe-west1";
+
 export const PRIZES = [
   {"id":"disc-5","tier":"common","weight":320,"label":"5% הנחה על חבילה לבחירתך"},
   {"id":"disc-10","tier":"common","weight":260,"label":"10% הנחה על חבילות צילום לבחירתך (בתחרות)"},

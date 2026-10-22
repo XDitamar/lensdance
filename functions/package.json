@@ -1,0 +1,16 @@
+{
+  "name": "lensdance-functions",
+  "private": true,
+  "description": "Cloud Functions for the LensDance prize wheel (Firebase, 2nd gen, callable).",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "scripts": {
+    "test": "node --test test/",
+    "serve": "firebase emulators:start --only functions,firestore,auth",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  }
+}

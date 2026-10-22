@@ -5,7 +5,7 @@
 // The rest tests the wheel's rules end to end on the server side: the
 // deterministic per-order draw, signing and tampering, the order check in
 // api/spin.js, and the redemption rules.
-import { PRIZES, TOTAL_WEIGHT, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL } from "./prizes";
+import { PRIZES, TOTAL_WEIGHT, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL, FUNCTIONS_REGION } from "./prizes";
 
 process.env.SPIN_SECRET = "test-secret";
 const server = require("../../api/_prizes.js");
@@ -18,6 +18,16 @@ test("browser prize table matches the server table", () => {
   expect(TOTAL_WEIGHT).toBe(server.TOTAL_WEIGHT);
   expect(PRIZE_WHEEL_UNTIL).toBe(server.PRIZE_WHEEL_UNTIL);
   expect(PRIZE_VALID_UNTIL).toBe(server.PRIZE_VALID_UNTIL);
+  expect(FUNCTIONS_REGION).toBe(server.FUNCTIONS_REGION);
+});
+
+test("the Cloud Functions copy (functions/prizes.js) matches api/_prizes.js on everything", () => {
+  const fn = require("../../functions/prizes.js");
+  expect(fn.PRIZES).toEqual(server.PRIZES);
+  expect(fn.TOTAL_WEIGHT).toBe(server.TOTAL_WEIGHT);
+  expect(fn.PRIZE_WHEEL_UNTIL).toBe(server.PRIZE_WHEEL_UNTIL);
+  expect(fn.PRIZE_VALID_UNTIL).toBe(server.PRIZE_VALID_UNTIL);
+  expect(fn.FUNCTIONS_REGION).toBe(server.FUNCTIONS_REGION);
 });
 
 test("weights add up to the total", () => {

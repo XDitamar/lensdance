@@ -29,3 +29,6 @@ yarn-error.log*
 
 # graphify output (generated)
 graphify-out/
+
+# Cloud Functions dependencies
+functions/node_modules/

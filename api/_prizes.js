@@ -48,6 +48,16 @@ const PRIZES = [
   },
 ];
 
+/**
+ * The Cloud Functions region (the prize wheel's server side lives in Firebase,
+ * see functions/). ONE constant: scripts/sync-prizes.js copies it to
+ * functions/prizes.js and src/config/prizes.js.
+ * europe-west1, not me-west1 (Tel Aviv): firebase-functions 6.6 does not list
+ * me-west1 as supported and its availability could not be confirmed without a
+ * Firebase login. Change it here if Itamar confirms me-west1.
+ */
+const FUNCTIONS_REGION = "europe-west1";
+
 /** Last day the wheel can be spun, end of day Asia/Jerusalem. */
 const PRIZE_WHEEL_UNTIL = "2026-12-31";
 
@@ -99,6 +109,7 @@ module.exports = {
   TOTAL_WEIGHT,
   PRIZE_WHEEL_UNTIL,
   PRIZE_VALID_UNTIL,
+  FUNCTIONS_REGION,
   israelDay,
   wheelOpen,
   isExpired,
