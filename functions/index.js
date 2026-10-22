@@ -8,6 +8,9 @@
 // instances, and no scheduled functions anywhere.
 
 const admin = require("firebase-admin");
+// firebase-admin 13: FieldValue and getFirestore come from the modular entry point
+// (admin.firestore.FieldValue is undefined there; only a real Firestore finds that out).
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineString } = require("firebase-functions/params");
 const { FUNCTIONS_REGION } = require("./prizes");
@@ -28,10 +31,10 @@ const OPTIONS = {
 };
 
 const handlers = makeHandlers({
-  db: admin.firestore(),
+  db: getFirestore(),
   HttpsError,
   now: () => new Date(),
-  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
   testEmails: () => WHEEL_TEST_EMAILS.value(),
 });
 
