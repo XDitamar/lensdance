@@ -23,6 +23,24 @@
 //     earliest one (evaluatePrizes below).
 //
 // ─────────────────────────────────────────────────────────────────────────────
+// THE SPIN RECORD (spins/{orderId})
+// ─────────────────────────────────────────────────────────────────────────────
+// Once a spin has happened it is also written, by the customer's BROWSER with
+// their own token (firestore.rules `spins`), to spins/{orderId}:
+//   { uid, prizeId, label, code, sig, createdAt, redeemedAt: null }
+// `sig` is HMAC(SPIN_SECRET, "spin|uid|orderId|prizeId|code"): only this server
+// can mint it, so a customer cannot invent or upgrade a record. The record is
+// create-once for the customer and only the admin may change `redeemedAt`.
+// Three things follow:
+//   * api/spin.js reads it first and returns the SAME prize, never redrawing;
+//   * the admin lists a customer's prizes from these records, so deleting the
+//     copy in users/{uid}.prizes hides nothing;
+//   * redemption sets `redeemedAt`, and verify-prize refuses a prize whose
+//     record says it was already redeemed.
+// The server reads them over the Firestore REST API with the CALLER's token (no
+// firebase-admin), exactly as it reads orders.
+//
+// ─────────────────────────────────────────────────────────────────────────────
 // HONEST LIMITS
 // ─────────────────────────────────────────────────────────────────────────────
 // A winner writes their own record to a document they own, so a stored prize
@@ -62,6 +80,23 @@ const sign = (payload) => {
   return h ? h.slice(0, 32) : null;
 };
 
+/** The payload behind a spin record's `sig`. */
+const spinPayload = (uid, orderId, prizeId, code) => `spin|${uid}|${orderId}|${prizeId}|${code}`;
+const signSpin = (uid, orderId, prizeId, code) => sign(spinPayload(uid, orderId, prizeId, code));
+
+/**
+ * Is this spin record genuine, and is it this customer's?
+ * `spin` = { uid, prizeId, code, sig } as stored in spins/{orderId}.
+ */
+function isSpinAuthentic(uid, orderId, spin) {
+  if (!spin || spin.uid !== uid || !spin.sig || !spin.prizeId || !spin.code) return false;
+  const expected = signSpin(uid, orderId, spin.prizeId, spin.code);
+  if (!expected) return false;
+  const a = Buffer.from(String(spin.sig));
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 /**
  * The prize for one order. Deterministic: the same (uid, orderId) always gives
  * the same prize and the same code. Returns null when SPIN_SECRET is not set
@@ -100,19 +135,37 @@ function isAuthentic(uid, p) {
  *   capped      one of the six prizes honoured once per customer
  *   redeemable  valid, not expired, not a repeat record for the same order, and
  *               (if capped) the EARLIEST valid capped prize by signed timestamp
- *   reason      why not: "unverified" | "expired" | "duplicate-order" |
- *               "capped-limit" | null
+ *   reason      why not: "unverified" | "already-redeemed" | "expired" |
+ *               "duplicate-order" | "capped-limit" | null
+ *
+ * `ctx` is built by the server only: ctx.spins = Map(orderId -> { status:
+ * "ok" | "invalid", prizeId, code, redeemedAt }) from spins/{orderId}, and
+ * ctx.redeemed = Map(code -> ms) from retention/{uid}.redeemed.
  */
-function evaluatePrizes(uid, prizes, now = new Date()) {
+function evaluatePrizes(uid, prizes, now = new Date(), ctx = {}) {
   const list = Array.isArray(prizes) ? prizes : [];
-  const rows = list.map((p) => ({
-    code: p?.code,
-    orderId: p?.orderId || null,
-    issuedAt: Number(p?.issuedAt) || 0,
-    valid: isAuthentic(uid, p),
-    expired: isExpired(p?.validUntil, now),
-    capped: isCapped(p?.prizeId),
-  }));
+  const rows = list.map((p) => {
+    // A spin record for this order, read by the server (never taken from the
+    // client). If it agrees with the prize it vouches for it; if it exists but
+    // disagrees or is not genuine, the prize is not trusted at all.
+    const sp = p?.orderId ? ctx.spins?.get(p.orderId) : null;
+    const spinOk = !!sp && sp.status === "ok" && sp.prizeId === p.prizeId && sp.code === p.code;
+    const spinBad = !!sp && !spinOk;
+    return {
+      code: p?.code,
+      prizeId: p?.prizeId,
+      orderId: p?.orderId || null,
+      issuedAt: Number(p?.issuedAt) || 0,
+      validUntil: p?.validUntil || null,
+      valid: !spinBad && (spinOk || isAuthentic(uid, p)),
+      expired: isExpired(p?.validUntil, now),
+      capped: isCapped(p?.prizeId),
+      // Redeemed per the spin record, or per the admin's redemption note on
+      // retention/{uid} (which is all there is for prizes older than spin records).
+      redeemedAt: (spinOk && sp.redeemedAt) || ctx.redeemed?.get(p?.code) || null,
+      spinRecord: spinOk,
+    };
+  });
   const byTime = (a, b) => a.issuedAt - b.issuedAt || String(a.code).localeCompare(String(b.code));
 
   // One order, one prize: a second record for the same order (the draw is
@@ -123,6 +176,8 @@ function evaluatePrizes(uid, prizes, now = new Date()) {
   }
   const isDuplicate = (r) => !!r.orderId && firstForOrder.get(r.orderId) !== r;
 
+  // The capped-prize rule counts a prize even once it has been redeemed: the
+  // customer got their one capped prize, so a later one is still refused.
   const firstCapped = rows
     .filter((r) => r.valid && r.capped && !isDuplicate(r))
     .sort(byTime)[0];
@@ -130,12 +185,20 @@ function evaluatePrizes(uid, prizes, now = new Date()) {
   return rows.map((r) => {
     let reason = null;
     if (!r.valid) reason = "unverified";
+    else if (r.redeemedAt) reason = "already-redeemed";
     else if (r.expired) reason = "expired";
     else if (isDuplicate(r)) reason = "duplicate-order";
     else if (r.capped && r !== firstCapped) reason = "capped-limit";
     return {
       code: r.code,
+      prizeId: r.prizeId,
       orderId: r.orderId,
+      issuedAt: r.issuedAt,
+      validUntil: r.validUntil,
+      redeemedAt: r.redeemedAt,
+      // True when a genuine spins/{orderId} record vouches for this prize: that
+      // record is the one redemption stamps (see setRedeemed in rewards.js).
+      spinRecord: r.spinRecord,
       valid: r.valid,
       expired: r.expired,
       capped: r.capped,
@@ -216,7 +279,82 @@ async function fetchOrder(orderId, idToken) {
   };
 }
 
+/* ── spin records and redemption notes, read over REST as the caller ──────── */
+
+const FS = () => `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+const fsString = (f) => (f && typeof f.stringValue === "string" ? f.stringValue : null);
+const fsMillis = (f) => {
+  if (!f) return null;
+  if (f.timestampValue) return Date.parse(f.timestampValue) || null;
+  if (f.integerValue !== undefined) return Number(f.integerValue) || null;
+  if (f.doubleValue !== undefined) return Number(f.doubleValue) || null;
+  return null; // nullValue and anything else: not set
+};
+
+/** One spins/{orderId} document in REST form -> a plain object. */
+function parseSpin(orderId, fields) {
+  const f = fields || {};
+  return {
+    orderId,
+    uid: fsString(f.uid),
+    prizeId: fsString(f.prizeId),
+    label: fsString(f.label),
+    code: fsString(f.code),
+    sig: fsString(f.sig),
+    createdAt: fsMillis(f.createdAt),
+    redeemedAt: fsMillis(f.redeemedAt),
+  };
+}
+
+/**
+ * The spin record for one order.
+ *   { status: "ok", spin }   it exists
+ *   { status: "missing" }    no record: the order has not been spun (or not saved)
+ *   { status: "denied" }     the rules refused the read. In normal operation they
+ *                            never do for the owner or the admin, so this means the
+ *                            `spins` rules have not been published yet.
+ * Anything else throws.
+ */
+async function fetchSpin(orderId, idToken) {
+  const r = await fetch(`${FS()}/spins/${orderId}`, { headers: { Authorization: `Bearer ${idToken}` } });
+  if (r.status === 404) return { status: "missing" };
+  if (r.status === 403) return { status: "denied" };
+  if (!r.ok) throw new Error(`firestore HTTP ${r.status}`);
+  return { status: "ok", spin: parseSpin(orderId, (await r.json()).fields) };
+}
+
+/** Every spin record of one customer. The owner or the admin only (the rules). */
+async function fetchSpinsForUser(uid, idToken) {
+  const r = await fetch(`${FS()}:runQuery`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "spins" }],
+        where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } } },
+        limit: 300,
+      },
+    }),
+  });
+  if (!r.ok) throw new Error(`spins query HTTP ${r.status}`);
+  return (await r.json())
+    .filter((x) => x.document)
+    .map((x) => parseSpin(x.document.name.split("/").pop(), x.document.fields));
+}
+
+/** retention/{uid}.redeemed as Map(code -> ms): the admin's redemption notes. */
+async function fetchRedeemedCodes(uid, idToken) {
+  const r = await fetch(`${FS()}/retention/${uid}`, { headers: { Authorization: `Bearer ${idToken}` } });
+  if (r.status === 404) return new Map();
+  if (!r.ok) throw new Error(`retention HTTP ${r.status}`);
+  const map = (await r.json()).fields?.redeemed?.mapValue?.fields || {};
+  return new Map(
+    Object.entries(map).map(([code, v]) => [code, fsMillis(v.mapValue ? v.mapValue.fields?.at : v) || 1])
+  );
+}
+
 module.exports = {
+  signSpin, isSpinAuthentic, fetchSpin, fetchSpinsForUser, fetchRedeemedCodes,
   payloadOf, sign, drawForOrder, isAuthentic, evaluatePrizes, canRedeemOn,
   verifyCaller, isAdminEmail, isOrderId, fetchOrder,
 };

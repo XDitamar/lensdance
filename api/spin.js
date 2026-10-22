@@ -40,13 +40,16 @@
 //   missing-token / invalid-token  not signed in
 //   wheel-ended                    after 31.12.2026
 //   bad-order / order-not-found / order-not-yours / order-too-late
+//   spin-record-invalid            spins/{orderId} exists but is not genuine
 //   not-tester                     a test spin from somebody not on the list
 //   not-configured                 SPIN_SECRET is not set on the server
 //   verification-unavailable       the sign-in check or the order lookup failed
 
 const crypto = require("crypto");
 const { PRIZES, TOTAL_WEIGHT, pickPrize, wheelOpen, israelDay, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL } = require("./_prizes");
-const { payloadOf, sign, drawForOrder, verifyCaller, isAdminEmail, isOrderId, fetchOrder } = require("./_verify");
+const {
+  payloadOf, sign, signSpin, isSpinAuthentic, fetchSpin, drawForOrder, verifyCaller, isAdminEmail, isOrderId, fetchOrder,
+} = require("./_verify");
 
 function safeParse(s) {
   try { return JSON.parse(s); } catch (e) { return {}; }
@@ -167,7 +170,44 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { prize, code } = drawForOrder(uid, order.id);
+  // ── The spin record ───────────────────────────────────────────────────────
+  // If this order has already been spun, its record (spins/{orderId}, written by
+  // the customer's browser) is read first, as the caller, and that SAME prize is
+  // returned: never a redraw. The record is only believed if its `sig` verifies,
+  // which only this server can produce, so a customer cannot plant a better one.
+  // A record that exists but does not verify is refused, not "fixed": the draw
+  // is deterministic, but the stored record is the thing redemption goes by, and
+  // an order with a bad record needs Alina to look at it.
+  let existing;
+  try {
+    existing = await fetchSpin(order.id, idToken);
+  } catch (err) {
+    console.error("Spin could not read the spin record:", err);
+    res.status(502).json({ ok: false, error: "verification-unavailable" });
+    return;
+  }
+
+  let prize;
+  let code;
+  let persisted = false;
+  let redeemedAt = null;
+  if (existing.status === "ok") {
+    const rec = existing.spin;
+    prize = PRIZES.find((p) => p.id === rec.prizeId);
+    if (!prize || !isSpinAuthentic(uid, order.id, rec)) {
+      res.status(409).json({ ok: false, error: "spin-record-invalid" });
+      return;
+    }
+    code = rec.code;
+    persisted = true;
+    redeemedAt = rec.redeemedAt || null;
+  } else {
+    // "missing": not spun yet. "denied": the `spins` rules are not published, so
+    // nothing can be saved or read; draw anyway (the draw is deterministic, so it
+    // is the same prize every time) and let the browser's save fail quietly.
+    if (existing.status === "denied") console.warn("spins/{orderId} is not readable: have the `spins` rules been published?");
+    ({ prize, code } = drawForOrder(uid, order.id));
+  }
   // issuedAt is the ORDER's submission time, not "now": it keeps the record
   // identical however many times the same order is asked for, and it is what
   // redemption compares against ("a later order").
@@ -183,6 +223,10 @@ module.exports = async function handler(req, res) {
     validUntil,
     orderId: order.id,
     signature,
+    // What the browser stores in spins/{orderId} (once), when `persisted` is false.
+    sig: signSpin(uid, order.id, prize.id, code),
+    persisted,
+    redeemedAt,
     // The wheel needs to know which slice to stop on, and the order here is
     // the order it is drawn in.
     index: PRIZES.findIndex((p) => p.id === prize.id),
