@@ -134,29 +134,110 @@ test("a prize from before orders existed is redeemable only on a later paid orde
   expect(verify.canRedeemOn("u1", legacy, { ...order, submittedAt: 900 }).reason).toBe("not-later");
 });
 
-/* ── api/spin.js: the order check, the end date, configuration ──────────── */
+/* ── Evaluating prizes against spin records and redemption notes ─────────── */
+
+test("evaluatePrizes: a spin record that vouches for a prize makes it valid, and redeemedAt makes it refused", () => {
+  const rec = { prizeId: "disc-5", code: "LD-SPIN", orderId: ORDER, issuedAt: 1000, validUntil: "2027-06-30" }; // no signature at all
+  const spins = new Map([[ORDER, { status: "ok", prizeId: "disc-5", code: "LD-SPIN", redeemedAt: null }]]);
+  expect(verify.evaluatePrizes("u1", [rec], NOW, { spins })[0]).toMatchObject({ valid: true, redeemable: true, spinRecord: true });
+  spins.set(ORDER, { status: "ok", prizeId: "disc-5", code: "LD-SPIN", redeemedAt: 5555 });
+  expect(verify.evaluatePrizes("u1", [rec], NOW, { spins })[0]).toMatchObject({ redeemable: false, reason: "already-redeemed", redeemedAt: 5555 });
+});
+
+test("evaluatePrizes: a spin record that is forged, or disagrees with the prize, poisons it", () => {
+  const signed = mint("u1", "disc-5", "LD-GOOD", 1000, ORDER);             // a perfectly signed record...
+  const forged = new Map([[ORDER, { status: "invalid", prizeId: "disc-5", code: "LD-GOOD", redeemedAt: null }]]);
+  expect(verify.evaluatePrizes("u1", [signed], NOW, { spins: forged })[0]).toMatchObject({ valid: false, reason: "unverified" });
+  const other = new Map([[ORDER, { status: "ok", prizeId: "jackpot", code: "LD-GOOD", redeemedAt: null }]]);
+  expect(verify.evaluatePrizes("u1", [signed], NOW, { spins: other })[0]).toMatchObject({ valid: false, reason: "unverified" });
+});
+
+test("evaluatePrizes: the retention note still blocks older prizes, and a redeemed capped prize still counts as the one", () => {
+  const first = mint("u1", "disc-50", "LD-CAP1", 1000, ORDER);
+  const later = mint("u1", "jackpot", "LD-CAP2", 2000, ORDER_B);
+  const out = Object.fromEntries(
+    verify.evaluatePrizes("u1", [first, later], NOW, { redeemed: new Map([["LD-CAP1", 9999]]) }).map((r) => [r.code, r])
+  );
+  expect(out["LD-CAP1"]).toMatchObject({ redeemable: false, reason: "already-redeemed" });
+  expect(out["LD-CAP2"]).toMatchObject({ redeemable: false, reason: "capped-limit" }); // they already had their one
+});
+
+test("a spin record's signature is bound to the customer, the order, the prize and the code", () => {
+  const sig = verify.signSpin("u1", ORDER, "disc-5", "LD-AAAA");
+  const rec = { uid: "u1", prizeId: "disc-5", code: "LD-AAAA", sig };
+  expect(verify.isSpinAuthentic("u1", ORDER, rec)).toBe(true);
+  expect(verify.isSpinAuthentic("u2", ORDER, { ...rec, uid: "u2" })).toBe(false);   // someone else's signature
+  expect(verify.isSpinAuthentic("u1", ORDER_B, rec)).toBe(false);                   // moved to another order
+  expect(verify.isSpinAuthentic("u1", ORDER, { ...rec, prizeId: "jackpot" })).toBe(false); // upgraded
+  expect(verify.isSpinAuthentic("u1", ORDER, { ...rec, code: "LD-BBBB" })).toBe(false);
+  expect(verify.isSpinAuthentic("u1", ORDER, { ...rec, uid: "u2" })).toBe(false);   // stored under the wrong uid
+});
+
+/* ── The network, faked: Google sign-in, orders, spin records, redemption notes ── */
 
 const realFetch = global.fetch;
 afterEach(() => { global.fetch = realFetch; });
 
-/** Fake the two services spin.js talks to. */
-function mockServices({ uid = "u1", order }) {
-  global.fetch = jest.fn(async (url) => {
-    if (String(url).includes("identitytoolkit")) {
-      return { ok: true, status: 200, json: async () => ({ users: [{ localId: uid, email: `${uid}@x.com` }] }) };
+const ADMIN = "lensdance29@gmail.com";
+const asDoc = (o) => ({
+  fields: Object.fromEntries(
+    Object.entries(o).flatMap(([k, v]) => {
+      if (v === undefined) return [];
+      if (v === null) return [[k, { nullValue: null }]];
+      if (typeof v === "boolean") return [[k, { booleanValue: v }]];
+      if (typeof v === "number") return [[k, { timestampValue: new Date(v).toISOString() }]];
+      return [[k, { stringValue: v }]];
+    })
+  ),
+});
+
+/**
+ * orders:    { id: { userId, submittedAt, depositPaid } } | "denied" | "down"
+ * spins:     { orderId: record } where a record is { uid, prizeId, label, code, sig, createdAt, redeemedAt },
+ *            or the string "denied" to model the spins rules not being published
+ * retention: { uid: { code: { at } } }
+ * who:       { token: { localId, email } }
+ */
+function net({ orders = {}, spins = {}, retention = {}, who = { tok: { localId: "u1", email: "u1@x.com" } }, ordersMode } = {}) {
+  global.fetch = jest.fn(async (url, opts = {}) => {
+    url = String(url);
+    const json = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+    const bearer = (opts.headers?.Authorization || "").replace(/^Bearer\s+/i, "");
+    if (url.includes("identitytoolkit")) {
+      const u = who[JSON.parse(opts.body).idToken];
+      return u ? json(200, { users: [u] }) : json(400, {});
     }
-    if (order === "denied") return { ok: false, status: 403, json: async () => ({}) };
-    if (order === "down") return { ok: false, status: 500, json: async () => ({}) };
-    return {
-      ok: true, status: 200,
-      json: async () => ({
-        fields: {
-          ...(order.userId ? { userId: { stringValue: order.userId } } : {}),
-          ...(order.submittedAt ? { submittedAt: { timestampValue: new Date(order.submittedAt).toISOString() } } : {}),
-          depositPaid: { booleanValue: !!order.depositPaid },
-        },
-      }),
-    };
+    const caller = who[bearer];
+    const isAdmin = caller?.email === ADMIN;
+    if (url.includes("/documents/registrations/")) {
+      if (ordersMode === "denied") return json(403, {});
+      if (ordersMode === "down") return json(500, {});
+      const o = orders[url.split("/documents/registrations/")[1]];
+      if (!o || !caller || (o.userId !== caller.localId && !isAdmin)) return json(403, {});
+      return json(200, asDoc(o));
+    }
+    if (url.includes("/documents/spins/")) {
+      const id = url.split("/documents/spins/")[1];
+      if (spins === "denied") return json(403, {});
+      const rec = spins[id];
+      if (!rec) return json(404, {});
+      if (!caller || (rec.uid !== caller.localId && !isAdmin)) return json(403, {});
+      return json(200, asDoc(rec));
+    }
+    if (url.includes(":runQuery")) {
+      const q = JSON.parse(opts.body).structuredQuery;
+      if (q.from[0].collectionId !== "spins") return json(200, []);
+      const wanted = q.where.fieldFilter.value.stringValue;
+      if (spins === "denied" || !caller || (wanted !== caller.localId && !isAdmin)) return json(403, {});
+      return json(200, Object.entries(spins).filter(([, r]) => r.uid === wanted).map(([id, r]) => ({ document: { name: `projects/p/databases/(default)/documents/spins/${id}`, ...asDoc(r) } })));
+    }
+    if (url.includes("/documents/retention/")) {
+      const uid = url.split("/documents/retention/")[1];
+      const r = retention[uid];
+      if (!r) return json(404, {});
+      return json(200, { fields: { redeemed: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([c, v]) => [c, { mapValue: { fields: { at: { integerValue: String(v.at) } } } }])) } } } });
+    }
+    throw new Error("unmocked fetch: " + url);
   });
 }
 
@@ -167,9 +248,14 @@ const call = (handler, { token = "tok", body = {} } = {}) =>
   });
 
 const ORDER_OK = { userId: "u1", submittedAt: Date.parse("2026-10-20T10:00:00Z") };
+const spinRec = (uid, orderId, prizeId, code, over = {}) => ({
+  uid, prizeId, label: "x", code, sig: verify.signSpin(uid, orderId, prizeId, code), createdAt: Date.parse("2026-10-21T10:00:00Z"), redeemedAt: null, ...over,
+});
 
-test("spin: the owner of a real order gets the deterministic, signed prize for it", async () => {
-  mockServices({ order: ORDER_OK });
+/* ── api/spin.js ─────────────────────────────────────────────────────────── */
+
+test("spin: the owner of a real order gets the deterministic, signed prize for it, plus the spin signature to save", async () => {
+  net({ orders: { [ORDER]: ORDER_OK } });
   const a = await call(spin, { body: { orderId: ORDER } });
   const b = await call(spin, { body: { orderId: ORDER } });
   expect(a.status).toBe(200);
@@ -177,30 +263,57 @@ test("spin: the owner of a real order gets the deterministic, signed prize for i
   expect(a.body.orderId).toBe(ORDER);
   expect(a.body.issuedAt).toBe(ORDER_OK.submittedAt);               // the order's time, not "now"
   expect(a.body.validUntil).toBe(PRIZE_VALID_UNTIL);
+  expect(a.body.persisted).toBe(false);
   expect(PRIZES[a.body.index].id).toBe(a.body.prize.id);
   const record = { prizeId: a.body.prize.id, code: a.body.code, issuedAt: a.body.issuedAt, validUntil: a.body.validUntil, orderId: a.body.orderId, signature: a.body.signature };
   expect(verify.isAuthentic("u1", record)).toBe(true);
+  expect(verify.isSpinAuthentic("u1", ORDER, { uid: "u1", prizeId: a.body.prize.id, code: a.body.code, sig: a.body.sig })).toBe(true);
+});
+
+test("spin: an order that already has a genuine spin record returns THAT prize, never a redraw", async () => {
+  const drawn = verify.drawForOrder("u1", ORDER).prize.id;
+  const stored = drawn === "jackpot" ? "disc-5" : "jackpot";          // deliberately NOT what the draw would give
+  net({ orders: { [ORDER]: ORDER_OK }, spins: { [ORDER]: spinRec("u1", ORDER, stored, "LD-KEEP", { redeemedAt: Date.parse("2026-11-02T10:00:00Z") }) } });
+  const out = await call(spin, { body: { orderId: ORDER } });
+  expect(out.status).toBe(200);
+  expect(out.body.prize.id).toBe(stored);
+  expect(out.body.code).toBe("LD-KEEP");
+  expect(out.body.persisted).toBe(true);
+  expect(out.body.redeemedAt).toBe(Date.parse("2026-11-02T10:00:00Z"));
+});
+
+test("spin: a spin record that is forged is refused, not redrawn or trusted", async () => {
+  net({ orders: { [ORDER]: ORDER_OK }, spins: { [ORDER]: { ...spinRec("u1", ORDER, "jackpot", "LD-FAKE"), sig: "0".repeat(32) } } });
+  expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 409, body: { error: "spin-record-invalid" } });
+});
+
+test("spin: if the spins rules are not published the draw still works (just not saved)", async () => {
+  net({ orders: { [ORDER]: ORDER_OK }, spins: "denied" });
+  const out = await call(spin, { body: { orderId: ORDER } });
+  expect(out.status).toBe(200);
+  expect(out.body.persisted).toBe(false);
+  expect(out.body.sig).toMatch(/^[0-9a-f]{32}$/);
 });
 
 test("spin: someone else's order, a missing order and a malformed id are refused", async () => {
-  mockServices({ order: { ...ORDER_OK, userId: "u2" } });
-  expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 403, body: { error: "order-not-yours" } });
-  mockServices({ order: "denied" });
+  net({ orders: { [ORDER]: { ...ORDER_OK, userId: "u2" } } });
+  expect((await call(spin, { body: { orderId: ORDER } })).status).toBe(404);   // the rules hide it: 'not found'
+  net({ ordersMode: "denied" });
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 404, body: { error: "order-not-found" } });
-  mockServices({ order: ORDER_OK });
+  net({ orders: { [ORDER]: ORDER_OK } });
   expect(await call(spin, { body: { orderId: "../users/u1" } })).toMatchObject({ status: 400, body: { error: "bad-order" } });
   expect(await call(spin, { body: {} })).toMatchObject({ status: 400 });
 });
 
 test("spin: an order placed after 31.12.2026, or with no timestamp, earns no spin", async () => {
-  mockServices({ order: { userId: "u1", submittedAt: Date.parse("2027-01-02T10:00:00Z") } });
+  net({ orders: { [ORDER]: { userId: "u1", submittedAt: Date.parse("2027-01-02T10:00:00Z") } } });
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 410, body: { error: "order-too-late" } });
-  mockServices({ order: { userId: "u1" } });
+  net({ orders: { [ORDER]: { userId: "u1" } } });
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 410, body: { error: "order-too-late" } });
 });
 
 test("spin: the wheel is closed after the end date, whatever the order", async () => {
-  mockServices({ order: ORDER_OK });
+  net({ orders: { [ORDER]: ORDER_OK } });
   jest.useFakeTimers().setSystemTime(new Date("2027-01-02T10:00:00Z"));
   const out = await call(spin, { body: { orderId: ORDER } });
   jest.useRealTimers();
@@ -209,21 +322,33 @@ test("spin: the wheel is closed after the end date, whatever the order", async (
 
 test("spin: not signed in, bad token, unconfigured server and a failing lookup each answer distinctly", async () => {
   expect(await call(spin, { token: null })).toMatchObject({ status: 401, body: { error: "missing-token" } });
-  global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({}) }));
+  net({ who: {} });
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 401, body: { error: "invalid-token" } });
-  mockServices({ order: ORDER_OK });
+  net({ orders: { [ORDER]: ORDER_OK } });
   const saved = process.env.SPIN_SECRET;
   delete process.env.SPIN_SECRET;
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 503, body: { error: "not-configured" } });
   process.env.SPIN_SECRET = saved;
-  mockServices({ order: "down" });
+  net({ ordersMode: "down" });
   expect(await call(spin, { body: { orderId: ORDER } })).toMatchObject({ status: 502, body: { error: "verification-unavailable" } });
 });
 
-/* ── api/verify-prize.js ────────────────────────────────────────────────── */
+test("spin: TEST spins are unchanged: no order, no signature, nothing to save, only for testers", async () => {
+  process.env.WHEEL_TEST_EMAILS = "u1@x.com";
+  net({});
+  const out = await call(spin, { body: { test: true } });
+  expect(out.body).toMatchObject({ ok: true, test: true, code: "TEST", signature: null, orderId: null });
+  expect(out.body.sig).toBeUndefined();
+  expect(out.body.persisted).toBeUndefined();
+  net({ who: { tok: { localId: "u9", email: "stranger@x.com" } } });
+  expect(await call(spin, { body: { test: true } })).toMatchObject({ status: 403, body: { error: "not-tester" } });
+  delete process.env.WHEEL_TEST_EMAILS;
+});
+
+/* ── api/verify-prize.js ─────────────────────────────────────────────────── */
 
 test("verify-prize: a customer checks only their own prizes, and cannot ask about an order", async () => {
-  mockServices({ uid: "u1", order: ORDER_OK });
+  net({});
   const prize = mint("u1", "disc-5", "LD-AAAA", 1000, ORDER);
   const own = await call(verifyPrize, { body: { prizes: [prize] } });
   expect(own.body.results[0]).toMatchObject({ valid: true, redeemable: true });
@@ -231,24 +356,58 @@ test("verify-prize: a customer checks only their own prizes, and cannot ask abou
   expect(await call(verifyPrize, { body: { prizes: [prize], redeemOnOrderId: ORDER_B } })).toMatchObject({ status: 403 });
 });
 
+test("verify-prize: a spin record with redeemedAt makes the prize non-redeemable, whatever the client says", async () => {
+  const stamped = spinRec("u1", ORDER, "disc-5", "LD-USED", { redeemedAt: Date.parse("2026-11-03T10:00:00Z") });
+  net({ orders: { [ORDER]: ORDER_OK }, spins: { [ORDER]: stamped } });
+  // the client posts a perfectly signed copy, and even tells the server it was never redeemed
+  const lying = { ...mint("u1", "disc-5", "LD-USED", ORDER_OK.submittedAt, ORDER), redeemedAt: null };
+  const out = await call(verifyPrize, { body: { prizes: [lying] } });
+  expect(out.body.results).toHaveLength(1);
+  expect(out.body.results[0]).toMatchObject({ code: "LD-USED", redeemable: false, reason: "already-redeemed", spinRecord: true });
+});
+
+test("verify-prize: fromSpins lists prizes the customer deleted from their own profile", async () => {
+  net({
+    orders: { [ORDER]: ORDER_OK, [ORDER_B]: { userId: "u1", submittedAt: ORDER_OK.submittedAt + 864e5, depositPaid: true } },
+    spins: { [ORDER]: spinRec("u1", ORDER, "disc-50", "LD-CAP1"), [ORDER_B]: spinRec("u1", ORDER_B, "jackpot", "LD-CAP2") },
+  });
+  const out = await call(verifyPrize, { body: { prizes: [], fromSpins: true } });     // the customer's own list is EMPTY
+  const by = Object.fromEntries(out.body.results.map((r) => [r.code, r]));
+  expect(Object.keys(by).sort()).toEqual(["LD-CAP1", "LD-CAP2"]);
+  expect(by["LD-CAP1"]).toMatchObject({ redeemable: true, issuedAt: ORDER_OK.submittedAt, validUntil: PRIZE_VALID_UNTIL, spinRecord: true });
+  expect(by["LD-CAP2"]).toMatchObject({ redeemable: false, reason: "capped-limit" });   // the capped rule still holds
+});
+
+test("verify-prize: a forged spin record is never trusted", async () => {
+  net({ orders: { [ORDER]: ORDER_OK }, spins: { [ORDER]: { ...spinRec("u1", ORDER, "jackpot", "LD-FAKE"), sig: "f".repeat(32) } } });
+  const out = await call(verifyPrize, { body: { prizes: [], fromSpins: true } });
+  expect(out.body.results[0]).toMatchObject({ code: "LD-FAKE", valid: false, redeemable: false, reason: "unverified" });
+});
+
+test("verify-prize: the admin's note on retention/{uid} still blocks a prize that has no spin record", async () => {
+  net({ retention: { u1: { "LD-OLD1": { at: 1700000000000 } } } });
+  const out = await call(verifyPrize, { body: { prizes: [mint("u1", "disc-5", "LD-OLD1", 1000)] } });
+  expect(out.body.results[0]).toMatchObject({ redeemable: false, reason: "already-redeemed" });
+});
+
+test("verify-prize: a prize with a signed record but no spin record yet is still honoured (older prizes, rules not published)", async () => {
+  net({ spins: "denied" });
+  const out = await call(verifyPrize, { body: { prizes: [mint("u1", "disc-5", "LD-LEGA", 1000, ORDER)] } });
+  expect(out.body.results[0]).toMatchObject({ valid: true, redeemable: true, spinRecord: false });
+  expect(out.body.spinsAvailable).toBe(false);
+});
+
 test("verify-prize: the admin checks a prize against a specific order", async () => {
-  process.env.ADMIN_EMAIL = "lensdance29@gmail.com";
   const prize = mint("u1", "disc-5", "LD-AAAA", 1000, ORDER);
-  const adminFetch = (order) => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes("identitytoolkit")) {
-        return { ok: true, status: 200, json: async () => ({ users: [{ localId: "admin1", email: "lensdance29@gmail.com" }] }) };
-      }
-      return { ok: true, status: 200, json: async () => ({ fields: { userId: { stringValue: order.userId }, depositPaid: { booleanValue: order.depositPaid }, submittedAt: { timestampValue: new Date(order.submittedAt).toISOString() } } }) };
-    });
+  const who = { adm: { localId: "adm", email: ADMIN } };
+  const check = async (order) => {
+    net({ who, orders: { [ORDER_B]: order, [ORDER]: { userId: "u1", submittedAt: 1000, depositPaid: false } } });
+    return (await call(verifyPrize, { token: "adm", body: { uid: "u1", prizes: [prize], redeemOnOrderId: ORDER_B } })).body.results[0].redeemOnOrder;
   };
-  adminFetch({ userId: "u1", depositPaid: true, submittedAt: 2000 });
-  let out = await call(verifyPrize, { body: { uid: "u1", prizes: [prize], redeemOnOrderId: ORDER_B } });
-  expect(out.body.results[0].redeemOnOrder).toEqual({ ok: true, reason: null });
-  adminFetch({ userId: "u1", depositPaid: false, submittedAt: 2000 });
-  out = await call(verifyPrize, { body: { uid: "u1", prizes: [prize], redeemOnOrderId: ORDER_B } });
-  expect(out.body.results[0].redeemOnOrder).toMatchObject({ ok: false, reason: "unpaid" });
-  adminFetch({ userId: "u1", depositPaid: true, submittedAt: 2000 });
-  out = await call(verifyPrize, { body: { uid: "u1", prizes: [prize], redeemOnOrderId: ORDER } });
-  expect(out.body.results[0].redeemOnOrder).toMatchObject({ ok: false, reason: "same-order" });
+  expect(await check({ userId: "u1", depositPaid: true, submittedAt: 2000 })).toEqual({ ok: true, reason: null });
+  expect(await check({ userId: "u1", depositPaid: false, submittedAt: 2000 })).toMatchObject({ ok: false, reason: "unpaid" });
+  expect(await check({ userId: "u1", depositPaid: true, submittedAt: 500 })).toMatchObject({ ok: false, reason: "not-later" });
+  net({ who, orders: { [ORDER]: { userId: "u1", submittedAt: 1000, depositPaid: true } } });
+  const same = await call(verifyPrize, { token: "adm", body: { uid: "u1", prizes: [prize], redeemOnOrderId: ORDER } });
+  expect(same.body.results[0].redeemOnOrder).toMatchObject({ ok: false, reason: "same-order" });
 });
