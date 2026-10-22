@@ -52,9 +52,9 @@ service cloud.firestore {
       // is what keeps one client out of another's entries, and it also
       // constrains the query: a listing without `where("userId","==",uid)` is
       // refused outright rather than quietly returning everyone.
-      // api/spin.js depends on this same owner-read (it reads the order with
-      // the caller's own token to prove it exists and is theirs), so the prize
-      // wheel needs no rule of its own here.
+      // (The prize wheel's `spin` Cloud Function reads registrations with the
+      // Admin SDK, which bypasses these rules, so the wheel needs no rule of its
+      // own here.)
       allow read:   if isAdmin()
                     || (request.auth != null
                         && resource.data.userId == request.auth.uid);

@@ -8,31 +8,27 @@
 //   Terminal 2:  npm start            (CRA on :3000; package.json "proxy" sends
 //                                      /api/* to this server)
 //
-// Why it exists: under plain `npm start` there is no /api, so a POST to
-// /api/spin gets the dev server's 404 HTML page, which the wheel page reports as
-// "service unavailable". With this running, /api/spin answers with JSON.
+// The prize wheel does NOT use this any more: its server side is Firebase Cloud
+// Functions (functions/), which the app calls directly (and which the Firebase
+// emulators run locally). This remains for the OTHER functions in api/ (the
+// roster, the Telegram hook, notify-registration, file, image), which under
+// plain `npm start` would otherwise get the dev server's 404 HTML page.
 //
 // ── SAFETY ─────────────────────────────────────────────────────────────────
 //  * It refuses to start when VERCEL or NODE_ENV=production is set: this is a
 //    development tool and must never be mistaken for a deployment.
 //  * It listens on 127.0.0.1 only, never on the network.
-//  * It does NOT load .env or .env.local wholesale. Only SPIN_SECRET is read
-//    from .env.local; every other variable is left unset, so a local run cannot
-//    send Alina a Telegram message or touch production storage by accident.
-//    If .env.local has no SPIN_SECRET, a random one is generated in memory for
-//    this process (so signatures from one run do not verify in the next). The
-//    secret is never printed.
-//  * WHEEL_TEST_EMAILS defaults to test@gmail.com for THIS process only, so the
-//    test account can use /prize?test=1 (see TEST SPINS in api/spin.js).
+//  * It does NOT load .env or .env.local: every variable is left unset, so a
+//    local run cannot send Alina a Telegram message or touch production storage
+//    by accident.
 //
-// The real Firebase services are still used for sign-in checks and order reads
-// (the handlers call Google's REST APIs with the caller's own token), exactly as
-// in production.
+// The real Firebase services are still used for sign-in checks and reads (the
+// handlers call Google's REST APIs with the caller's own token), exactly as in
+// production.
 
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
 const { pathToFileURL } = require("url");
 
 if (process.env.VERCEL || process.env.NODE_ENV === "production") {
@@ -47,35 +43,7 @@ const PORT = Number(process.env.DEV_API_PORT) || 3001;
 const MAX_BODY = 1024 * 1024;
 
 /** The functions this server will run, by the name used in /api/<name>. */
-const HANDLERS = ["spin", "verify-prize", "send-roster", "telegram-webhook", "notify-registration", "file", "image"];
-
-/* ── configuration: SPIN_SECRET only ─────────────────────────────────────── */
-
-function readSpinSecretFromEnvLocal() {
-  try {
-    const text = fs.readFileSync(path.join(ROOT, ".env.local"), "utf8");
-    const m = text.match(/^SPIN_SECRET=(.*)$/m);
-    const v = m && m[1].trim().replace(/^["']|["']$/g, "");
-    return v || null;
-  } catch (e) {
-    return null;
-  }
-}
-
-let secretSource;
-if (process.env.SPIN_SECRET) {
-  secretSource = "the environment";
-} else {
-  const fromFile = readSpinSecretFromEnvLocal();
-  if (fromFile) {
-    process.env.SPIN_SECRET = fromFile;
-    secretSource = ".env.local";
-  } else {
-    process.env.SPIN_SECRET = crypto.randomBytes(24).toString("hex");
-    secretSource = "a random value generated for this run";
-  }
-}
-if (!process.env.WHEEL_TEST_EMAILS) process.env.WHEEL_TEST_EMAILS = "test@gmail.com";
+const HANDLERS = ["send-roster", "telegram-webhook", "notify-registration", "file", "image"];
 
 /* ── loading a handler (fresh on every request, so edits show up at once) ─── */
 
@@ -194,7 +162,5 @@ server.on("error", (err) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`dev-api listening on http://${HOST}:${PORT}  (serving /api/${HANDLERS.join(", /api/")})`);
-  console.log(`  SPIN_SECRET: set (from ${secretSource}); value not shown`);
-  console.log(`  test spins allowed for: ${process.env.WHEEL_TEST_EMAILS}`);
-  console.log("  Now run `npm start` in another terminal and open http://localhost:3000/prize?test=1");
+  console.log("  Now run `npm start` in another terminal. (The prize wheel does not need this server.)");
 });

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (this session, inline). Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Move the wheel's server side off Vercel: Cloud Functions (2nd gen, callable) are the only writers of `users/{uid}/prizes/{orderId}`; clients can only read it; no HMAC, no `SPIN_SECRET`.
+**Goal:** Move the wheel's server side off Vercel: Cloud Functions (2nd gen, callable) are the only writers of `users/{uid}/prizes/{orderId}`; clients can only read it; no HMAC and no secret key.
 
 **Architecture:** Pure rules module (`functions/lib/wheel.js`: draw, code, spin eligibility, redemption eligibility, extra validation) wrapped by three callables in `functions/index.js` that use the Admin SDK inside Firestore transactions. The browser calls them with `httpsCallable`; Firestore rules deny every client write under `users/{uid}/prizes`. The prizes table has ONE source (`api/_prizes.js`), copied by `scripts/sync-prizes.js` into `functions/prizes.js` and `src/config/prizes.js`, and a test fails on any drift.
 
 **Tech Stack:** firebase-functions 6.6 (v2), firebase-admin 13, Node 22 (`engines`), `node:test` for function tests, Jest (CRA) for the client, Firebase emulators (Firestore, Auth, Functions; Java 17 present) with Playwright.
 
-**Spec:** `WHEEL-FIREBASE.md` (overrides the signing / SPIN_SECRET / api/spin / api/verify-prize parts of the earlier briefs).
+**Spec:** `WHEEL-FIREBASE.md` (overrides the signing, api/spin and api/verify-prize parts of the earlier briefs).
 
 ## Global Constraints
 

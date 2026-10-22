@@ -18,19 +18,20 @@
 export const PRIZE_WHEEL = true;
 
 /**
- * Last day the wheel can be spun (end of day, Asia/Jerusalem). api/spin.js
- * enforces it too; the copy in api/_prizes.js is checked against this one by
- * src/config/prizes.test.js.
+ * Last day the wheel can be spun (end of day, Asia/Jerusalem). The `spin` Cloud
+ * Function enforces it too (functions/lib/wheel.js); the copies in api/_prizes.js
+ * and functions/prizes.js are checked against this one by src/config/prizes.test.js.
  */
 export const PRIZE_WHEEL_UNTIL = "2026-12-31";
 
 /**
  * Every prize is valid until the end of this day (Asia/Jerusalem): after it a
- * prize can no longer be redeemed. Signed into each prize at draw time.
+ * prize can no longer be redeemed. Stored on each prize document when it is drawn.
  *
  * PLACEHOLDER: "2027-06-30" is a guess at the end of the season. Itamar to set
- * the real date. Mirrored in api/_prizes.js (prizes.test.js fails if they
- * differ); change both. Prizes already drawn keep the date they were signed
- * with.
+ * the real date. Mirrored in api/_prizes.js and functions/prizes.js
+ * (prizes.test.js fails if they differ): change api/_prizes.js, then run
+ * `node scripts/sync-prizes.js`, and redeploy the functions. Prizes already
+ * drawn keep the date stored on their document.
  */
 export const PRIZE_VALID_UNTIL = "2027-06-30";
