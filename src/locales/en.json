@@ -440,6 +440,10 @@
     "unpaid": "Deposit not paid",
     "markPaid": "Mark as paid",
     "markUnpaid": "Mark as unpaid",
+    "rosterSend": "Send me the roster on Telegram",
+    "rosterSending": "Sending…",
+    "rosterSent": "The file was sent to Telegram",
+    "rosterFailed": "Sending failed. Please try again in a moment.",
     "prioritySlots": "Priority: {{used}} of {{total}} places taken",
     "priorityFull": "Priority is full for this competition",
     "updateFailed": "Could not update: {{detail}}",
@@ -1016,9 +1020,9 @@
         "explain": "A reel video as a gift"
       },
       "three-free": {
-        "label": "Punch card: the next three competitions free",
+        "label": "Punch card: standard photos free at the next three competitions + one short video",
         "short": "3 competitions",
-        "explain": "Punch card: the next three competitions free"
+        "explain": "Standard photos free at the next three competitions, plus one short video as a gift"
       },
       "team": {
         "label": "Winning team: the winner picks 5 friends who get 50% off packages of their choice together with them",

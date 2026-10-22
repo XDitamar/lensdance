@@ -127,7 +127,10 @@ export async function requestSpin(orderId) {
   // Not JSON at all: nothing is answering /api/spin (a dev server without the
   // functions, or a deployment that does not have it yet).
   if (!data) throw fail("unavailable");
-  if (!res.ok || !data.ok) throw fail(data.error || `http-${res.status}`);
+  if (!res.ok || !data.ok) {
+    const code = typeof data.error === "string" && data.error ? data.error : `http-${res.status}`;
+    throw fail(code);
+  }
   return data;
 }
 

@@ -28,6 +28,36 @@ export default function AdminRegistrationsPage() {
   const [saving, setSaving] = useState(null);
   const [saveError, setSaveError] = useState("");
 
+  /* "Send me the roster": asks the server to build the competition's
+     spreadsheet and put it in Alina's Telegram. The same file is sent
+     automatically the day before (api/send-roster.js); this button is for
+     "now", and the fallback if the automatic run could not read the sign-ups.
+     The server checks the caller is the admin, so the button is only a
+     convenience, not the lock. `selected` is declared further down; it is read
+     when the button is pressed, long after it exists. */
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [rosterNote, setRosterNote] = useState("");
+  const sendRoster = async () => {
+    if (!selected || rosterBusy) return;
+    setRosterNote("");
+    setRosterBusy(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/send-roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ competition: selected }),
+      });
+      const data = await res.json().catch(() => null);
+      setRosterNote(data?.ok ? t("registrations.rosterSent") : t("registrations.rosterFailed"));
+    } catch (e) {
+      console.warn("Roster not sent:", e?.message || e);
+      setRosterNote(t("registrations.rosterFailed"));
+    } finally {
+      setRosterBusy(false);
+    }
+  };
+
   const toggleDeposit = async (reg) => {
     const next = !reg.depositPaid;
     setSaving(reg.id);
@@ -520,6 +550,26 @@ export default function AdminRegistrationsPage() {
                   </span>
                 );
               })()}
+              {mode === "competition" && selected && (
+                <>
+                  <button
+                    type="button"
+                    onClick={sendRoster}
+                    disabled={rosterBusy}
+                    style={{
+                      background: "transparent", border: "1px solid #B2967D", color: "#4A3525",
+                      fontFamily: "Arial,sans-serif", fontSize: 10, letterSpacing: "0.04em",
+                      padding: "4px 12px", cursor: rosterBusy ? "default" : "pointer",
+                      opacity: rosterBusy ? 0.6 : 1,
+                    }}
+                  >
+                    {rosterBusy ? t("registrations.rosterSending") : t("registrations.rosterSend")}
+                  </button>
+                  <span role="status" aria-live="polite" style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#8A7868" }}>
+                    {rosterNote}
+                  </span>
+                </>
+              )}
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}

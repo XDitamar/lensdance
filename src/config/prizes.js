@@ -20,7 +20,7 @@ export const PRIZES = [
   {"id":"disc-50","capped":true,"tier":"rare","weight":25,"label":"50% הנחה על חבילה לבחירתך (בתחרות אחת)"},
   {"id":"pack-gift","capped":true,"tier":"rare","weight":12,"label":"חבילת תמונות מורחבת במתנה"},
   {"id":"reel-gift","capped":true,"tier":"rare","weight":8,"label":"סרטון ריל במתנה"},
-  {"id":"three-free","capped":true,"tier":"ultra","weight":10,"label":"כרטיסייה: שלוש התחרויות הבאות בחינם"},
+  {"id":"three-free","capped":true,"tier":"ultra","weight":10,"label":"כרטיסייה: תמונות רגילות בחינם בשלוש התחרויות הבאות + סרטון קצר אחד"},
   {"id":"team","capped":true,"tier":"ultra","weight":4,"special":"team","label":"קבוצה מנצחת — הזוכה בוחר 5 חברים שמקבלים יחד איתו 50% הנחה על חבילות לבחירתם"},
   {"id":"jackpot","capped":true,"tier":"jackpot","weight":1,"special":"jackpot","label":"ג'קפוט — סרטון ארוך במתנה + חבילת תמונות מורחבת, לשתי תחרויות לבחירתך (לא שניהם באותה תחרות)"},
 ];

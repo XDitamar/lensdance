@@ -32,6 +32,10 @@
     {
       "path": "/api/cleanup-expired-photos",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/send-roster",
+      "schedule": "0 5 * * *"
     }
   ]
 }

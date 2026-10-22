@@ -185,7 +185,13 @@ export default function PrizePage() {
       // Each cause gets its own plain-language message (see spinErrorKey);
       // the technical code stays in the console for whoever is debugging.
       console.warn("Spin failed:", err?.code || err);
-      setError(t(`prize.${spinErrorKey(err)}`));
+      const key = spinErrorKey(err);
+      // The catch-all message says nothing about the cause, so for that case
+      // (and only that case) the short technical code goes at the end. It lets a
+      // customer read it out to Alina, and Itamar see what the server answered
+      // without opening devtools. The mapped messages are already specific.
+      const tail = key === "errorGeneric" && err?.code ? ` (${String(err.code).slice(0, 40)})` : "";
+      setError(`${t(`prize.${key}`)}${tail}`);
       return;
     }
 
