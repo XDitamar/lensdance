@@ -42,7 +42,8 @@
     "eject": "react-scripts eject",
     "dev:server": "nodemon --watch server --ext js,mjs,cjs --exec node server/index.js",
     "dev": "concurrently \"npm run dev:server\" \"react-scripts start\"",
-    "vercel-dev": "vercel dev"
+    "vercel-dev": "vercel dev",
+    "dev-api": "node scripts/dev-api.js"
   },
   "eslintConfig": {
     "extends": [
@@ -69,5 +70,6 @@
   },
   "overrides": {
     "typescript": "4.9.5"
-  }
+  },
+  "proxy": "http://127.0.0.1:3001"
 }
