@@ -38,6 +38,7 @@ import {
   fetchRewards,
   fetchWheelOrders,
   orderStates,
+  persistSpin,
   recordPrize,
   requestSpin,
   spinErrorKey,
@@ -250,6 +251,9 @@ export default function PrizePage() {
     // Saved after it is shown: the client has won either way, and a slow write
     // must not hold up the moment they are waiting for.
     recordPrize(user.uid, result).catch((e) => console.warn("Prize not saved:", e?.code || e));
+    // The permanent record of this spin (spins/{orderId}); a no-op for a spin the
+    // server already had on file, and a refusal here is harmless (see persistSpin).
+    persistSpin(user.uid, result).catch((e) => console.warn("Spin record not saved:", e?.code || e));
   };
 
   /* Arrow keys move between slices (one tab stop for the whole wheel, not

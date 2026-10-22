@@ -395,7 +395,8 @@
     "prizeWhySameOrder": "A prize cannot be used on the order it was won on",
     "prizeWhyUnpaid": "The deposit on this order is not marked paid",
     "prizeWhyNotLater": "This order is not later than the order it was won on",
-    "prizeWhyWrongOwner": "This order does not belong to this customer"
+    "prizeWhyWrongOwner": "This order does not belong to this customer",
+    "prizeAlreadyRedeemed": "Already redeemed"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -1061,7 +1062,8 @@
     "errorNetwork": "No internet connection. Check your connection and try again.",
     "errorOrderNotFound": "We could not find that order in your account.",
     "errorOrderNotYours": "That order belongs to a different account.",
-    "errorOrderLate": "That order was placed after the wheel closed, so it has no spin."
+    "errorOrderLate": "That order was placed after the wheel closed, so it has no spin.",
+    "errorSpinRecord": "There is a problem with the spin record for this order. Please contact Alina and she will sort it out."
   },
   "prizeTerms": {
     "eyebrow": "Prize wheel",

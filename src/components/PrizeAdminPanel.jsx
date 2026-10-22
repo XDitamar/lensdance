@@ -42,9 +42,11 @@ export default function PrizeAdminPanel({ uid, orders }) {
     if (data) return;
     const r = await fetchRewards(uid);
     setData(r);
-    if (!r.prizes.length) return;
     setVerdicts({ state: "loading" });
-    verifyPrizes(r.prizes, uid)
+    // Always asked, even when the customer's own profile lists no prizes: the
+    // server reads their spin records itself, so a prize they deleted from their
+    // profile still shows up here.
+    verifyPrizes(r.prizes, uid, undefined, { fromSpins: true })
       .then((v) => setVerdicts({ state: "ok", ...v }))
       .catch(() => setVerdicts({ state: "unavailable" }));
   };
@@ -65,14 +67,14 @@ export default function PrizeAdminPanel({ uid, orders }) {
     setProblem((m) => ({ ...m, [p.code]: "" }));
     try {
       // The server re-checks the prize AND the target order before we record anything.
-      const v = await verifyPrizes(data.prizes, uid, orderId);
+      const v = await verifyPrizes(data.prizes, uid, orderId, { fromSpins: true });
       const verdict = v.byCode[p.code];
       if (!verdict?.redeemable) {
         setProblem((m) => ({ ...m, [p.code]: reasonText(verdict?.reason) }));
       } else if (!verdict.redeemOnOrder?.ok) {
         setProblem((m) => ({ ...m, [p.code]: whyText(verdict.redeemOnOrder?.reason) }));
       } else {
-        await setRedeemed(uid, p.code, orderId);
+        await setRedeemed(uid, p.code, orderId, p.spinRecord ? p.orderId : null);
         setData((d) => ({ ...d, redeemed: { ...d.redeemed, [p.code]: { at: Date.now(), orderId } } }));
       }
     } catch (e) {
@@ -85,7 +87,7 @@ export default function PrizeAdminPanel({ uid, orders }) {
   const undo = async (p) => {
     setBusy(p.code);
     try {
-      await setRedeemed(uid, p.code, null);
+      await setRedeemed(uid, p.code, null, p.spinRecord ? p.orderId : null);
       setData((d) => {
         const redeemed = { ...d.redeemed };
         delete redeemed[p.code];
@@ -99,7 +101,8 @@ export default function PrizeAdminPanel({ uid, orders }) {
   };
 
   const reasonText = (reason) =>
-    reason === "expired" ? t("admin.prizeExpired")
+    reason === "already-redeemed" ? t("admin.prizeAlreadyRedeemed")
+      : reason === "expired" ? t("admin.prizeExpired")
       : reason === "capped-limit" ? t("admin.prizeCappedLimit")
       : reason === "duplicate-order" ? t("admin.prizeDuplicateOrder")
       : t("admin.prizeNotVerified");
@@ -112,18 +115,23 @@ export default function PrizeAdminPanel({ uid, orders }) {
       "wrong-owner": t("admin.prizeWhyWrongOwner"),
     })[reason] || t("admin.prizeVerifyUnavailable");
 
+  /* The rows: the server's own list (built from the customer's spin records plus
+     any older signed prizes) once it has answered; until then, or if it cannot
+     be reached, what the customer's profile says, with redeeming switched off. */
+  const rows = !data ? [] : verdicts?.state === "ok" && verdicts.list?.length ? verdicts.list : data.prizes;
+
   return (
     <details style={box} onToggle={(e) => { if (e.currentTarget.open) load().catch(() => setData({ prizes: [], extras: {}, redeemed: {} })); }}>
       <summary style={{ cursor: "pointer", fontWeight: 700 }}>{t("admin.prizesTitle")}</summary>
 
       {!data ? (
         <div style={{ ...muted, marginTop: 6 }}>{t("admin.prizeChecking")}</div>
-      ) : data.prizes.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div style={{ ...muted, marginTop: 6 }}>{t("admin.prizesNone")}</div>
       ) : (
-        data.prizes.map((p) => {
+        rows.map((p) => {
           const verdict = verdicts?.state === "ok" ? verdicts.byCode?.[p.code] : null;
-          const done = data.redeemed?.[p.code];
+          const done = data.redeemed?.[p.code] || (p.redeemedAt ? { at: p.redeemedAt, orderId: null } : null);
           const extra = data.extras?.[p.code];
           const special = prizeById(p.prizeId)?.special;
           const options = eligibleOrders(p);
