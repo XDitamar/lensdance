@@ -107,7 +107,7 @@ export function orderStates(orders, prizes, now = new Date()) {
  * Failures carry a short `code` (see spinErrorKey) so the page can say what
  * actually went wrong, in plain words, without exposing internals.
  */
-export async function requestSpin(orderId) {
+export async function requestSpin(orderId, { test = false } = {}) {
   const fail = (code) => Object.assign(new Error(code), { code });
   const user = auth.currentUser;
   if (!user) throw fail("not-signed-in");
@@ -118,7 +118,8 @@ export async function requestSpin(orderId) {
     res = await fetch("/api/spin", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ orderId }),
+      // A test spin has no order; the server decides whether this caller may test.
+      body: JSON.stringify(test ? { test: true } : { orderId }),
     });
   } catch (e) {
     throw fail("network");
@@ -150,6 +151,8 @@ export function spinErrorKey(err) {
       return "errorOrderNotFound";
     case "order-not-yours":
       return "errorOrderNotYours";
+    case "not-tester":
+      return "errorNotTester";
     case "not-configured":
       return "errorNotConfigured";
     case "network":

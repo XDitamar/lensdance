@@ -40,15 +40,38 @@
 //   missing-token / invalid-token  not signed in
 //   wheel-ended                    after 31.12.2026
 //   bad-order / order-not-found / order-not-yours / order-too-late
+//   not-tester                     a test spin from somebody not on the list
 //   not-configured                 SPIN_SECRET is not set on the server
 //   verification-unavailable       the sign-in check or the order lookup failed
 
-const { PRIZES, wheelOpen, israelDay, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL } = require("./_prizes");
-const { payloadOf, sign, drawForOrder, verifyCaller, isOrderId, fetchOrder } = require("./_verify");
+const crypto = require("crypto");
+const { PRIZES, TOTAL_WEIGHT, pickPrize, wheelOpen, israelDay, PRIZE_WHEEL_UNTIL, PRIZE_VALID_UNTIL } = require("./_prizes");
+const { payloadOf, sign, drawForOrder, verifyCaller, isAdminEmail, isOrderId, fetchOrder } = require("./_verify");
 
 function safeParse(s) {
   try { return JSON.parse(s); } catch (e) { return {}; }
 }
+
+// ── TEST SPINS ─────────────────────────────────────────────────────────────
+// Whoever builds and checks the wheel needs to spin it again and again, which
+// a real spin (one per order, deterministic) cannot do. A TEST spin:
+//   * is allowed only for the admin and for the emails in WHEEL_TEST_EMAILS
+//     (comma separated, set in Vercel; unset means admin only), checked HERE,
+//     so adding "?test=1" to the page does nothing for anyone else;
+//   * needs no order, ignores the end date, and draws a fresh random prize each
+//     time using the real weights (so it also shows what the odds feel like);
+//   * returns NO signature and a code of "TEST", so it can never be redeemed
+//     (api/verify-prize.js only honours signed prizes), and the page neither
+//     saves it nor counts it as a prize.
+const isTester = (email) => {
+  if (!email) return false;
+  if (isAdminEmail(email)) return true;
+  return (process.env.WHEEL_TEST_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email);
+};
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -62,16 +85,40 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  let uid;
+  let caller;
   try {
-    uid = (await verifyCaller(idToken))?.uid || null;
+    caller = await verifyCaller(idToken);
   } catch (err) {
     console.error("Spin could not verify the caller:", err);
     res.status(502).json({ ok: false, error: "verification-unavailable" });
     return;
   }
+  const uid = caller?.uid || null;
   if (!uid) {
     res.status(401).json({ ok: false, error: "invalid-token" });
+    return;
+  }
+
+  const body = typeof req.body === "string" ? safeParse(req.body) : req.body || {};
+
+  // A test spin (see TEST SPINS above) never reaches the real checks below.
+  if (body.test === true) {
+    if (!isTester(caller.email)) {
+      res.status(403).json({ ok: false, error: "not-tester" });
+      return;
+    }
+    const prize = pickPrize(crypto.randomInt(TOTAL_WEIGHT));
+    res.status(200).json({
+      ok: true,
+      test: true,
+      prize: { id: prize.id, label: prize.label, tier: prize.tier },
+      code: "TEST",
+      issuedAt: Date.now(),
+      validUntil: null,
+      orderId: null,
+      signature: null,
+      index: PRIZES.findIndex((p) => p.id === prize.id),
+    });
     return;
   }
 
@@ -90,7 +137,6 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const body = typeof req.body === "string" ? safeParse(req.body) : req.body || {};
   if (!isOrderId(body.orderId)) {
     res.status(400).json({ ok: false, error: "bad-order" });
     return;

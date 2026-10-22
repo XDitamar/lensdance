@@ -109,6 +109,9 @@ export default function PrizePage() {
   const [loading, setLoading] = useState(true);
   const [params] = useSearchParams();
   const orderParam = params.get("order");
+  /* /prize?test=1 shows a "test spin" button. It only reveals a button: the
+     server (api/spin.js) decides who may use it, so the parameter is no key. */
+  const testMode = params.get("test") === "1";
   const [rewards, setRewards] = useState({ prizes: [], extras: {}, redeemed: {} });
   /* The customer's orders. null until read; [] when they have none (or the
      read failed, which is treated the same: nothing to spin for). */
@@ -117,7 +120,10 @@ export default function PrizePage() {
   const [phase, setPhase] = useState("idle"); // idle | windup | spinning
   const [won, setWon] = useState(null);
   const [error, setError] = useState("");
-  const [ended, setEnded] = useState(!wheelOpen());
+  const [endedState, setEnded] = useState(!wheelOpen());
+  /* Past 31.12.2026 the wheel is closed to customers. In test mode it stays
+     visible so it can still be checked (the server decides who may spin). */
+  const ended = endedState && !testMode;
   /* The slice being looked at (hovered, tapped or focused). */
   const [peek, setPeek] = useState(null);
   /* Which slice holds the single tab stop (arrow keys move it). */
@@ -168,8 +174,8 @@ export default function PrizePage() {
   );
   const explain = useCallback((id) => t(`prize.items.${id}.explain`, { defaultValue: "" }), [t]);
 
-  const onSpin = async () => {
-    if (busy || !canSpin) return;
+  const onSpin = async (test = false) => {
+    if (busy || (!test && !canSpin)) return;
     setError("");
     setWon(null);
     setPeek(null);
@@ -179,7 +185,7 @@ export default function PrizePage() {
       // Asked for FIRST, so the wheel never starts a spin it cannot finish:
       // a wheel that turns and then apologises is worse than a button that
       // waits half a second.
-      result = await requestSpin(selected.id);
+      result = await requestSpin(selected?.id, { test });
     } catch (err) {
       if (err?.code === "wheel-ended") setEnded(true);
       // Each cause gets its own plain-language message (see spinErrorKey);
@@ -219,6 +225,11 @@ export default function PrizePage() {
 
     setPhase("idle");
     setWon(result);
+
+    // A test spin is shown and nothing more: not added to the customer's prizes,
+    // not written to Firestore, no follow-up forms.
+    if (result.test) return;
+
     setRewards((r) => ({
       ...r,
       prizes: [
@@ -439,7 +450,7 @@ export default function PrizePage() {
             <div className="prize-action">
               {canSpin ? (
                 <>
-                  <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
+                  <button type="button" className="prize-btn prize-btn-solid" onClick={() => onSpin(false)} disabled={busy}>
                     {busy ? t("prize.spinning") : t("prize.spin")}
                   </button>
                   <p className="prize-count">{t("prize.orderReady", { order: selected.label || dateOf(selected.submittedAt) })}</p>
@@ -476,6 +487,14 @@ export default function PrizePage() {
                   )}
                 </>
               )}
+              {testMode && (
+                <div className="prize-test">
+                  <button type="button" className="prize-btn prize-btn-small" onClick={() => onSpin(true)} disabled={busy}>
+                    {busy ? t("prize.spinning") : t("prize.test.button")}
+                  </button>
+                  <p className="prize-count">{t("prize.test.hint")}</p>
+                </div>
+              )}
               <p className="prize-until">{t("prize.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</p>
             </div>
           </>
@@ -497,8 +516,14 @@ export default function PrizePage() {
               <p className="prize-fine">
                 {t("prize.validUntil", { date: dmy(shown.validUntil || PRIZE_VALID_UNTIL) })}
               </p>
-              <p className="prize-fine">{t("prize.redeemNote")}</p>
-              <p className="prize-fine">{t("prize.codeNote")}</p>
+              {shown.test ? (
+                <p className="prize-fine">{t("prize.test.note")}</p>
+              ) : (
+                <>
+                  <p className="prize-fine">{t("prize.redeemNote")}</p>
+                  <p className="prize-fine">{t("prize.codeNote")}</p>
+                </>
+              )}
               <p className="prize-fine"><Link className="prize-link" to="/prize-terms">{t("prize.rulesLink")}</Link></p>
             </div>
           )}

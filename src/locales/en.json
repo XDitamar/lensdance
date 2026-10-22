@@ -1051,6 +1051,12 @@
     "toRegister": "Sign up for a competition",
     "redeemNote": "The gift can be used on a later order, once its deposit is paid. It cannot be used on this order.",
     "errorNotConfigured": "The wheel is not ready to run yet. Please try again soon.",
+    "errorNotTester": "Test spins are only available to accounts that have been given access.",
+    "test": {
+      "button": "Test spin",
+      "hint": "For testing only: nothing is saved, it does not count as a prize and it cannot be redeemed.",
+      "note": "This was a test spin. The prize is not saved and cannot be redeemed."
+    },
     "errorUnavailable": "The service is not available right now. Please try again in a few minutes.",
     "errorNetwork": "No internet connection. Check your connection and try again.",
     "errorOrderNotFound": "We could not find that order in your account.",
