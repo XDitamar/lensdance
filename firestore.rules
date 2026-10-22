@@ -19,6 +19,22 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    // ---- users/{uid}/prizes/{orderId}: the prize wheel's prizes ----
+    // ONE document per order that has been spun; its existence IS "this order has
+    // been spun". Written ONLY by the Cloud Functions in functions/ (the Admin
+    // SDK bypasses these rules), never by a browser: that is what makes a prize
+    // impossible to forge, to upgrade, to delete or to redeem from the client, and
+    // why it needs no signature. The customer and the admin can read it.
+    //
+    // This is its own match on purpose: the rule on users/{userId} above does NOT
+    // reach subcollections, and users/{userId} is writable by its owner, which is
+    // exactly why nothing about the wheel is stored on that document.
+    // Deploy with: firebase deploy --only firestore:rules
+    match /users/{userId}/prizes/{prizeId} {
+      allow read:  if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow write: if false;
+    }
+
     // ---- downloads (per-user download history) ----
     match /downloads/{docId} {
       // Any signed-in user may log a download; only the admin can read them.
@@ -187,63 +203,6 @@ service cloud.firestore {
     // firebase-admin SDK in api/ (which bypasses rules) may read or write here.
     match /secrets/{docId} {
       allow read, write: if false;
-    }
-
-    // ---- spins (one permanent record per order that has been spun) ----
-    // The customer's BROWSER writes it right after a spin, once, with their own
-    // token (no firebase-admin involved). `sig` is an HMAC that only api/spin.js
-    // can produce over uid + order + prize + code, so the rules do not need to
-    // (and cannot) judge WHICH prize it is: a forged or upgraded record simply
-    // fails verification in api/spin.js and api/verify-prize.js. What the rules do
-    // guarantee is who may write it, that it is written exactly once, and that
-    // nobody but the admin ever changes it, and then only `redeemedAt`.
-    //
-    //   spins/{orderId} = { uid, prizeId, label, code, sig, createdAt, redeemedAt: null }
-    //
-    // The document id IS the order id (the registration's id), so one order can
-    // have at most one record.
-    match /spins/{orderId} {
-      // One record: its owner, or the admin. A record that does not exist yet is
-      // readable too (resource == null), so that api/spin.js can tell "not spun
-      // yet" (404) from "refused" (403). That reveals nothing: ids are random.
-      allow get: if request.auth != null
-                 && (resource == null
-                     || resource.data.uid == request.auth.uid
-                     || isAdmin());
-      // A listing is only allowed when it is provably the caller's own
-      // (where("uid", "==", auth.uid)) or the admin's.
-      allow list: if request.auth != null
-                  && (resource.data.uid == request.auth.uid || isAdmin());
-      // Create: only for an order that is the caller's own sign-up, only once,
-      // with exactly these fields. The registration's owner field is `userId`.
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(
-             ['uid', 'prizeId', 'label', 'code', 'sig', 'createdAt', 'redeemedAt'])
-        && request.resource.data.keys().hasAll(
-             ['uid', 'prizeId', 'label', 'code', 'sig', 'createdAt', 'redeemedAt'])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.prizeId is string
-        && request.resource.data.prizeId.size() > 0
-        && request.resource.data.prizeId.size() <= 40
-        && request.resource.data.label is string
-        && request.resource.data.label.size() <= 300
-        && request.resource.data.code is string
-        && request.resource.data.code.matches('^LD-[A-Z0-9]{4}$')
-        && request.resource.data.sig is string
-        && request.resource.data.sig.size() == 32
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.redeemedAt == null
-        && get(/databases/$(database)/documents/registrations/$(orderId)).data.userId
-             == request.auth.uid
-        && !exists(/databases/$(database)/documents/spins/$(orderId));
-      // Update: the admin, and only the redemption stamp (a timestamp, or null to
-      // undo a mistake). Nothing else about a record can ever change.
-      allow update: if isAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemedAt'])
-        && (request.resource.data.redeemedAt == null
-            || request.resource.data.redeemedAt is timestamp);
-      // No deletes, by anyone: a record that could be deleted could be redrawn.
-      allow delete: if false;
     }
 
     // ברירת מחדל – הכל חסום

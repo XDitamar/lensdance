@@ -1,6 +1,8 @@
 // scripts/firestore-rules.test.js
 //
-// Tests the `spins` rules in firestore.rules against the real Firestore emulator.
+// Tests the prize wheel's rules in firestore.rules against the real Firestore
+// emulator: users/{uid}/prizes/{orderId} is READ-ONLY to every client (only the
+// Cloud Functions, whose Admin SDK bypasses rules, ever write it).
 // Not part of `npm test` (it needs Java 11+ and the emulator), and it adds no
 // dependency to the project: install the tools in a scratch folder instead.
 //
@@ -12,8 +14,10 @@
 //   3. Point NODE_PATH at that folder's node_modules, then run:
 //        npx firebase emulators:exec --only firestore --project demo-wheel "node <this repo>/scripts/firestore-rules.test.js"
 //
-// Every "refused" case changes ONE property of a valid create, and the valid
-// create is tested to succeed, so a refusal is for the reason named.
+// If you would rather check by hand: Firebase console, Firestore, Rules, Rules
+// Playground, simulate a `get` / `create` on /users/SOMEUID/prizes/SOMEORDER as
+// that user, as another user and as the admin.
+
 const fs = require("fs");
 const path = require("path");
 // Load the three tools from the scratch folder (NODE_PATH), never from this
@@ -26,11 +30,10 @@ need("firebase/compat/firestore");
 
 const RULES = path.join(__dirname, "..", "firestore.rules");
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8085").split(":");
-const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 
-const good = (uid = "alice", over = {}) => ({
-  uid, prizeId: "disc-5", label: "5% הנחה על חבילה לבחירתך", code: "LD-AB23",
-  sig: "0123456789abcdef0123456789abcdef", createdAt: TS(), redeemedAt: null, ...over,
+const prize = (over = {}) => ({
+  prizeId: "disc-5", label: "x", tier: "common", code: "LD-AB23CD", orderId: "ORDERALICE1", issuedAt: 1000,
+  createdAt: new Date(), validUntil: "2027-06-30", redeemed: null, extra: null, ...over,
 });
 
 let pass = 0, fail = 0;
@@ -43,66 +46,46 @@ const check = async (name, promise) => {
   const env = await initializeTestEnvironment({ projectId: "demo-wheel", firestore: { rules: fs.readFileSync(RULES, "utf8"), host, port: Number(port) } });
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await db.doc("registrations/ORDERALICE1").set({ userId: "alice", submittedAt: new Date() });
-    await db.doc("registrations/ORDERALICE2").set({ userId: "alice", submittedAt: new Date() });
-    await db.doc("registrations/ORDERBOB001").set({ userId: "bob", submittedAt: new Date() });
-    await db.doc("registrations/ORDERANON01").set({ userId: null, submittedAt: new Date() });
-    await db.doc("spins/ORDERALICE2").set({ ...good("alice"), createdAt: new Date() });   // already spun
-    await db.doc("spins/ORDERBOB001").set({ ...good("bob"), createdAt: new Date() });
+    await db.doc("users/alice/prizes/ORDERALICE1").set(prize());
+    await db.doc("users/bob/prizes/ORDERBOB0001").set(prize({ orderId: "ORDERBOB0001" }));
+    await db.doc("users/alice").set({ name: "Alice" });
+    await db.doc("registrations/ORDERALICE1").set({ userId: "alice" });
+    await db.doc("spins/ORDERALICE1").set({ uid: "alice" }); // leftover shape from the earlier design
   });
   const alice = env.authenticatedContext("alice", { email: "alice@x.com" }).firestore();
   const bob = env.authenticatedContext("bob", { email: "bob@x.com" }).firestore();
   const admin = env.authenticatedContext("adm", { email: "lensdance29@gmail.com" }).firestore();
   const anon = env.unauthenticatedContext().firestore();
 
-  console.log("== create ==");
-  await check("owner creates the record for their own order", assertSucceeds(alice.doc("spins/ORDERALICE1").set(good())));
-  await check("a second create for the same order is refused (it would be an update)", assertFails(alice.doc("spins/ORDERALICE1").set(good())));
-  await check("create on an order that was already spun is refused", assertFails(alice.doc("spins/ORDERALICE2").set(good())));
-  await check("create on SOMEONE ELSE'S order is refused", assertFails(alice.doc("spins/ORDERBOB001").set(good("alice"))));
-  await check("create with another person's uid is refused", assertFails(bob.doc("spins/ORDERANON01").set(good("alice"))));
-  await check("create on an order that does not exist is refused", assertFails(alice.doc("spins/NOSUCHORDER1").set(good())));
-  await check("create on an order with no owner is refused", assertFails(alice.doc("spins/ORDERANON01").set(good())));
-  await check("signed-out create is refused", assertFails(anon.doc("spins/ORDERALICE1").set(good())));
-  const fresh = async (id, uid, over, ctxDb) => {
-    await env.withSecurityRulesDisabled((c) => c.firestore().doc(`registrations/${id}`).set({ userId: uid, submittedAt: new Date() }));
-    return ctxDb.doc(`spins/${id}`).set(good(uid, over));
-  };
-  await check("an extra field is refused", assertFails(fresh("ORDEREXTRA01", "alice", { bonus: 1 }, alice)));
-  await check("a missing field is refused", assertFails((async () => { await env.withSecurityRulesDisabled((c) => c.firestore().doc("registrations/ORDERMISS001").set({ userId: "alice" })); const d = good(); delete d.sig; return alice.doc("spins/ORDERMISS001").set(d); })()));
-  await check("a client-chosen createdAt (not server time) is refused", assertFails(fresh("ORDERTIME001", "alice", { createdAt: new Date("2020-01-01") }, alice)));
-  await check("an already-redeemed record is refused", assertFails(fresh("ORDERREDEEM1", "alice", { redeemedAt: new Date() }, alice)));
-  await check("a malformed code is refused", assertFails(fresh("ORDERCODE001", "alice", { code: "NOPE" }, alice)));
-  await check("a signature of the wrong length is refused", assertFails(fresh("ORDERSIG0001", "alice", { sig: "short" }, alice)));
-  await check("an over-long label is refused", assertFails(fresh("ORDERLABEL01", "alice", { label: "x".repeat(400) }, alice)));
-  await check("a prizeId that is not a string is refused", assertFails(fresh("ORDERTYPE001", "alice", { prizeId: 5 }, alice)));
+  console.log("== reading ==");
+  await check("the owner reads their prize", assertSucceeds(alice.doc("users/alice/prizes/ORDERALICE1").get()));
+  await check("the owner lists their prizes", assertSucceeds(alice.collection("users/alice/prizes").get()));
+  await check("another customer cannot read it", assertFails(bob.doc("users/alice/prizes/ORDERALICE1").get()));
+  await check("another customer cannot list them", assertFails(bob.collection("users/alice/prizes").get()));
+  await check("signed-out cannot read it", assertFails(anon.doc("users/alice/prizes/ORDERALICE1").get()));
+  await check("the admin reads any customer's prize", assertSucceeds(admin.doc("users/bob/prizes/ORDERBOB0001").get()));
+  await check("the admin lists a customer's prizes", assertSucceeds(admin.collection("users/bob/prizes").get()));
+  await check("nobody can sweep every prize with a collection-group query", assertFails(alice.collectionGroup("prizes").get()));
 
-  console.log("== read ==");
-  await check("owner reads their own record", assertSucceeds(alice.doc("spins/ORDERALICE2").get()));
-  await check("another customer cannot read it", assertFails(bob.doc("spins/ORDERALICE2").get()));
-  await check("signed-out cannot read it", assertFails(anon.doc("spins/ORDERALICE2").get()));
-  await check("admin reads any record", assertSucceeds(admin.doc("spins/ORDERBOB001").get()));
-  await check("reading a record that does not exist is allowed (so the server can say 'not spun yet')", assertSucceeds(alice.doc("spins/NOTSPUN0001").get()));
-  await check("owner lists their own (constrained by uid)", assertSucceeds(alice.collection("spins").where("uid", "==", "alice").get()));
-  await check("an unconstrained listing is refused", assertFails(alice.collection("spins").get()));
-  await check("listing somebody else's records is refused", assertFails(alice.collection("spins").where("uid", "==", "bob").get()));
-  await check("admin lists a customer's records", assertSucceeds(admin.collection("spins").where("uid", "==", "bob").get()));
+  console.log("== writing: no client can, not even the owner or the admin ==");
+  await check("owner cannot create a prize", assertFails(alice.doc("users/alice/prizes/ORDERNEW0001").set(prize({ orderId: "ORDERNEW0001", prizeId: "jackpot" }))));
+  await check("owner cannot upgrade their prize", assertFails(alice.doc("users/alice/prizes/ORDERALICE1").update({ prizeId: "jackpot" })));
+  await check("owner cannot mark their prize redeemed (or un-redeemed)", assertFails(alice.doc("users/alice/prizes/ORDERALICE1").update({ redeemed: null })));
+  await check("owner cannot write the details of a prize", assertFails(alice.doc("users/alice/prizes/ORDERALICE1").update({ extra: { type: "team" } })));
+  await check("owner cannot delete a prize (to hide it from the cap)", assertFails(alice.doc("users/alice/prizes/ORDERALICE1").delete()));
+  await check("another customer cannot write into someone's prizes", assertFails(bob.doc("users/alice/prizes/ORDERBOB0001").set(prize())));
+  await check("signed-out cannot write", assertFails(anon.doc("users/alice/prizes/ORDERANON001").set(prize())));
+  await check("the admin cannot create a prize from the browser either", assertFails(admin.doc("users/alice/prizes/ORDERADMIN01").set(prize())));
+  await check("the admin cannot edit a prize from the browser either", assertFails(admin.doc("users/alice/prizes/ORDERALICE1").update({ redeemed: { by: "x" } })));
+  await check("the admin cannot delete a prize from the browser either", assertFails(admin.doc("users/alice/prizes/ORDERALICE1").delete()));
 
-  console.log("== update / delete ==");
-  await check("the customer cannot change redeemedAt", assertFails(alice.doc("spins/ORDERALICE2").update({ redeemedAt: new Date() })));
-  await check("the customer cannot change the prize", assertFails(alice.doc("spins/ORDERALICE2").update({ prizeId: "jackpot" })));
-  await check("admin stamps redeemedAt", assertSucceeds(admin.doc("spins/ORDERALICE2").update({ redeemedAt: TS() })));
-  await check("admin can undo it (null)", assertSucceeds(admin.doc("spins/ORDERALICE2").update({ redeemedAt: null })));
-  await check("admin cannot change the prize", assertFails(admin.doc("spins/ORDERALICE2").update({ prizeId: "jackpot" })));
-  await check("admin cannot change the code", assertFails(admin.doc("spins/ORDERALICE2").update({ code: "LD-ZZZZ" })));
-  await check("admin cannot put a non-timestamp in redeemedAt", assertFails(admin.doc("spins/ORDERALICE2").update({ redeemedAt: "yesterday" })));
-  await check("admin cannot change redeemedAt AND something else", assertFails(admin.doc("spins/ORDERALICE2").update({ redeemedAt: TS(), label: "x" })));
-  await check("nobody can delete (customer)", assertFails(alice.doc("spins/ORDERALICE2").delete()));
-  await check("nobody can delete (admin)", assertFails(admin.doc("spins/ORDERALICE2").delete()));
-
-  console.log("== nothing else was opened up ==");
-  await check("registrations are still not readable by another customer", assertFails(bob.doc("registrations/ORDERALICE1").get()));
-  await check("registrations are still readable by their owner", assertSucceeds(alice.doc("registrations/ORDERALICE1").get()));
+  console.log("== the rest of the app is untouched ==");
+  await check("the owner can still edit their own profile", assertSucceeds(alice.doc("users/alice").set({ name: "Alice B" }, { merge: true })));
+  await check("a customer still cannot edit another's profile", assertFails(bob.doc("users/alice").set({ name: "x" }, { merge: true })));
+  await check("registrations: still not readable by another customer", assertFails(bob.doc("registrations/ORDERALICE1").get()));
+  await check("registrations: still readable by their owner", assertSucceeds(alice.doc("registrations/ORDERALICE1").get()));
+  await check("the old `spins` collection is closed to everyone (owner)", assertFails(alice.doc("spins/ORDERALICE1").get()));
+  await check("the old `spins` collection is closed to everyone (admin)", assertFails(admin.doc("spins/ORDERALICE1").get()));
 
   await env.cleanup();
   console.log(`\n${pass} passed, ${fail} failed`);
