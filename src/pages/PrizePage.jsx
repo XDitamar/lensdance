@@ -7,7 +7,7 @@
 // (a rim with pegs, radial labels, a still hub) and in the motion: a short
 // wind-up, a long spin that decelerates, a settle.
 //
-// The wheel NEVER decides anything. It asks api/spin.js, is told the answer,
+// The wheel NEVER decides anything. It asks the `spin` Cloud Function, is told the answer,
 // and rotates until it arrives there, so what the animation shows and what the
 // client actually won cannot come apart.
 //
@@ -20,8 +20,8 @@
 // ONE SPIN PER ORDER. /prize?order=<registrationId> is the wheel for that order:
 // if the order has no prize yet it can be spun (no deposit needed), otherwise
 // the prize it already won is shown, parked under the pointer. /prize with no
-// order lists the orders still waiting for a spin. The prize is a pure function
-// of the order (api/spin.js), so there is nothing to reroll, and it can only be
+// order lists the orders still waiting for a spin. The prize is stored once per order
+// by the `spin` Cloud Function, so there is nothing to reroll, and it can only be
 // redeemed later, on another order whose deposit is paid (see src/lib/rewards.js
 // and the admin registrations page).
 //
@@ -38,11 +38,9 @@ import {
   fetchRewards,
   fetchWheelOrders,
   orderStates,
-  persistSpin,
-  recordPrize,
   requestSpin,
+  saveExtra,
   spinErrorKey,
-  submitPrizeExtra,
   validateJackpot,
   validateTeam,
 } from "../lib/rewards";
@@ -111,7 +109,7 @@ export default function PrizePage() {
   const [params] = useSearchParams();
   const orderParam = params.get("order");
   /* /prize?test=1 shows a "test spin" button. It only reveals a button: the
-     server (api/spin.js) decides who may use it, so the parameter is no key. */
+     `spin` Cloud Function decides who may use it, so the parameter is no key. */
   const testMode = params.get("test") === "1";
   const [rewards, setRewards] = useState({ prizes: [], extras: {}, redeemed: {} });
   /* The customer's orders. null until read; [] when they have none (or the
@@ -240,20 +238,13 @@ export default function PrizePage() {
           label: result.prize.label,
           tier: result.prize.tier,
           code: result.code,
-          issuedAt: result.issuedAt,
           validUntil: result.validUntil,
           orderId: result.orderId,
-          signature: result.signature,
+          redeemed: null,
+          extra: null,
         },
       ],
     }));
-
-    // Saved after it is shown: the client has won either way, and a slow write
-    // must not hold up the moment they are waiting for.
-    recordPrize(user.uid, result).catch((e) => console.warn("Prize not saved:", e?.code || e));
-    // The permanent record of this spin (spins/{orderId}); a no-op for a spin the
-    // server already had on file, and a refusal here is harmless (see persistSpin).
-    persistSpin(user.uid, result).catch((e) => console.warn("Spin record not saved:", e?.code || e));
   };
 
   /* Arrow keys move between slices (one tab stop for the whole wheel, not
@@ -556,7 +547,6 @@ export default function PrizePage() {
         <ExtraForm
           key={p.code}
           prize={p}
-          uid={user.uid}
           onDone={(extra) =>
             setRewards((r) => ({ ...r, extras: { ...r.extras, [p.code]: extra } }))
           }
@@ -613,15 +603,15 @@ export default function PrizePage() {
 
 /* ── Follow-ups for the two prizes that need the winner to choose ─────────── */
 
-function ExtraForm({ prize, uid, onDone }) {
+function ExtraForm({ prize, onDone }) {
   const kind = prizeById(prize.prizeId)?.special;
   return (
     <section className="prize-card prize-form-card">
       <p className="prize-eyebrow">{prize.code}</p>
       {kind === "team" ? (
-        <TeamForm code={prize.code} uid={uid} onDone={onDone} />
+        <TeamForm orderId={prize.orderId} onDone={onDone} />
       ) : (
-        <JackpotForm code={prize.code} uid={uid} onDone={onDone} />
+        <JackpotForm orderId={prize.orderId} onDone={onDone} />
       )}
     </section>
   );
@@ -629,7 +619,7 @@ function ExtraForm({ prize, uid, onDone }) {
 
 const ERR_KEYS = { consent: "errConsent", count: "errIncomplete", incomplete: "errIncomplete", contact: "errContact", duplicate: "errDuplicate", same: "errSame" };
 
-function TeamForm({ code, uid, onDone }) {
+function TeamForm({ orderId, onDone }) {
   const { t } = useTranslation();
   const [friends, setFriends] = useState(() => Array.from({ length: 5 }, () => ({ name: "", contact: "" })));
   const [consent, setConsent] = useState(false);
@@ -651,10 +641,15 @@ function TeamForm({ code, uid, onDone }) {
         friends: friends.map((f) => ({ name: f.name.trim(), contact: f.contact.trim() })),
         consent: true,
       };
-      await submitPrizeExtra(uid, code, extra);
+      // The server validates it again and accepts it once; its answer is the last word.
+      await saveExtra(orderId, extra);
       onDone(extra);
     } catch (e2) {
-      setErr(e2?.message === "already-submitted" ? t("prize.team.errAlready") : t("prize.errorGeneric"));
+      setErr(
+        e2?.code === "already-submitted" ? t("prize.team.errAlready")
+          : ERR_KEYS[e2?.code] ? t(`prize.team.${ERR_KEYS[e2.code]}`)
+          : t("prize.errorGeneric")
+      );
     } finally {
       setSaving(false);
     }
@@ -689,7 +684,7 @@ function TeamForm({ code, uid, onDone }) {
   );
 }
 
-function JackpotForm({ code, uid, onDone }) {
+function JackpotForm({ orderId, onDone }) {
   const { t } = useTranslation();
   const [comps, setComps] = useState(null);
   const [video, setVideo] = useState("");
@@ -716,10 +711,15 @@ function JackpotForm({ code, uid, onDone }) {
     try {
       const pick = (id) => ({ id, label: competitionLabel(byId(id)) });
       const extra = { type: "jackpot", video: pick(video), pack: pick(pack) };
-      await submitPrizeExtra(uid, code, extra);
+      await saveExtra(orderId, extra);
       onDone(extra);
     } catch (e2) {
-      setErr(e2?.message === "already-submitted" ? t("prize.jackpot.errAlready") : t("prize.errorGeneric"));
+      setErr(
+        e2?.code === "already-submitted" ? t("prize.jackpot.errAlready")
+          : e2?.code === "same" ? t("prize.jackpot.errSame")
+          : e2?.code === "incomplete" ? t("prize.jackpot.errIncomplete")
+          : t("prize.errorGeneric")
+      );
     } finally {
       setSaving(false);
     }

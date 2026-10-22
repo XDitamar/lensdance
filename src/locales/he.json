@@ -375,15 +375,10 @@
     "prizeJackpotVideo": "סרטון ארוך בתחרות",
     "prizeJackpotPack": "חבילה מורחבת בתחרות",
     "prizeConsentYes": "הזוכה אישר שהחברים הסכימו",
-    "prizeVerified": "מאומת",
-    "prizeNotVerified": "לא מאומת",
     "prizeChecking": "בודק אימות…",
-    "prizeVerifyUnavailable": "האימות לא זמין כרגע, לא ניתן לממש",
-    "prizeNoSecret": "השרת לא מוגדר לאימות (SPIN_SECRET חסר), לא ניתן לממש",
     "prizeValidUntil": "תקף עד {{date}}",
     "prizeExpired": "פג תוקף, לא ניתן לממש",
     "prizeCappedLimit": "לא ניתן לממש: מתנה מוגבלת אחת ללקוח",
-    "prizeDuplicateOrder": "רשומה כפולה לאותה הזמנה",
     "prizeWonOn": "נזכתה בהזמנה: {{order}}",
     "prizeUnknownOrder": "הזמנה לא ידועה (מתנה מוקדמת)",
     "prizeRedeemableYes": "ניתנת למימוש",
@@ -1051,7 +1046,6 @@
     "noOrders": "אין כרגע הזמנות שמחכות לסיבוב. סיבוב אחד מחכה לכם אחרי כל הזמנה.",
     "toRegister": "להרשמה לתחרות",
     "redeemNote": "אפשר לממש את המתנה בהזמנה מאוחרת יותר, אחרי ששולמה בה המקדמה. לא ניתן לממש אותה בהזמנה הזו.",
-    "errorNotConfigured": "הגלגל עדיין לא מוכן להפעלה. נסו שוב בקרוב.",
     "errorNotTester": "סיבוב בדיקה זמין רק לחשבונות שקיבלו הרשאה.",
     "test": {
       "button": "סיבוב בדיקה",
@@ -1062,8 +1056,7 @@
     "errorNetwork": "אין חיבור לאינטרנט. בדקו את החיבור ונסו שוב.",
     "errorOrderNotFound": "לא מצאנו את ההזמנה הזו בחשבון שלכם.",
     "errorOrderNotYours": "ההזמנה הזו שייכת לחשבון אחר.",
-    "errorOrderLate": "ההזמנה בוצעה אחרי תום פעילות הגלגל, ולכן אין עליה סיבוב.",
-    "errorSpinRecord": "יש בעיה ברשומת הסיבוב של ההזמנה הזו. פנו לאלינה ונסדר את זה."
+    "errorOrderLate": "ההזמנה בוצעה אחרי תום פעילות הגלגל, ולכן אין עליה סיבוב."
   },
   "prizeTerms": {
     "eyebrow": "גלגל המתנות",

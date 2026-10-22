@@ -375,15 +375,10 @@
     "prizeJackpotVideo": "Long video at",
     "prizeJackpotPack": "Extended pack at",
     "prizeConsentYes": "The winner confirmed the friends agreed",
-    "prizeVerified": "Verified",
-    "prizeNotVerified": "Not verified",
     "prizeChecking": "Checking…",
-    "prizeVerifyUnavailable": "Verification unavailable right now, cannot redeem",
-    "prizeNoSecret": "The server is not set up to verify (SPIN_SECRET missing), cannot redeem",
     "prizeValidUntil": "Valid until {{date}}",
     "prizeExpired": "Expired, cannot redeem",
     "prizeCappedLimit": "Cannot redeem: one limited gift per customer",
-    "prizeDuplicateOrder": "Duplicate record for the same order",
     "prizeWonOn": "Won on order: {{order}}",
     "prizeUnknownOrder": "unknown order (earlier prize)",
     "prizeRedeemableYes": "Redeemable",
@@ -1051,7 +1046,6 @@
     "noOrders": "No orders are waiting for a spin right now. Every order comes with one spin.",
     "toRegister": "Sign up for a competition",
     "redeemNote": "The gift can be used on a later order, once its deposit is paid. It cannot be used on this order.",
-    "errorNotConfigured": "The wheel is not ready to run yet. Please try again soon.",
     "errorNotTester": "Test spins are only available to accounts that have been given access.",
     "test": {
       "button": "Test spin",
@@ -1062,8 +1056,7 @@
     "errorNetwork": "No internet connection. Check your connection and try again.",
     "errorOrderNotFound": "We could not find that order in your account.",
     "errorOrderNotYours": "That order belongs to a different account.",
-    "errorOrderLate": "That order was placed after the wheel closed, so it has no spin.",
-    "errorSpinRecord": "There is a problem with the spin record for this order. Please contact Alina and she will sort it out."
+    "errorOrderLate": "That order was placed after the wheel closed, so it has no spin."
   },
   "prizeTerms": {
     "eyebrow": "Prize wheel",
