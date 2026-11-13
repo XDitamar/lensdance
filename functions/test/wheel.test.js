@@ -152,3 +152,29 @@ test("the table the rules read is the generated one", () => {
   assert.equal(PRIZE_VALID_UNTIL, W.PRIZE_VALID_UNTIL);
   assert.ok(crypto.randomInt);
 });
+
+/* ── typing a prize code ───────────────────────────────────────────────── */
+
+test("normaliseCode: any reasonable way of typing a code finds the same one", () => {
+  for (const typed of ["LD-AB23CD", "ld-ab23cd", "  LD AB23CD  ", "ab23cd", "LDAB23CD", "ld_ab23cd", "Ld-Ab2 3Cd", "LD-AB-23CD"]) {
+    assert.equal(W.normaliseCode(typed), "LD-AB23CD", JSON.stringify(typed));
+  }
+});
+
+test("normaliseCode: anything that cannot be a code is null", () => {
+  for (const typed of ["", "   ", null, undefined, 123, {}, "LD-", "AB23C", "AB23CDE", "LD-AB23C", "LD-AB23CDE", "AB0OCD", "AB1ICD", "קוד123", "😀😀😀😀😀😀", "x".repeat(60), "LD-AB23CD; DROP", "LD-AB23CD/../x"]) {
+    assert.equal(W.normaliseCode(typed), null, JSON.stringify(typed));
+  }
+});
+
+test("isTestCode: the test spin's code is recognised however it is typed", () => {
+  for (const typed of ["TEST", "test", " Test ", "LD-TEST", "ld test"]) assert.equal(W.isTestCode(typed), true, typed);
+  for (const typed of ["LD-AB23CD", "", null, "TESTS"]) assert.equal(W.isTestCode(typed), false, String(typed));
+});
+
+test("codeReason maps the rule reasons to what the form says", () => {
+  assert.equal(W.codeReason(null), null);
+  assert.equal(W.codeReason("already-redeemed"), "redeemed");
+  assert.equal(W.codeReason("expired"), "expired");
+  assert.equal(W.codeReason("capped-limit"), "capped-limit");
+});

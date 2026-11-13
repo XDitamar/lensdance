@@ -1,12 +1,13 @@
 // functions/handlers.js
 //
-// The three callables of the prize wheel, as a factory over injected
+// The four callables of the prize wheel, as a factory over injected
 // dependencies (the database, the clock, the error class), so that the logic can
 // be tested with a fake Firestore. functions/index.js builds the real thing.
 //
 //   spin            a customer spins ONE order (or an admin/tester spins a TEST)
 //   redeemPrize     the admin spends a prize on a later, paid order
 //   savePrizeExtra  the winner gives the details the team / jackpot prizes need
+//   checkPrizeCode  a customer asks whether a code they typed is usable (read-only)
 //
 // Every write goes through the Admin SDK inside a transaction, and
 // firestore.rules lets clients only READ users/{uid}/prizes, so a prize document
@@ -207,7 +208,39 @@ function makeHandlers({ db, HttpsError, now, serverTimestamp, testEmails, random
     });
   }
 
-  return { spin, redeemPrize, savePrizeExtra };
+  /* ── checkPrizeCode (the registration form) ───────────────────────────── */
+  // "Is this code usable?", asked by a customer about a code they typed. The
+  // lookup happens ONLY inside the caller's own users/{uid}/prizes, so a code
+  // that exists but belongs to someone else answers exactly like one that does
+  // not exist: nobody can probe other people's codes. The verdict is the same
+  // checkPrize that redemption uses (one judge, functions/lib/wheel.js); this
+  // only reads, and the code the form then stores on the registration is a hint
+  // for Alina, never proof (redeemPrize re-checks everything).
+  async function checkPrizeCode(request) {
+    const { uid } = requireUser(request);
+    const raw = request.data && request.data.code;
+    const notFound = { ok: false, reason: "not-found" };
+
+    if (W.isTestCode(raw)) return notFound;   // the test spin's code is never a prize
+    const code = W.normaliseCode(raw);
+    if (!code) return { ok: false, reason: "bad-code" };
+
+    const path = `users/${uid}/prizes`;
+    const found = await db.collection(path).where("code", "==", code).limit(1).get();
+    if (found.empty) return notFound;
+
+    const prize = found.docs[0].data();
+    // The earliest-capped-prize rule needs the customer's whole list, but only
+    // for a capped prize: read it then, not for every plain one.
+    const all = W.isCapped(prize.prizeId)
+      ? (await db.collection(path).get()).docs.map((d) => d.data())
+      : [prize];
+    const reason = W.codeReason(W.checkPrize({ prize, allPrizes: all, now: now() }));
+    if (reason) return { ok: false, reason };
+    return { ok: true, prize: { prizeId: prize.prizeId, label: prize.label, tier: prize.tier }, validUntil: prize.validUntil };
+  }
+
+  return { spin, redeemPrize, savePrizeExtra, checkPrizeCode };
 }
 
 module.exports = { makeHandlers };

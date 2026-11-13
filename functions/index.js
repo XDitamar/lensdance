@@ -41,3 +41,4 @@ const handlers = makeHandlers({
 exports.spin = onCall(OPTIONS, handlers.spin);
 exports.redeemPrize = onCall(OPTIONS, handlers.redeemPrize);
 exports.savePrizeExtra = onCall(OPTIONS, handlers.savePrizeExtra);
+exports.checkPrizeCode = onCall(OPTIONS, handlers.checkPrizeCode);

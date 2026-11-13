@@ -24,10 +24,23 @@ function fakeDb(seed = {}) {
   });
   const kids = (col) =>
     [...store.keys()].filter((k) => k.startsWith(`${col}/`) && !k.slice(col.length + 1).includes("/"));
+  const makeCol = (path, filter, max) => ({
+    path,
+    kind: "col",
+    where: (field, op, value) => makeCol(path, { field, op, value }, max),
+    limit: (n) => makeCol(path, filter, n),
+    async get() {
+      let docs = kids(path).map(snap);
+      if (filter) docs = docs.filter((d) => d.data()[filter.field] === filter.value);
+      if (max) docs = docs.slice(0, max);
+      return { docs, empty: docs.length === 0 };
+    },
+  });
   const db = {
     store,
     doc: (path) => ({ path, kind: "doc" }),
-    collection: (path) => ({ path, kind: "col" }),
+    // a collection, which can also be queried: where(field, "==", value).limit(n).get()
+    collection: (path) => makeCol(path, null, null),
     runTransaction(fn) {
       const run = queue.then(async () => {
         const writes = [];
@@ -276,4 +289,63 @@ test("savePrizeExtra: two saves at the same moment store ONE", async () => {
   const results = await Promise.allSettled([1, 2, 3].map(() => h.savePrizeExtra(asUser("u1", "u1@x.com", { orderId: ORDER_A, extra: teamExtra }))));
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   assert.ok(db.store.get(`users/u1/prizes/${ORDER_A}`).extra);
+});
+
+/* ── checkPrizeCode ────────────────────────────────────────────────────── */
+
+const codeSeed = () => ({
+  [`users/u1/prizes/${ORDER_A}`]: prizeDoc({ code: "LD-AB23CD" }),
+  [`users/u2/prizes/${ORDER_B}`]: prizeDoc({ code: "LD-ZZ99ZZ", orderId: ORDER_B }),
+});
+const check = (h, code, uid = "u1") => h.checkPrizeCode(asUser(uid, `${uid}@x.com`, { code }));
+
+test("checkPrizeCode: a customer's own valid code says what it gives", async () => {
+  const { h } = make(codeSeed());
+  const out = await check(h, "LD-AB23CD");
+  assert.deepEqual(out, { ok: true, prize: { prizeId: "disc-5", label: "x", tier: "common" }, validUntil: "2027-06-30" });
+});
+
+test("checkPrizeCode: typing it differently finds the same prize", async () => {
+  const { h } = make(codeSeed());
+  for (const typed of ["ld-ab23cd", "  ab23cd ", "LD AB23CD", "ldab23cd"]) assert.equal((await check(h, typed)).ok, true, typed);
+});
+
+test("checkPrizeCode: not found, someone else's code and the test code all give the same answer", async () => {
+  const { h } = make(codeSeed());
+  const none = await check(h, "LD-QQ22QQ");
+  assert.deepEqual(none, { ok: false, reason: "not-found" });
+  assert.deepEqual(await check(h, "LD-ZZ99ZZ"), none);        // u2's real code, asked by u1
+  assert.deepEqual(await check(h, "TEST"), none);
+  assert.deepEqual(await check(h, "LD-TEST"), none);
+});
+
+test("checkPrizeCode: a code that cannot be one is bad-code, never a lookup", async () => {
+  const { h } = make(codeSeed());
+  for (const typed of ["", "   ", "abc", "LD-AB23CDE", "קוד", undefined]) assert.deepEqual(await check(h, typed), { ok: false, reason: "bad-code" }, String(typed));
+  assert.deepEqual(await h.checkPrizeCode(asUser("u1", "u1@x.com", {})), { ok: false, reason: "bad-code" });
+});
+
+test("checkPrizeCode: redeemed and expired say so", async () => {
+  const { h } = make({
+    [`users/u1/prizes/${ORDER_A}`]: prizeDoc({ code: "LD-AB23CD", redeemed: { at: 1, orderId: ORDER_B, by: ADMIN } }),
+    [`users/u1/prizes/${ORDER_B}`]: prizeDoc({ code: "LD-EXPRD2", orderId: ORDER_B, validUntil: "2026-10-01" }),
+  });
+  assert.deepEqual(await check(h, "LD-AB23CD"), { ok: false, reason: "redeemed" });
+  assert.deepEqual(await check(h, "LD-EXPRD2"), { ok: false, reason: "expired" });
+});
+
+test("checkPrizeCode: only the customer's EARLIEST capped prize is usable (the rule is the same one redemption uses)", async () => {
+  const { h } = make({
+    [`users/u1/prizes/${ORDER_A}`]: prizeDoc({ prizeId: "disc-50", code: "LD-CAPAB2", issuedAt: T("2026-10-20T10:00:00Z") }),
+    [`users/u1/prizes/${ORDER_C}`]: prizeDoc({ prizeId: "jackpot", code: "LD-CAPCD3", orderId: ORDER_C, issuedAt: T("2026-10-22T10:00:00Z") }),
+  });
+  assert.equal((await check(h, "LD-CAPAB2")).ok, true);
+  assert.deepEqual(await check(h, "LD-CAPCD3"), { ok: false, reason: "capped-limit" });
+});
+
+test("checkPrizeCode: not signed in is an error, and nothing is written", async () => {
+  const { db, h } = make(codeSeed());
+  const before = JSON.stringify([...db.store.entries()]);
+  assert.equal(await code(h.checkPrizeCode({ auth: null, data: { code: "LD-AB23CD" } })), "not-signed-in");
+  assert.equal(JSON.stringify([...db.store.entries()]), before);
 });

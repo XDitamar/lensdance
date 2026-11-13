@@ -121,6 +121,37 @@ function checkRedeem({ uid, prize, allPrizes, target, now = new Date() }) {
   return checkPrize({ prize, allPrizes, now }) || checkTarget({ uid, prize, target });
 }
 
+/* ── typing a prize code ─────────────────────────────────────────────────── */
+
+const CODE_BODY = /^[A-HJ-NP-Z2-9]{6}$/;
+/** Upper case, and nothing but letters and digits: spaces, hyphens, underscores, punctuation, emoji go. */
+const squash = (raw) => String(raw).toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/**
+ * What a customer typed -> the code as stored ("LD-" and six characters), or
+ * null when it cannot be a code. Forgiving about how it is typed (case, spaces,
+ * hyphens, with or without the "LD-" prefix), strict about what it is: six
+ * characters of CODE_ALPHABET.
+ */
+function normaliseCode(raw) {
+  if (typeof raw !== "string" || raw.length > 40) return null;
+  const s = squash(raw);
+  const body = s.length === 8 && s.startsWith("LD") ? s.slice(2) : s;
+  return CODE_BODY.test(body) ? `LD-${body}` : null;
+}
+
+/** The test spin's code, "TEST": never a real prize, however it is typed. */
+function isTestCode(raw) {
+  if (typeof raw !== "string" || raw.length > 40) return false;
+  const s = squash(raw);
+  return s === "TEST" || s === "LDTEST";
+}
+
+/** checkPrize's reason -> the word the registration form uses. */
+function codeReason(prizeReason) {
+  return { "already-redeemed": "redeemed", expired: "expired", "capped-limit": "capped-limit" }[prizeReason] || null;
+}
+
 /* ── the follow-up details of the two special prizes ─────────────────────── */
 
 const MAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -189,6 +220,9 @@ module.exports = {
   checkPrize,
   checkTarget,
   checkRedeem,
+  normaliseCode,
+  isTestCode,
+  codeReason,
   validateExtra,
   cleanExtra,
 };

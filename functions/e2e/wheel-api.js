@@ -2,7 +2,7 @@
 //
 // End-to-end test of the prize wheel against the Firebase EMULATORS (Auth,
 // Firestore, Functions): the real functions code, the real firestore.rules and
-// real transactions, with nothing touching the real project. 46 checks: spinning,
+// real transactions, with nothing touching the real project. 55 checks: spinning, the code check for the registration form,
 // the refusals, TEST mode, the rules (a customer cannot write a prize), redeeming,
 // the one-capped-prize rule and the team / jackpot details.
 //
@@ -135,6 +135,24 @@ const why = (r) => (r.error ? r.details || r.status : "OK");
   check("the customer's SECOND capped prize is refused (capped-limit)", (await RO({ orderId: C2, onOrderId: OPAID })).details === "capped-limit");
   check("their FIRST (earliest) capped prize is accepted", !(await RO({ orderId: C1, onOrderId: OPAID })).error);
   check("after the first was redeemed, the second is still refused (they had their one)", (await RO({ orderId: C2, onOrderId: OPAID })).details === "capped-limit");
+
+  console.log("\n== checkPrizeCode (the registration form) ==");
+  const K = (code, token = cust.token) => call("checkPrizeCode", { code }, token);
+  const mine = s1.code;                                                     // a real code of the customer's
+  const k1 = await K(mine);
+  check("a customer's own code is accepted and says what it gives", k1.ok === true && k1.prize.prizeId === s1.prize.id && k1.validUntil === "2027-06-30", JSON.stringify(k1.prize));
+  const variants = [mine.toLowerCase(), mine.slice(3), `  ${mine.slice(0, 5)} ${mine.slice(5)} `, mine.replace("-", "")];
+  const kv = await Promise.all(variants.map((v) => K(v)));
+  check("typed in lower case, without LD-, with spaces or without the hyphen: the same prize", kv.every((r) => r.ok === true && r.prize.prizeId === s1.prize.id));
+  const none = await K("LD-QQ22QQ");
+  check("a code that does not exist: not-found", none.ok === false && none.reason === "not-found");
+  const otherCode = await K(mine, other.token);
+  check("someone else's real code answers exactly like a made-up one", otherCode.ok === false && otherCode.reason === "not-found" && JSON.stringify(otherCode) === JSON.stringify(none));
+  check("TEST and LD-TEST are never valid (not-found)", (await K("TEST")).reason === "not-found" && (await K("ld-test")).reason === "not-found");
+  check("rubbish is bad-code", (await K("abc")).reason === "bad-code" && (await K("")).reason === "bad-code" && (await K("x".repeat(60))).reason === "bad-code");
+  check("not signed in is refused", (await K(mine, null)).error === true);
+  check("a redeemed code says redeemed", (await call("checkPrizeCode", { code: "LD-CAPAAA" }, other.token)).reason === "redeemed");
+  check("a customer's second capped code says capped-limit", (await call("checkPrizeCode", { code: "LD-CAPBBB" }, other.token)).reason === "capped-limit");
 
   console.log("\n== savePrizeExtra ==");
   const TEAM = "LLLLLLLLLLLLLLLLLLLL", PLAIN = "MMMMMMMMMMMMMMMMMMMM";
