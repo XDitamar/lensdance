@@ -24,7 +24,7 @@ const box = { marginTop: 10, borderTop: "1px solid #EDE8DF", paddingTop: 8, font
 const muted = { color: "#6A5A50" };
 
 /**
- * orders: this customer's orders, [{ id, label, depositPaid, submittedAt (ms) }].
+ * orders: this customer's orders, [{ id, label, depositPaid, submittedAt (ms), prizeCode }].
  * Kept in the parent's state, so marking a deposit paid updates the choices here.
  */
 export default function PrizeAdminPanel({ uid, orders }) {
@@ -73,6 +73,17 @@ export default function PrizeAdminPanel({ uid, orders }) {
         }) === null
     );
 
+  /* The order, if any, on which the customer asked to use THIS prize (they wrote
+     its code on the sign-up). Only a hint: it highlights the prize and
+     pre-selects that order when it is one the prize can really be spent on. The
+     button and redeemPrize still decide. */
+  const requestedOrder = (p) => orders.find((o) => o.prizeCode && o.prizeCode === p.code) || null;
+  const preselect = (p) => {
+    const asked = requestedOrder(p);
+    return asked && eligibleOrders(p).some((o) => o.id === asked.id) ? asked.id : "";
+  };
+  const chosen = (p) => choice[p.orderId] ?? preselect(p);
+
   const fail = (p, e) =>
     setProblem((m) => ({
       ...m,
@@ -80,7 +91,7 @@ export default function PrizeAdminPanel({ uid, orders }) {
     }));
 
   const redeem = async (p) => {
-    const onOrderId = choice[p.orderId];
+    const onOrderId = chosen(p);
     if (!onOrderId) return;
     setBusy(p.orderId);
     setProblem((m) => ({ ...m, [p.orderId]: "" }));
@@ -127,9 +138,10 @@ export default function PrizeAdminPanel({ uid, orders }) {
           const extra = p.extra;
           const special = prizeById(p.prizeId)?.special;
           const options = reason ? [] : eligibleOrders(p);
+          const asked = requestedOrder(p);
 
           return (
-            <div key={p.orderId} style={{ borderTop: "1px solid #F1ECE3", padding: "10px 0" }}>
+            <div key={p.orderId} style={{ borderTop: "1px solid #F1ECE3", padding: "10px 0", ...(asked && !p.redeemed ? { background: "#FFF8EA" } : null) }}>
               <div>
                 <strong>{prizeById(p.prizeId)?.label || p.prizeId}</strong>
                 <span style={{ ...muted, marginInlineStart: 8, letterSpacing: ".08em" }}>{p.code}</span>
@@ -148,6 +160,12 @@ export default function PrizeAdminPanel({ uid, orders }) {
                     : t("admin.prizeRedeemableYes")}
                 </span>
               </div>
+
+              {asked && !p.redeemed && (
+                <div style={{ color: "#7A4A1F", fontWeight: 600, marginTop: 3 }}>
+                  {t("admin.prizeRequested", { order: orderName(asked.id) })}
+                </div>
+              )}
 
               {special && !extra && <div style={{ color: "#8A5A1F", marginTop: 3 }}>{t("admin.prizeAwaiting")}</div>}
               {extra?.type === "team" && (
@@ -189,7 +207,7 @@ export default function PrizeAdminPanel({ uid, orders }) {
                       <label style={muted}>
                         {t("admin.prizeRedeemOn")}{" "}
                         <select
-                          value={choice[p.orderId] || ""}
+                          value={chosen(p)}
                           onChange={(e) => setChoice((c) => ({ ...c, [p.orderId]: e.target.value }))}
                           style={{ padding: "5px 6px", border: "1px solid #D7C9B8", fontSize: 12.5 }}
                         >
@@ -199,8 +217,8 @@ export default function PrizeAdminPanel({ uid, orders }) {
                       </label>
                       <button
                         className="filter-button"
-                        disabled={!choice[p.orderId] || busy === p.orderId}
-                        style={{ opacity: !choice[p.orderId] ? 0.5 : 1 }}
+                        disabled={!chosen(p) || busy === p.orderId}
+                        style={{ opacity: !chosen(p) ? 0.5 : 1 }}
                         onClick={() => redeem(p)}
                       >
                         {busy === p.orderId ? t("admin.prizeChecking") : t("admin.prizeMarkRedeemed")}
