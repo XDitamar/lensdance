@@ -1,0 +1,141 @@
+/* src/components/PrizeCodeApply.css
+   The "I have a discount code" control on the registration form. It borrows the
+   form's own look (linen background, camel hairlines, Georgia for the values,
+   Arial for the rest) and adds what a phone needs: 44px touch targets, a 16px
+   field (iOS zooms the page on anything smaller), a visible focus ring and a
+   pressed state. The registration page is light-only, so there is no dark
+   variant here. Contrast: #4A3525 on #F5F1EA about 8:1; #7A4A1F on #FBF3E8
+   about 7:1; #3B6D11 on #F2F7EA about 5:1. */
+
+.pca { margin-bottom: 24px; font-family: Arial, sans-serif; }
+
+/* The text button that opens it. A hairline underline, not a boxed button: it is
+   an offer, not the main action. */
+.pca-toggle {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: #4A3525;
+  text-decoration: underline;
+  text-decoration-color: #B2967D;
+  text-underline-offset: 5px;
+  transition: opacity .16s cubic-bezier(.23, 1, .32, 1);
+}
+.pca-toggle:active { opacity: .6; }
+
+.pca-toggle:focus-visible,
+.pca-btn:focus-visible,
+.pca-chip:focus-visible,
+.pca-link:focus-visible,
+.pca-input:focus-visible {
+  outline: 2px solid #4A3525;
+  outline-offset: 3px;
+}
+
+.pca-box {
+  margin-top: 6px;
+  padding: 14px 16px 12px;
+  border: 1px solid #E2D9CE;
+  background: #FDFAF5;
+  color: #4A3525;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* Prizes the customer already has and can still use: tap one to fill the field. */
+.pca-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.pca-chip {
+  min-height: 44px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid #B2967D;
+  color: #4A3525;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform .16s cubic-bezier(.23, 1, .32, 1), background .16s ease;
+}
+.pca-chip:active { transform: scale(.97); background: #F1EADF; }
+
+.pca-code { font-family: Georgia, serif; letter-spacing: .08em; }
+
+.pca-row { display: flex; gap: 10px; align-items: flex-end; }
+.pca-input {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #D7C9B8;
+  border-radius: 0;
+  font-family: Georgia, serif;
+  font-size: 16px;          /* 16px or more, or iOS zooms the page in on focus */
+  letter-spacing: .1em;
+  color: #2C1E12;
+  text-align: left;
+  text-transform: uppercase;
+  outline: none;
+}
+.pca-input::placeholder { color: #8A7868; letter-spacing: .1em; text-transform: none; }
+.pca-input:focus { border-bottom-color: #4A3525; }
+.pca-input:focus-visible { outline-offset: 0; }
+
+.pca-btn {
+  min-height: 44px;
+  min-width: 92px;
+  padding: 0 18px;
+  background: #4A3525;
+  color: #F5F1EA;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: .12em;
+  transition: transform .16s cubic-bezier(.23, 1, .32, 1), opacity .16s ease;
+}
+.pca-btn:active:not(:disabled) { transform: scale(.97); }
+.pca-btn:disabled { opacity: .6; cursor: default; }
+.pca-btn-quiet {
+  margin-top: 4px;
+  background: transparent;
+  color: #4A3525;
+  border: 1px solid #B2967D;
+  letter-spacing: .04em;
+}
+
+/* One line, always present, so a screen reader hears each change; the space is
+   only taken when there is something to say. */
+.pca-msg { margin: 10px 0 0; min-height: 0; color: #6B5A4A; }
+.pca-msg:empty { margin: 0; }
+.pca-msg-error {
+  padding: 8px 12px;
+  background: #FBF3E8;
+  border: 1px solid #EAD7BC;
+  color: #7A4A1F;
+}
+.pca-link { color: #4A3525; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Applied: a calm confirmation in the form's own "ok" colours. */
+.pca-applied { background: #F2F7EA; border-color: #C0DD97; color: #2F5A0E; margin-top: 0; }
+.pca-line { margin: 0 0 4px; }
+.pca-gives { font-family: Georgia, serif; font-size: 15px; color: #2C1E12; }
+.pca-note { font-size: 12px; color: #3B6D11; }
+
+/* Very narrow phones: the field and the button stack, each full width. */
+@media (max-width: 380px) {
+  .pca-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .pca-btn { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pca-toggle, .pca-chip, .pca-btn { transition: none; }
+  .pca-chip:active, .pca-btn:active:not(:disabled) { transform: none; }
+}

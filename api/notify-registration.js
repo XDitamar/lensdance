@@ -143,6 +143,9 @@ module.exports = async function handler(req, res) {
   const classEntry = clean(body.classEntry);
   const day = clean(body.day);
   const contact = clean(body.contact, 40);
+  // A prize code the customer attached to this order: a hint for Alina, shown
+  // escaped like every other field (it is typed by a person).
+  const prizeCode = clean(body.prizeCode, 20);
   // Labels, not ids: the browser already knows what the rider was shown, and
   // duplicating the pricing catalogue here would be one more thing to keep in
   // step with src/config/pricing.js.
@@ -165,6 +168,7 @@ module.exports = async function handler(req, res) {
     day && `📅 ${esc(day)}`,
     packages.length > 0 && `📦 ${esc(packages.join(" · "))}`,
     contact && `📱 ${esc(contact)}`,
+    prizeCode && `🎁 קוד: ${esc(prizeCode)}`,
   ].filter(Boolean);
 
   const text = [
