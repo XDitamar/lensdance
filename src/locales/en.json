@@ -391,7 +391,8 @@
     "prizeWhyUnpaid": "The deposit on this order is not marked paid",
     "prizeWhyNotLater": "This order is not later than the order it was won on",
     "prizeWhyWrongOwner": "This order does not belong to this customer",
-    "prizeAlreadyRedeemed": "Already redeemed"
+    "prizeAlreadyRedeemed": "Already redeemed",
+    "prizeRequested": "The customer asked to use this code on order: {{order}}"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -747,7 +748,26 @@
     "packagesOne": "Choose one package",
     "packagesPerDay": "You picked more than one day — you can choose a different package for each",
     "wheelButton": "Spin the prize wheel",
-    "wheelLine": "A small gift for your order: spin the wheel and see what you won. You can spin until {{date}}."
+    "wheelLine": "A small gift for your order: spin the wheel and see what you won. You can spin until {{date}}.",
+    "prizeCode": {
+      "toggle": "I have a discount code",
+      "label": "Discount code",
+      "placeholder": "LD-XXXXXX",
+      "apply": "Apply",
+      "checking": "Checking…",
+      "chip": "You have a gift: <c>{{code}}</c>",
+      "applied": "Code <c>{{code}}</c> is attached to this order.",
+      "appliedNote": "The gift is applied once the deposit is confirmed.",
+      "remove": "Remove code",
+      "empty": "No code? Spin the prize wheel after you register, and your code will be waiting for your next order.",
+      "emptyLink": "To the prize wheel",
+      "notFound": "We could not find that code in your account. Please check the letters and numbers.",
+      "redeemed": "This code has already been used.",
+      "expired": "This code has expired.",
+      "capped": "This code cannot be used right now. You can write to Alina.",
+      "attached": "This code is already attached to another of your orders.",
+      "network": "We could not check the code. Please try again."
+    }
   },
   "quote": {
     "cta": "Request a quote",
