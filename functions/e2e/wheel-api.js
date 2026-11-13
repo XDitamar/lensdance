@@ -173,6 +173,6 @@ const why = (r) => (r.error ? r.details || r.status : "OK");
   check("saving into a prize that does not exist is refused", burstX.every((r) => r.error));
 
   console.log(`\n${pass} passed, ${fail} failed`);
-  require("fs").writeFileSync(process.env.TEMP + "/pz7/ids.json", JSON.stringify({ cust, O1, O2, O3 }));
+  if (process.env.WHEEL_E2E_IDS) require("fs").writeFileSync(process.env.WHEEL_E2E_IDS, JSON.stringify({ cust, O1, O2, O3 })); // optional, for browser tests
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error("HARNESS ERROR", e); process.exit(2); });
