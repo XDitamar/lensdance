@@ -26,7 +26,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { PRIZE_WHEEL_UNTIL, PRIZES, israelDay, prizeById, wheelOpen } from "../config/prizes";
 import { fetchMyRegistrations } from "./competitions";
-import { callRedeemPrize, callSavePrizeExtra, callSpin } from "./functions";
+import { callCheckPrizeCode, callRedeemPrize, callSavePrizeExtra, callSpin } from "./functions";
 
 /** The wheel, in the order it is drawn. The table lives in src/config/prizes.js. */
 export const WHEEL = PRIZES;
@@ -202,6 +202,22 @@ export async function undoRedeem(uid, orderId) {
 export async function saveExtra(orderId, extra) {
   try {
     return (await callSavePrizeExtra({ orderId, extra })).data;
+  } catch (e) {
+    throw callError(e);
+  }
+}
+
+/**
+ * The registration form asks: is this code usable? Resolves to the server's
+ * verdict as it is, { ok: true, prize: { prizeId, label, tier }, validUntil } or
+ * { ok: false, reason } with reason not-found | redeemed | expired |
+ * capped-limit | bad-code. The server only looks inside the caller's own prizes,
+ * so somebody else's code is "not-found" like any made-up one. Rejects (with
+ * err.code "network" / "unavailable" / "not-signed-in") when it could not ask.
+ */
+export async function checkPrizeCode(code) {
+  try {
+    return (await callCheckPrizeCode({ code })).data;
   } catch (e) {
     throw callError(e);
   }

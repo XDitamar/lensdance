@@ -3,7 +3,7 @@
 jest.mock("../firebase", () => ({ db: {}, auth: { currentUser: { uid: "u1" } }, app: {}, USE_EMULATORS: false }));
 jest.mock("firebase/firestore", () => ({ collection: jest.fn(), doc: jest.fn(), getDocs: jest.fn(), getDoc: jest.fn(), query: jest.fn(), where: jest.fn() }));
 jest.mock("./competitions", () => ({ fetchMyRegistrations: jest.fn() }));
-jest.mock("./functions", () => ({ callSpin: jest.fn(), callRedeemPrize: jest.fn(), callSavePrizeExtra: jest.fn() }));
+jest.mock("./functions", () => ({ callSpin: jest.fn(), callRedeemPrize: jest.fn(), callSavePrizeExtra: jest.fn(), callCheckPrizeCode: jest.fn() }));
 
 const { callSpin, callRedeemPrize, callSavePrizeExtra } = require("./functions");
 const R = require("./rewards");
@@ -124,4 +124,24 @@ test("the customer-side checks of the two forms mirror the server's validateExtr
   expect(R.validateTeam(friends(5), false)).toBe("consent");
   expect(R.validateJackpot("c1", "c1")).toBe("same");
   expect(R.validateJackpot("c1", "c2")).toBe(null);
+});
+
+/* ── asking the server whether a typed code is usable ─────────────────── */
+
+test("checkPrizeCode sends the code and returns the server's verdict as it is", async () => {
+  const { callCheckPrizeCode } = require("./functions");
+  callCheckPrizeCode.mockResolvedValue({ data: { ok: true, prize: { prizeId: "disc-5", label: "x", tier: "common" }, validUntil: "2027-06-30" } });
+  const out = await R.checkPrizeCode("LD-AB23CD");
+  expect(callCheckPrizeCode).toHaveBeenCalledWith({ code: "LD-AB23CD" });
+  expect(out.ok).toBe(true);
+  callCheckPrizeCode.mockResolvedValue({ data: { ok: false, reason: "redeemed" } });
+  expect(await R.checkPrizeCode("LD-AB23CD")).toEqual({ ok: false, reason: "redeemed" });
+});
+
+test("checkPrizeCode turns a failed call into an error with a machine code", async () => {
+  const { callCheckPrizeCode } = require("./functions");
+  callCheckPrizeCode.mockRejectedValueOnce(fnError("internal", undefined));
+  await expect(R.checkPrizeCode("LD-AB23CD")).rejects.toMatchObject({ code: "unavailable" });
+  callCheckPrizeCode.mockRejectedValueOnce(fnError("unauthenticated", undefined));
+  await expect(R.checkPrizeCode("LD-AB23CD")).rejects.toMatchObject({ code: "not-signed-in" });
 });
