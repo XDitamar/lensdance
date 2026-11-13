@@ -18,6 +18,23 @@ iframe.skiptranslate,
   display: none !important;
 }
 
+/* Google's floating round "translating" badge. On phones the widget pins a
+   white circle with its logo and a blue spinner to the top-right corner, right
+   over the header menu (SETTINGS), and it eats taps. It is Google's own UI,
+   not ours, and translation works without it. The class names are Google's
+   obfuscated ones and the attribute selectors catch the variants. */
+[class^="VIpgJd-"],
+[class*=" VIpgJd-"],
+[class*="VIpgJd-ZVi9od"],
+.goog-te-spinner-pos,
+.goog-te-gadget-icon,
+#goog-gt-vt,
+#goog-gt-ts {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 body {
   top: 0 !important;
   position: static !important;

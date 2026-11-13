@@ -954,6 +954,7 @@
     "won": "You won",
     "announce": "You won: {{prize}}",
     "codeNote": "Your code is saved here. Show it to Alina to redeem.",
+    "closeWin": "Got it",
     "yourPrizes": "Your gifts",
     "redeemed": "Redeemed",
     "pending": "Waiting for your details",

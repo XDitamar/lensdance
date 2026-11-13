@@ -118,6 +118,9 @@ export default function PrizePage() {
   const [angle, setAngle] = useState(0);
   const [phase, setPhase] = useState("idle"); // idle | windup | spinning
   const [won, setWon] = useState(null);
+  /* The popup that opens the moment the wheel stops. The card below the wheel
+     stays as the permanent record; this one is the "you won" moment. */
+  const [showWin, setShowWin] = useState(false);
   const [error, setError] = useState("");
   const [endedState, setEnded] = useState(!wheelOpen());
   /* Past 31.12.2026 the wheel is closed to customers. In test mode it stays
@@ -137,6 +140,14 @@ export default function PrizePage() {
   const hitRefs = useRef([]);
 
   useEffect(() => () => { alive.current = false; }, []);
+
+  // Close the win popup with Escape.
+  useEffect(() => {
+    if (!showWin) return undefined;
+    const onKey = (e) => e.key === "Escape" && setShowWin(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showWin]);
   useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); if (!u) setLoading(false); }), []);
 
   useEffect(() => {
@@ -177,6 +188,7 @@ export default function PrizePage() {
     if (busy || (!test && !canSpin)) return;
     setError("");
     setWon(null);
+    setShowWin(false);
     setPeek(null);
 
     let result;
@@ -224,6 +236,7 @@ export default function PrizePage() {
 
     setPhase("idle");
     setWon(result);
+    setShowWin(true);
 
     // A test spin is shown and nothing more: not added to the customer's prizes,
     // not written to Firestore, no follow-up forms.
@@ -542,6 +555,38 @@ export default function PrizePage() {
           </details>
         )}
       </div>
+
+      {showWin && won && (
+        <div className="prize-modal" onClick={() => setShowWin(false)}>
+          <div
+            className={`prize-modal-card tier-${wonTier}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("prize.won")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="prize-eyebrow">{t("prize.won")}</p>
+            <h2 className="prize-won">{explain(won.prize.id) || prizeName(won.prize.id, won.prize.label)}</h2>
+            <div className="prize-code">{won.code}</div>
+            <p className="prize-fine">
+              {t("prize.validUntil", { date: dmy(won.validUntil || PRIZE_VALID_UNTIL) })}
+            </p>
+            {won.test ? (
+              <p className="prize-fine">{t("prize.test.note")}</p>
+            ) : (
+              <p className="prize-fine">{t("prize.codeNote")}</p>
+            )}
+            <button
+              type="button"
+              className="prize-btn prize-btn-solid prize-modal-close"
+              onClick={() => setShowWin(false)}
+              autoFocus
+            >
+              {t("prize.closeWin")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {pending.map((p) => (
         <ExtraForm
