@@ -3,5 +3,8 @@
     "allow": [
       "Bash(vercel --version)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }
