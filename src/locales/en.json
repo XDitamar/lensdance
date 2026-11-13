@@ -375,15 +375,10 @@
     "prizeJackpotVideo": "Long video at",
     "prizeJackpotPack": "Extended pack at",
     "prizeConsentYes": "The winner confirmed the friends agreed",
-    "prizeVerified": "Verified",
-    "prizeNotVerified": "Not verified",
     "prizeChecking": "Checking…",
-    "prizeVerifyUnavailable": "Verification unavailable right now, cannot redeem",
-    "prizeNoSecret": "The server is not set up to verify (SPIN_SECRET missing), cannot redeem",
     "prizeValidUntil": "Valid until {{date}}",
     "prizeExpired": "Expired, cannot redeem",
     "prizeCappedLimit": "Cannot redeem: one limited gift per customer",
-    "prizeDuplicateOrder": "Duplicate record for the same order",
     "prizeWonOn": "Won on order: {{order}}",
     "prizeUnknownOrder": "unknown order (earlier prize)",
     "prizeRedeemableYes": "Redeemable",
@@ -395,7 +390,9 @@
     "prizeWhySameOrder": "A prize cannot be used on the order it was won on",
     "prizeWhyUnpaid": "The deposit on this order is not marked paid",
     "prizeWhyNotLater": "This order is not later than the order it was won on",
-    "prizeWhyWrongOwner": "This order does not belong to this customer"
+    "prizeWhyWrongOwner": "This order does not belong to this customer",
+    "prizeAlreadyRedeemed": "Already redeemed",
+    "prizeRequested": "The customer asked to use this code on order: {{order}}"
   },
   "testimonials": {
     "title": "What Our Clients Say",
@@ -751,7 +748,26 @@
     "packagesOne": "Choose one package",
     "packagesPerDay": "You picked more than one day — you can choose a different package for each",
     "wheelButton": "Spin the prize wheel",
-    "wheelLine": "A small gift for your order: spin the wheel and see what you won. You can spin until {{date}}."
+    "wheelLine": "A small gift for your order: spin the wheel and see what you won. You can spin until {{date}}.",
+    "prizeCode": {
+      "toggle": "I have a discount code",
+      "label": "Discount code",
+      "placeholder": "LD-XXXXXX",
+      "apply": "Apply",
+      "checking": "Checking…",
+      "chip": "You have a gift: <c>{{code}}</c>",
+      "applied": "Code <c>{{code}}</c> is attached to this order.",
+      "appliedNote": "The gift is applied once the deposit is confirmed.",
+      "remove": "Remove code",
+      "empty": "No code? Spin the prize wheel after you register, and your code will be waiting for your next order.",
+      "emptyLink": "To the prize wheel",
+      "notFound": "We could not find that code in your account. Please check the letters and numbers.",
+      "redeemed": "This code has already been used.",
+      "expired": "This code has expired.",
+      "capped": "This code cannot be used right now. You can write to Alina.",
+      "attached": "This code is already attached to another of your orders.",
+      "network": "We could not check the code. Please try again."
+    }
   },
   "quote": {
     "cta": "Request a quote",
@@ -1050,7 +1066,12 @@
     "noOrders": "No orders are waiting for a spin right now. Every order comes with one spin.",
     "toRegister": "Sign up for a competition",
     "redeemNote": "The gift can be used on a later order, once its deposit is paid. It cannot be used on this order.",
-    "errorNotConfigured": "The wheel is not ready to run yet. Please try again soon.",
+    "errorNotTester": "Test spins are only available to accounts that have been given access.",
+    "test": {
+      "button": "Test spin",
+      "hint": "For testing only: nothing is saved, it does not count as a prize and it cannot be redeemed.",
+      "note": "This was a test spin. The prize is not saved and cannot be redeemed."
+    },
     "errorUnavailable": "The service is not available right now. Please try again in a few minutes.",
     "errorNetwork": "No internet connection. Check your connection and try again.",
     "errorOrderNotFound": "We could not find that order in your account.",

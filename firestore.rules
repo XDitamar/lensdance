@@ -19,6 +19,22 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    // ---- users/{uid}/prizes/{orderId}: the prize wheel's prizes ----
+    // ONE document per order that has been spun; its existence IS "this order has
+    // been spun". Written ONLY by the Cloud Functions in functions/ (the Admin
+    // SDK bypasses these rules), never by a browser: that is what makes a prize
+    // impossible to forge, to upgrade, to delete or to redeem from the client, and
+    // why it needs no signature. The customer and the admin can read it.
+    //
+    // This is its own match on purpose: the rule on users/{userId} above does NOT
+    // reach subcollections, and users/{userId} is writable by its owner, which is
+    // exactly why nothing about the wheel is stored on that document.
+    // Deploy with: firebase deploy --only firestore:rules
+    match /users/{userId}/prizes/{prizeId} {
+      allow read:  if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow write: if false;
+    }
+
     // ---- downloads (per-user download history) ----
     match /downloads/{docId} {
       // Any signed-in user may log a download; only the admin can read them.
@@ -36,9 +52,9 @@ service cloud.firestore {
       // is what keeps one client out of another's entries, and it also
       // constrains the query: a listing without `where("userId","==",uid)` is
       // refused outright rather than quietly returning everyone.
-      // api/spin.js depends on this same owner-read (it reads the order with
-      // the caller's own token to prove it exists and is theirs), so the prize
-      // wheel needs no rule of its own here.
+      // (The prize wheel's `spin` Cloud Function reads registrations with the
+      // Admin SDK, which bypasses these rules, so the wheel needs no rule of its
+      // own here.)
       allow read:   if isAdmin()
                     || (request.auth != null
                         && resource.data.userId == request.auth.uid);

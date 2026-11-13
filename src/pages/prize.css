@@ -623,6 +623,10 @@ html[data-theme="dark"] .prize-hub .prize-logo-dark { visibility: visible; }
   text-underline-offset: 3px;
 }
 .prize-link:focus-visible { outline: 2px solid var(--pz-deep); outline-offset: 3px; }
+/* A phone fingertip needs about 44px; the link stays as small as it looks and
+   only its tappable area grows. */
+.prize-link { position: relative; }
+.prize-link::after { content: ""; position: absolute; inset: -14px -8px; }
 .prize-small ul { margin: 0 0 12px; padding-inline-start: 18px; }
 .prize-small li { margin-bottom: 4px; }
 

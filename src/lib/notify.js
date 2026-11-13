@@ -16,7 +16,7 @@ import { auth } from "../firebase";
 /**
  * @param {{ rider?: string, competition?: string, horse?: string,
  *           classEntry?: string, day?: string, packages?: string[],
- *           contact?: string }} details
+ *           contact?: string, prizeCode?: string }} details
  *        Packages are the labels the rider actually saw, not package ids —
  *        the server has no pricing catalogue and should not grow one.
  */
@@ -44,6 +44,8 @@ export async function notifyNewRegistration(details) {
         day: details?.day || "",
         packages: Array.isArray(details?.packages) ? details.packages : [],
         contact: details?.contact || "",
+        // A prize code the customer attached (a hint for Alina), or "".
+        prizeCode: details?.prizeCode || "",
       }),
       // The rider is about to see the confirmation screen; this must not hold
       // the page open if Telegram or the function is slow.

@@ -2,51 +2,48 @@
 //
 // A customer's prize-wheel gifts, for Alina, on the admin registrations page.
 //
-// For each prize: what it is, whether the server confirms its signature
-// ("verified"), the order it was won on, when it expires, and whether it is
-// redeemable (and if not, why). Redeeming is done AGAINST A SPECIFIC LATER
-// ORDER of the same customer: the control is only enabled for orders whose
-// deposit is marked paid and which are not the order the prize was won on, and
-// the server (api/verify-prize.js, reading the order with Alina's own token)
-// has the last word before anything is recorded.
+// The gifts come from users/{uid}/prizes, which only the Cloud Functions can
+// write, so a document there IS genuine: there is nothing to "verify". For each
+// prize this shows what it is, the order it was won on, when it expires, and
+// whether it can be redeemed (and if not, why).
 //
-// Everything about a prize in `users/{uid}` is text the customer could have
-// written, so nothing here is believed until verifyPrizes() has answered. If
-// that check cannot run (no /api, SPIN_SECRET missing) redeeming stays off.
-//
-// The redemption itself (which order, when) is written to retention/{uid}, the
-// one document only the admin can write.
+// Redeeming is done AGAINST A SPECIFIC LATER ORDER of the same customer: the
+// choice only lists orders whose deposit is marked paid, that are not the order
+// the prize was won on, and that were placed after it. The reasons shown here
+// (src/lib/prizeRules.js) are a display copy; the `redeemPrize` function checks
+// everything again on the server inside a transaction, including the rule that
+// only a customer's earliest capped prize can ever be redeemed.
 
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchRewards, redeemedAt, setRedeemed, verifyPrizes } from "../lib/rewards";
+import { fetchRewards, redeemPrize, undoRedeem } from "../lib/rewards";
+import { checkPrize, checkTarget } from "../lib/prizeRules";
 import { dmy, prizeById } from "../config/prizes";
 
 const box = { marginTop: 10, borderTop: "1px solid #EDE8DF", paddingTop: 8, fontFamily: "Arial,sans-serif", fontSize: 12.5, color: "#4A3525" };
 const muted = { color: "#6A5A50" };
 
 /**
- * orders: this customer's orders, [{ id, label, depositPaid, submittedAt (ms) }].
+ * orders: this customer's orders, [{ id, label, depositPaid, submittedAt (ms), prizeCode }].
  * Kept in the parent's state, so marking a deposit paid updates the choices here.
  */
 export default function PrizeAdminPanel({ uid, orders }) {
   const { t } = useTranslation();
-  const [data, setData] = useState(null);           // { prizes, extras, redeemed }
-  const [verdicts, setVerdicts] = useState(null);   // { state, byCode, secretConfigured }
-  const [choice, setChoice] = useState({});         // prize code -> chosen order id
+  const [data, setData] = useState(null);       // { prizes, extras, redeemed }
+  const [loadError, setLoadError] = useState("");
+  const [choice, setChoice] = useState({});     // prize order id -> chosen order id
   const [busy, setBusy] = useState(null);
-  const [problem, setProblem] = useState({});       // prize code -> message
+  const [problem, setProblem] = useState({});   // prize order id -> message
 
   // Loaded on first open, not for every row of a long list.
   const load = async () => {
     if (data) return;
-    const r = await fetchRewards(uid);
-    setData(r);
-    if (!r.prizes.length) return;
-    setVerdicts({ state: "loading" });
-    verifyPrizes(r.prizes, uid)
-      .then((v) => setVerdicts({ state: "ok", ...v }))
-      .catch(() => setVerdicts({ state: "unavailable" }));
+    try {
+      setData(await fetchRewards(uid, { strict: true }));
+      setLoadError("");
+    } catch (e) {
+      setLoadError(t("common.errorWithCode", { detail: e?.code || e?.message || "" }));
+    }
   };
 
   const orderName = (id) => {
@@ -54,111 +51,121 @@ export default function PrizeAdminPanel({ uid, orders }) {
     return o ? (o.label || id) : id;
   };
 
+  const reasonText = (reason) =>
+    ({
+      "already-redeemed": t("admin.prizeAlreadyRedeemed"),
+      expired: t("admin.prizeExpired"),
+      "capped-limit": t("admin.prizeCappedLimit"),
+      "same-order": t("admin.prizeWhySameOrder"),
+      unpaid: t("admin.prizeWhyUnpaid"),
+      "not-later": t("admin.prizeWhyNotLater"),
+      "wrong-owner": t("admin.prizeWhyWrongOwner"),
+    })[reason] || null;
+
   /** Later orders of this customer with the deposit paid, other than the winning one. */
   const eligibleOrders = (p) =>
-    orders.filter((o) => o.depositPaid && o.id !== p.orderId && Number(o.submittedAt) > Number(p.issuedAt));
+    orders.filter(
+      (o) =>
+        checkTarget({
+          uid,
+          prize: p,
+          target: { id: o.id, userId: uid, depositPaid: o.depositPaid, submittedAtMs: o.submittedAt },
+        }) === null
+    );
+
+  /* The order, if any, on which the customer asked to use THIS prize (they wrote
+     its code on the sign-up). Only a hint: it highlights the prize and
+     pre-selects that order when it is one the prize can really be spent on. The
+     button and redeemPrize still decide. */
+  const requestedOrder = (p) => orders.find((o) => o.prizeCode && o.prizeCode === p.code) || null;
+  const preselect = (p) => {
+    const asked = requestedOrder(p);
+    return asked && eligibleOrders(p).some((o) => o.id === asked.id) ? asked.id : "";
+  };
+  const chosen = (p) => choice[p.orderId] ?? preselect(p);
+
+  const fail = (p, e) =>
+    setProblem((m) => ({
+      ...m,
+      [p.orderId]: reasonText(e?.code) || t("common.errorWithCode", { detail: e?.code || e?.message || "" }),
+    }));
 
   const redeem = async (p) => {
-    const orderId = choice[p.code];
-    if (!orderId) return;
-    setBusy(p.code);
-    setProblem((m) => ({ ...m, [p.code]: "" }));
+    const onOrderId = chosen(p);
+    if (!onOrderId) return;
+    setBusy(p.orderId);
+    setProblem((m) => ({ ...m, [p.orderId]: "" }));
     try {
-      // The server re-checks the prize AND the target order before we record anything.
-      const v = await verifyPrizes(data.prizes, uid, orderId);
-      const verdict = v.byCode[p.code];
-      if (!verdict?.redeemable) {
-        setProblem((m) => ({ ...m, [p.code]: reasonText(verdict?.reason) }));
-      } else if (!verdict.redeemOnOrder?.ok) {
-        setProblem((m) => ({ ...m, [p.code]: whyText(verdict.redeemOnOrder?.reason) }));
-      } else {
-        await setRedeemed(uid, p.code, orderId);
-        setData((d) => ({ ...d, redeemed: { ...d.redeemed, [p.code]: { at: Date.now(), orderId } } }));
-      }
+      await redeemPrize(uid, p.orderId, onOrderId);
+      setData((d) => ({
+        ...d,
+        prizes: d.prizes.map((x) => (x.orderId === p.orderId ? { ...x, redeemed: { at: Date.now(), orderId: onOrderId, by: "admin" } } : x)),
+      }));
     } catch (e) {
-      setProblem((m) => ({ ...m, [p.code]: t("admin.prizeVerifyUnavailable") }));
+      fail(p, e);
     } finally {
       setBusy(null);
     }
   };
 
   const undo = async (p) => {
-    setBusy(p.code);
+    setBusy(p.orderId);
     try {
-      await setRedeemed(uid, p.code, null);
-      setData((d) => {
-        const redeemed = { ...d.redeemed };
-        delete redeemed[p.code];
-        return { ...d, redeemed };
-      });
+      await undoRedeem(uid, p.orderId);
+      setData((d) => ({ ...d, prizes: d.prizes.map((x) => (x.orderId === p.orderId ? { ...x, redeemed: null } : x)) }));
     } catch (e) {
-      setProblem((m) => ({ ...m, [p.code]: t("common.errorWithCode", { detail: e?.code || e?.message || "" }) }));
+      fail(p, e);
     } finally {
       setBusy(null);
     }
   };
 
-  const reasonText = (reason) =>
-    reason === "expired" ? t("admin.prizeExpired")
-      : reason === "capped-limit" ? t("admin.prizeCappedLimit")
-      : reason === "duplicate-order" ? t("admin.prizeDuplicateOrder")
-      : t("admin.prizeNotVerified");
-
-  const whyText = (reason) =>
-    ({
-      "same-order": t("admin.prizeWhySameOrder"),
-      unpaid: t("admin.prizeWhyUnpaid"),
-      "not-later": t("admin.prizeWhyNotLater"),
-      "wrong-owner": t("admin.prizeWhyWrongOwner"),
-    })[reason] || t("admin.prizeVerifyUnavailable");
+  const rows = data ? [...data.prizes].sort((a, b) => (a.issuedAt || 0) - (b.issuedAt || 0)) : [];
 
   return (
-    <details style={box} onToggle={(e) => { if (e.currentTarget.open) load().catch(() => setData({ prizes: [], extras: {}, redeemed: {} })); }}>
+    <details style={box} onToggle={(e) => { if (e.currentTarget.open) load(); }}>
       <summary style={{ cursor: "pointer", fontWeight: 700 }}>{t("admin.prizesTitle")}</summary>
 
-      {!data ? (
+      {loadError ? (
+        <div style={{ color: "#8A2A1F", marginTop: 6 }}>{loadError}</div>
+      ) : !data ? (
         <div style={{ ...muted, marginTop: 6 }}>{t("admin.prizeChecking")}</div>
-      ) : data.prizes.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div style={{ ...muted, marginTop: 6 }}>{t("admin.prizesNone")}</div>
       ) : (
-        data.prizes.map((p) => {
-          const verdict = verdicts?.state === "ok" ? verdicts.byCode?.[p.code] : null;
-          const done = data.redeemed?.[p.code];
-          const extra = data.extras?.[p.code];
+        rows.map((p) => {
+          const reason = checkPrize({ prize: p, allPrizes: rows });
+          const extra = p.extra;
           const special = prizeById(p.prizeId)?.special;
-          const options = eligibleOrders(p);
-          const status =
-            verdicts?.state === "loading" ? { c: "#6A5A50", text: t("admin.prizeChecking") }
-            : verdicts?.state === "unavailable" ? { c: "#8A5A1F", text: t("admin.prizeVerifyUnavailable") }
-            : verdicts?.state === "ok" && !verdicts.secretConfigured ? { c: "#8A2A1F", text: t("admin.prizeNoSecret") }
-            : verdict?.valid ? { c: "#3F6B22", text: t("admin.prizeVerified") }
-            : { c: "#8A2A1F", text: t("admin.prizeNotVerified") };
+          const options = reason ? [] : eligibleOrders(p);
+          const asked = requestedOrder(p);
 
           return (
-            <div key={p.code} style={{ borderTop: "1px solid #F1ECE3", padding: "10px 0" }}>
-              {/* The name comes from the prize id, never from the stored label:
-                  the label is text the customer could have edited. */}
+            <div key={p.orderId} style={{ borderTop: "1px solid #F1ECE3", padding: "10px 0", ...(asked && !p.redeemed ? { background: "#FFF8EA" } : null) }}>
               <div>
                 <strong>{prizeById(p.prizeId)?.label || p.prizeId}</strong>
                 <span style={{ ...muted, marginInlineStart: 8, letterSpacing: ".08em" }}>{p.code}</span>
               </div>
 
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 3 }}>
-                <span style={{ color: status.c, fontWeight: 600 }}>{status.text}</span>
-                <span style={muted}>
-                  {t("admin.prizeWonOn", { order: p.orderId ? orderName(p.orderId) : t("admin.prizeUnknownOrder") })}
-                </span>
+                <span style={muted}>{t("admin.prizeWonOn", { order: orderName(p.orderId) })}</span>
                 {p.validUntil && (
-                  <span style={{ color: verdict?.expired ? "#8A2A1F" : "#6A5A50" }}>
+                  <span style={{ color: reason === "expired" ? "#8A2A1F" : "#6A5A50" }}>
                     {t("admin.prizeValidUntil", { date: dmy(p.validUntil) })}
                   </span>
                 )}
-                {verdict && (
-                  <span style={{ color: verdict.redeemable ? "#3F6B22" : "#8A5A1F", fontWeight: 600 }}>
-                    {verdict.redeemable ? t("admin.prizeRedeemableYes") : `${t("admin.prizeRedeemableNo")}: ${reasonText(verdict.reason)}`}
-                  </span>
-                )}
+                <span style={{ color: reason ? "#8A5A1F" : "#3F6B22", fontWeight: 600 }}>
+                  {reason
+                    ? `${t("admin.prizeRedeemableNo")}: ${reasonText(reason)}`
+                    : t("admin.prizeRedeemableYes")}
+                </span>
               </div>
+
+              {asked && !p.redeemed && (
+                <div style={{ color: "#7A4A1F", fontWeight: 600, marginTop: 3 }}>
+                  {t("admin.prizeRequested", { order: orderName(asked.id) })}
+                </div>
+              )}
 
               {special && !extra && <div style={{ color: "#8A5A1F", marginTop: 3 }}>{t("admin.prizeAwaiting")}</div>}
               {extra?.type === "team" && (
@@ -179,19 +186,19 @@ export default function PrizeAdminPanel({ uid, orders }) {
                 </div>
               )}
 
-              {done ? (
+              {p.redeemed ? (
                 <div style={{ marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ color: "#3F6B22" }}>
                     {t("admin.prizeRedeemedOnOrder", {
-                      order: done.orderId ? orderName(done.orderId) : t("admin.prizeUnknownOrder"),
-                      date: new Date(redeemedAt(done)).toLocaleDateString("en-GB"),
+                      order: p.redeemed.orderId ? orderName(p.redeemed.orderId) : t("admin.prizeUnknownOrder"),
+                      date: new Date(p.redeemed.at || Date.now()).toLocaleDateString("en-GB"),
                     })}
                   </span>
-                  <button className="filter-button" disabled={busy === p.code} onClick={() => undo(p)}>
+                  <button className="filter-button" disabled={busy === p.orderId} onClick={() => undo(p)}>
                     {t("admin.prizeUndoRedeemed")}
                   </button>
                 </div>
-              ) : verdict?.redeemable ? (
+              ) : !reason ? (
                 <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   {options.length === 0 ? (
                     <span style={{ color: "#8A5A1F" }}>{t("admin.prizeNoEligibleOrder")}</span>
@@ -200,8 +207,8 @@ export default function PrizeAdminPanel({ uid, orders }) {
                       <label style={muted}>
                         {t("admin.prizeRedeemOn")}{" "}
                         <select
-                          value={choice[p.code] || ""}
-                          onChange={(e) => setChoice((c) => ({ ...c, [p.code]: e.target.value }))}
+                          value={chosen(p)}
+                          onChange={(e) => setChoice((c) => ({ ...c, [p.orderId]: e.target.value }))}
                           style={{ padding: "5px 6px", border: "1px solid #D7C9B8", fontSize: 12.5 }}
                         >
                           <option value="">{t("admin.prizeChooseOrder")}</option>
@@ -210,17 +217,17 @@ export default function PrizeAdminPanel({ uid, orders }) {
                       </label>
                       <button
                         className="filter-button"
-                        disabled={!choice[p.code] || busy === p.code}
-                        style={{ opacity: !choice[p.code] ? 0.5 : 1 }}
+                        disabled={!chosen(p) || busy === p.orderId}
+                        style={{ opacity: !chosen(p) ? 0.5 : 1 }}
                         onClick={() => redeem(p)}
                       >
-                        {busy === p.code ? t("admin.prizeChecking") : t("admin.prizeMarkRedeemed")}
+                        {busy === p.orderId ? t("admin.prizeChecking") : t("admin.prizeMarkRedeemed")}
                       </button>
                     </>
                   )}
                 </div>
               ) : null}
-              {problem[p.code] && <div style={{ color: "#8A2A1F", marginTop: 4 }}>{problem[p.code]}</div>}
+              {problem[p.orderId] && <div style={{ color: "#8A2A1F", marginTop: 4 }}>{problem[p.orderId]}</div>}
             </div>
           );
         })

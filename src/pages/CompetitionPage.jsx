@@ -22,6 +22,7 @@ import {
 } from "../lib/competitions";
 import { detectCountry } from "../hooks/useGeoPrice";
 import { notifyNewRegistration } from "../lib/notify";
+import PrizeCodeApply from "../components/PrizeCodeApply";
 import { getWhatsAppInternational } from "../config/contact";
 import { PRIZE_WHEEL } from "../config/features";
 import { PRIZE_WHEEL_UNTIL, dmy, wheelOpen } from "../config/prizes";
@@ -87,15 +88,22 @@ export default function CompetitionPage() {
   const [myTitles, setMyTitles] = useState(() => new Set());
   // The rider's most recent sign-up, used by the "fill in my details" button.
   const [lastReg, setLastReg] = useState(null);
+  /* A prize code the customer attached to THIS order (see PrizeCodeApply). It is
+     written on the registration as a HINT for Alina, who redeems it herself once
+     the deposit is paid; it is never proof of anything. */
+  const [appliedPrize, setAppliedPrize] = useState(null);
+  // Codes already written on this customer's other orders: one prize, one order.
+  const [myPrizeCodes, setMyPrizeCodes] = useState([]);
 
   useEffect(() => {
-    if (!user?.uid) { setMyTitles(new Set()); setLastReg(null); return undefined; }
+    if (!user?.uid) { setMyTitles(new Set()); setLastReg(null); setMyPrizeCodes([]); return undefined; }
     let alive = true;
     fetchMyRegistrations(user.uid)
       .then((rows) => {
         if (!alive) return;
         setMyTitles(new Set(rows.map((r) => r.competitionTitle).filter(Boolean)));
         setLastReg(rows[0] || null); // newest first
+        setMyPrizeCodes(rows.map((r) => r.prizeCode).filter(Boolean));
       })
       .catch((e) => console.warn("Could not load my registrations:", e?.code || e));
     return () => { alive = false; };
@@ -387,6 +395,8 @@ export default function CompetitionPage() {
         // competition itself is removed from the list.
         competitionTitle: filedUnder,
         competitionCountry: chosenComp?.country || null,
+        // Only when a code was applied, so every other sign-up is stored exactly as before.
+        ...(appliedPrize ? { prizeCode: appliedPrize.code } : {}),
         userId: user?.uid || null,
         userEmail: user?.email || null,
         userName: user?.displayName || null,
@@ -408,6 +418,7 @@ export default function CompetitionPage() {
         // is the part a person reads, and a rider may have picked several.
         day: form.day.map((v) => v.split(" · ")[0]).join(" + "),
         contact: form.contact,
+        prizeCode: appliedPrize ? appliedPrize.code : "",
         // Labels rather than ids, and priority appended the same way it is
         // stored on the registration itself.
         // Per day when there is more than one, so the alert says what was
@@ -918,6 +929,13 @@ export default function CompetitionPage() {
             </label>
           ))}
         </Field>
+
+        {/* A prize won earlier, attached to this order. Directly under the
+            packages (and the priority add-on), above contact and the submit
+            button. See PrizeCodeApply for what it does and does not do. */}
+        {PRIZE_WHEEL && user?.uid && (
+          <PrizeCodeApply user={user} attachedCodes={myPrizeCodes} onChange={setAppliedPrize} />
+        )}
 
         {/* Contact */}
         <Field label={t("competition.contactLabel")}>

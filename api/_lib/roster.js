@@ -1,28 +1,36 @@
 // api/_lib/roster.js
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// THE DAY-BEFORE ROSTER: who is riding, in which class, with which package
+// THE COMPETITION FILE: one workbook per competition, one table per day
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Alina photographs a competition from a list. Until now that list was the
-// admin registrations page: fine at a desk, awkward in a stable yard. This
-// turns the sign-ups for one competition into a spreadsheet she can open on her
-// phone, sort, filter and tick off as she goes.
+// Alina photographs a competition from a list. This turns the sign-ups for ONE
+// competition into a spreadsheet she can open on her phone: a sheet per day,
+// each a table of every rider that day with all their details, in the order
+// they ride (entry number, then class), with a column to tick off who has been
+// photographed.
 //
-// Files under api/ that start with "_" are not deployed as functions, so this
-// is a library for api/send-roster.js.
+// Used by api/send-roster.js (the day-before file) and api/telegram-webhook.js
+// (the /sum command). Files under api/ that start with "_" are not deployed as
+// functions, so this is a library.
 //
 // ── NO NEW DEPENDENCY ──────────────────────────────────────────────────────
 // An .xlsx is a zip of small XML files, and jszip is already a dependency (the
-// gallery uses it). Writing the handful of parts by hand costs ~100 lines and
+// gallery uses it). Writing the handful of parts by hand costs ~150 lines and
 // keeps a spreadsheet library (1 MB+) out of a serverless cold start.
 //
 // ── ONE ROW PER RIDER PER DAY ──────────────────────────────────────────────
-// A multi-day sign-up can carry a different package each day. Following that
-// from a single cell is exactly the thing this file exists to avoid, so a
-// two-day sign-up becomes two rows, each with that day's package. A one-day
-// sign-up is one row. "Priority delivery" belongs to the whole order, so it is
+// A multi-day sign-up can carry a different package each day, and each day is
+// its own sheet, so a two-day sign-up lands as one row on each day's sheet with
+// that day's package. "Priority delivery" belongs to the whole order, so it is
 // added to every row of that order.
+//
+// ── THE ENTRY NUMBER IS BEST-EFFORT ────────────────────────────────────────
+// The sign-up form has ONE optional box, "class + entry number (if any)"
+// (`classEntry`, free text). There is no separate entry-number field, so the
+// number is read out of that text (see parseClassEntry). The text as the rider
+// typed it is always kept in the class column, so nothing is lost when the
+// reading is wrong. A separate form field would make this exact.
 
 const JSZip = require("jszip");
 
@@ -36,6 +44,9 @@ const PACKAGE_LABELS = {
 
 const packageLabel = (id) => PACKAGE_LABELS[id] || String(id || "");
 
+/** What publishPermission means on the sign-up form (see PUBLISH_KEYS). */
+const PUBLISH_LABELS = { yes: "מאשר/ת", no: "לא לפרסם", underage: "קטין/ה" };
+
 /** Plain text of whatever a rider typed, one line, no control characters. */
 const text = (v) =>
   v == null ? "" : String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/[\r\n\t]+/g, " ").trim();
@@ -47,12 +58,43 @@ function splitDay(raw) {
 }
 
 /**
- * Registrations (plain objects) → roster rows, sorted for following on the day:
- * by day, then class, then rider.
+ * Reads an entry number out of the free-text class box.
+ *
+ *   "מקצה 3, מספר כניסה 12"  → number 12
+ *   "1.10 מס' 7"             → number 7
+ *   "עלייה 5"                → number 5
+ *   "מקצה 3 + 12"            → number 12   (two numbers: the last is the entry)
+ *   "מקצה 3"                 → no number   (one number: it belongs to the class)
+ *
+ * Returns { number: Number|null }. The class text itself is NOT cut up: the
+ * caller keeps the original, so a wrong guess costs a blank cell, not data.
+ */
+function parseClassEntry(raw) {
+  const s = text(raw);
+  if (!s) return { number: null };
+
+  // An explicit label wins: "מספר 12", "מס׳ 12", "מספר כניסה 12", "עלייה 12", "#12".
+  const labelled = s.match(
+    /(?:מספר\s+(?:כניסה|עלי+ה)|מספר|מס['׳’.]?|כניסה|עלי+ה|#|no\.?)\s*[:\-]?\s*(\d{1,4})(?!\d)/i
+  );
+  if (labelled) return { number: Number(labelled[1]) };
+
+  // No label: two or more numbers → the last one is the entry number.
+  const nums = s.match(/\d+(?:\.\d+)?/g) || [];
+  if (nums.length >= 2) {
+    const last = nums[nums.length - 1];
+    if (/^\d{1,4}$/.test(last)) return { number: Number(last) };
+  }
+  return { number: null };
+}
+
+/**
+ * Registrations (plain objects) → roster rows.
  *
  * Reads only fields the sign-up form writes (see CompetitionPage.jsx):
  *   riderName, horseName, classEntry, contact, location, horseCount, day, days,
- *   packages, dayPackages [{day, package}], depositPaid.
+ *   packages, dayPackages [{day, package}], depositPaid, userEmail,
+ *   publishPermission, receiptWanted.
  */
 function expandRows(registrations) {
   const rows = [];
@@ -63,12 +105,17 @@ function expandRows(registrations) {
       .map(packageLabel);
     const priorityTag = wantsPriority ? [PACKAGE_LABELS.priority] : [];
 
+    const receipt = text(r.receiptWanted).toLowerCase();
     const base = {
       rider: text(r.riderName) || text(r.userName),
       horse: text(r.horseName),
       cls: text(r.classEntry),
+      number: parseClassEntry(r.classEntry).number,
       paid: r.depositPaid === true,
       contact: text(r.contact),
+      email: text(r.userEmail),
+      publish: PUBLISH_LABELS[text(r.publishPermission)] || (r.underAge === true ? PUBLISH_LABELS.underage : ""),
+      receipt: receipt && !["no", "false", "לא"].includes(receipt) ? "כן" : "",
       note: [
         Number(r.horseCount) > 1 ? `${Number(r.horseCount)} סוסים` : "",
         text(r.location),
@@ -106,16 +153,34 @@ function expandRows(registrations) {
       }
     }
   }
-
-  const cmp = (a, b) => String(a).localeCompare(String(b), "he", { numeric: true });
-  rows.sort(
-    (a, b) =>
-      cmp(a.sortDate || "9999", b.sortDate || "9999") ||
-      cmp(a.day, b.day) ||
-      cmp(a.cls, b.cls) ||
-      cmp(a.rider, b.rider)
-  );
   return rows;
+}
+
+const cmp = (a, b) => String(a).localeCompare(String(b), "he", { numeric: true });
+
+/**
+ * Day by day, in the order Alina follows on the day: entry number first (riders
+ * with no number yet go after those who have one), then class, then rider.
+ * Returns [{ key, label, date, rows }] with the days in calendar order.
+ */
+function groupByDay(rows) {
+  const days = new Map();
+  for (const r of rows) {
+    const key = `${r.sortDate || "9999"}|${r.day}`;
+    if (!days.has(key)) days.set(key, { key, label: r.day || "ללא יום", date: r.sortDate, rows: [] });
+    days.get(key).rows.push(r);
+  }
+  const out = [...days.values()].sort((a, b) => cmp(a.key, b.key));
+  for (const d of out) {
+    d.rows.sort(
+      (a, b) =>
+        (a.number == null) - (b.number == null) ||
+        (a.number ?? 0) - (b.number ?? 0) ||
+        cmp(a.cls, b.cls) ||
+        cmp(a.rider, b.rider)
+    );
+  }
+  return out;
 }
 
 /* ── xlsx writer ─────────────────────────────────────────────────────────── */
@@ -175,35 +240,28 @@ const cell = (c, r, value, style) =>
 // header, width (characters)
 const COLUMNS = [
   ["#", 5],
-  ["יום", 14],
-  ["מקצה", 18],
+  ["מס' עלייה", 10],
+  ["מקצה", 20],
   ["רוכב/ת", 22],
   ["סוס", 18],
-  ["חבילה", 28],
+  ["חבילה", 26],
   ["מקדמה", 11],
   ["טלפון", 16],
+  ["אימייל", 26],
+  ["פרסום", 11],
+  ["קבלה", 8],
   ["הערות", 22],
-  ["צולם ✓", 10],
+  ["צולם ✓", 9],
 ];
 
-/**
- * @param {object} meta   { title, dateText, registrations: number }
- * @param {object[]} rows output of expandRows()
- * @returns {Promise<Buffer>} the .xlsx file
- */
-async function buildRosterXlsx(meta, rows) {
-  const HEADER_ROW = 4;
-  const paidCount = rows.filter((r) => r.paid).length;
+const HEADER_ROW = 4;
 
+/** One day's table as the XML of a worksheet. */
+function sheetXml(title, subtitle, rows) {
+  const paidCount = rows.filter((r) => r.paid).length;
   const lines = [];
-  lines.push(`<row r="1" ht="24" customHeight="1">${cell(0, 1, meta.title, S.TITLE)}</row>`);
-  lines.push(
-    `<row r="2">${cell(
-      0, 2,
-      `${meta.dateText ? `${meta.dateText} · ` : ""}${meta.registrations} נרשמים · ${rows.length} שורות · ${paidCount} שילמו מקדמה`,
-      S.SUB
-    )}</row>`
-  );
+  lines.push(`<row r="1" ht="24" customHeight="1">${cell(0, 1, title, S.TITLE)}</row>`);
+  lines.push(`<row r="2">${cell(0, 2, `${subtitle ? `${subtitle} · ` : ""}${rows.length} רוכבים · ${paidCount} שילמו מקדמה`, S.SUB)}</row>`);
   lines.push(
     `<row r="${HEADER_ROW}" ht="30" customHeight="1">${COLUMNS.map(([h], i) => cell(i, HEADER_ROW, h, S.HEADER)).join("")}</row>`
   );
@@ -212,15 +270,18 @@ async function buildRosterXlsx(meta, rows) {
     const r = HEADER_ROW + 1 + i;
     const cells = [
       cell(0, r, String(i + 1), S.CENTER),
-      cell(1, r, row.day, S.BODY),
+      cell(1, r, row.number == null ? "" : String(row.number), S.CENTER),
       cell(2, r, row.cls, S.BODY),
       cell(3, r, row.rider, S.BODY),
       cell(4, r, row.horse, S.BODY),
       cell(5, r, row.pack, S.BODY),
       cell(6, r, row.paid ? "שולם" : "טרם שולם", row.paid ? S.PAID : S.UNPAID),
       cell(7, r, row.contact, S.BODY),
-      cell(8, r, row.note, S.BODY),
-      cell(9, r, "", S.CENTER),
+      cell(8, r, row.email, S.BODY),
+      cell(9, r, row.publish, S.CENTER),
+      cell(10, r, row.receipt, S.CENTER),
+      cell(11, r, row.note, S.BODY),
+      cell(12, r, "", S.CENTER),
     ];
     lines.push(`<row r="${r}" ht="22" customHeight="1">${cells.join("")}</row>`);
   });
@@ -228,7 +289,10 @@ async function buildRosterXlsx(meta, rows) {
   const lastRow = Math.max(HEADER_ROW + rows.length, HEADER_ROW);
   const lastCol = colName(COLUMNS.length - 1);
 
-  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  return {
+    lastRow,
+    lastCol,
+    xml: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
 <sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="${HEADER_ROW}" topLeftCell="A${HEADER_ROW + 1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/></sheetView></sheetViews>
@@ -238,14 +302,44 @@ async function buildRosterXlsx(meta, rows) {
 <autoFilter ref="A${HEADER_ROW}:${lastCol}${lastRow}"/>
 <pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
-</worksheet>`;
+</worksheet>`,
+  };
+}
 
-  // The filter needs a defined name or Excel greys the buttons out.
-  const sheetName = "מקצים";
+/** A legal, unique sheet name: no []:*?/\, at most 31 characters. */
+function sheetName(label, taken) {
+  const base = (String(label || "יום").replace(/[\[\]:*?/\\]/g, " ").replace(/\s+/g, " ").trim() || "יום").slice(0, 31);
+  let name = base;
+  for (let n = 2; taken.has(name); n += 1) name = `${base.slice(0, 31 - String(n).length - 1)} ${n}`;
+  taken.add(name);
+  return name;
+}
+
+/** "2026-10-22" → "22.10" (short, to tell two same-named days apart). */
+const shortDate = (ymd) => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || "") ? `${ymd.slice(8)}.${ymd.slice(5, 7)}` : "");
+
+/**
+ * @param {object} meta   { title, dateText, registrations: number }
+ * @param {object[]} rows output of expandRows()
+ * @returns {Promise<Buffer>} the .xlsx file: one sheet per day
+ */
+async function buildRosterXlsx(meta, rows) {
+  let days = groupByDay(rows);
+  if (days.length === 0) days = [{ key: "", label: "ללא נרשמים", date: "", rows: [] }];
+
+  const taken = new Set();
+  const sheets = days.map((d) => {
+    const name = sheetName(d.date ? `${d.label} ${shortDate(d.date)}` : d.label, taken);
+    const built = sheetXml(`${meta.title} — ${d.label}`, meta.dateText, d.rows);
+    return { name, ...built };
+  });
+
   const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="${xml(sheetName)}" sheetId="1" r:id="rId1"/></sheets>
-<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${xml(sheetName)}'!$A$${HEADER_ROW}:$${lastCol}$${lastRow}</definedName></definedNames>
+<sheets>${sheets.map((s, i) => `<sheet name="${xml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets>
+<definedNames>${sheets
+    .map((s, i) => `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xml(s.name)}'!$A$${HEADER_ROW}:$${s.lastCol}$${s.lastRow}</definedName>`)
+    .join("")}</definedNames>
 </workbook>`;
 
   const zip = new JSZip();
@@ -256,7 +350,7 @@ async function buildRosterXlsx(meta, rows) {
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("\n")}
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
   );
@@ -272,14 +366,14 @@ async function buildRosterXlsx(meta, rows) {
     "xl/_rels/workbook.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("\n")}
+<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`
   );
   zip.file("xl/styles.xml", STYLES);
-  zip.file("xl/worksheets/sheet1.xml", sheet);
+  sheets.forEach((s, i) => zip.file(`xl/worksheets/sheet${i + 1}.xml`, s.xml));
 
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-module.exports = { expandRows, buildRosterXlsx, PACKAGE_LABELS };
+module.exports = { expandRows, groupByDay, parseClassEntry, buildRosterXlsx, PACKAGE_LABELS };

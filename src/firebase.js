@@ -5,9 +5,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 // import { getAnalytics } from "firebase/analytics"; // unused
-import { getFirestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { connectAuthEmulator, getAuth, GoogleAuthProvider } from "firebase/auth";
 
 // Your web app's Firebase configuration
 // Your web app's Firebase configuration
@@ -33,5 +33,19 @@ const storage = getStorage(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+/**
+ * Local testing against the Firebase emulators (Auth, Firestore, Functions):
+ *   REACT_APP_USE_EMULATORS=1 npm start
+ * Development only, twice over: a production build (NODE_ENV=production) never
+ * connects to an emulator whatever the variable says, and without the variable
+ * the app talks to the real project exactly as before.
+ */
+export const USE_EMULATORS =
+  process.env.NODE_ENV !== "production" && process.env.REACT_APP_USE_EMULATORS === "1";
+if (USE_EMULATORS) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+}
+
 // Export the instances
-export { db, storage };
+export { app, db, storage };

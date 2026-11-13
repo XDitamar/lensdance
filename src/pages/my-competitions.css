@@ -257,6 +257,10 @@
   padding-bottom: 2px;
 }
 
+/* Tappable area only: the text and its underline stay exactly as they were. */
+.mc-link { position: relative; }
+.mc-link::after { content: ""; position: absolute; inset: -16px -8px; }
+
 .mc-link:hover {
   color: #6b4b2a;
   border-color: #b2967d;

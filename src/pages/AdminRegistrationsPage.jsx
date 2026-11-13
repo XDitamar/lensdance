@@ -668,6 +668,12 @@ export default function AdminRegistrationsPage() {
                         && (r.packages || []).includes(PRIORITY_PACKAGE_ID) && (
                         <span style={tagStyle("#F5F0E8", "#7D5A44")}>{packageLabel(PRIORITY_PACKAGE_ID)}</span>
                       )}
+                      {/* A prize code the customer attached to this order (a hint: she
+                          redeems it from the "Wheel gifts" panel below). translate="no"
+                          so an automatic translation never touches the code. */}
+                      {r.prizeCode && (
+                        <span translate="no" style={tagStyle("#F5F0E8", "#7D5A44")}>🎁 {r.prizeCode}</span>
+                      )}
                       {/* Deposit state, and the control to change it, in one
                           place — she is usually looking at this list while the
                           money lands. */}
@@ -788,6 +794,7 @@ export default function AdminRegistrationsPage() {
                           label: x.competitionTitle || "",
                           depositPaid: x.depositPaid === true,
                           submittedAt: toMillis(x.submittedAt),
+                          prizeCode: x.prizeCode || null,
                         }))}
                     />
                   )}

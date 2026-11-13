@@ -7,7 +7,7 @@
 // (a rim with pegs, radial labels, a still hub) and in the motion: a short
 // wind-up, a long spin that decelerates, a settle.
 //
-// The wheel NEVER decides anything. It asks api/spin.js, is told the answer,
+// The wheel NEVER decides anything. It asks the `spin` Cloud Function, is told the answer,
 // and rotates until it arrives there, so what the animation shows and what the
 // client actually won cannot come apart.
 //
@@ -20,8 +20,8 @@
 // ONE SPIN PER ORDER. /prize?order=<registrationId> is the wheel for that order:
 // if the order has no prize yet it can be spun (no deposit needed), otherwise
 // the prize it already won is shown, parked under the pointer. /prize with no
-// order lists the orders still waiting for a spin. The prize is a pure function
-// of the order (api/spin.js), so there is nothing to reroll, and it can only be
+// order lists the orders still waiting for a spin. The prize is stored once per order
+// by the `spin` Cloud Function, so there is nothing to reroll, and it can only be
 // redeemed later, on another order whose deposit is paid (see src/lib/rewards.js
 // and the admin registrations page).
 //
@@ -38,10 +38,9 @@ import {
   fetchRewards,
   fetchWheelOrders,
   orderStates,
-  recordPrize,
   requestSpin,
+  saveExtra,
   spinErrorKey,
-  submitPrizeExtra,
   validateJackpot,
   validateTeam,
 } from "../lib/rewards";
@@ -109,6 +108,9 @@ export default function PrizePage() {
   const [loading, setLoading] = useState(true);
   const [params] = useSearchParams();
   const orderParam = params.get("order");
+  /* /prize?test=1 shows a "test spin" button. It only reveals a button: the
+     `spin` Cloud Function decides who may use it, so the parameter is no key. */
+  const testMode = params.get("test") === "1";
   const [rewards, setRewards] = useState({ prizes: [], extras: {}, redeemed: {} });
   /* The customer's orders. null until read; [] when they have none (or the
      read failed, which is treated the same: nothing to spin for). */
@@ -117,7 +119,10 @@ export default function PrizePage() {
   const [phase, setPhase] = useState("idle"); // idle | windup | spinning
   const [won, setWon] = useState(null);
   const [error, setError] = useState("");
-  const [ended, setEnded] = useState(!wheelOpen());
+  const [endedState, setEnded] = useState(!wheelOpen());
+  /* Past 31.12.2026 the wheel is closed to customers. In test mode it stays
+     visible so it can still be checked (the server decides who may spin). */
+  const ended = endedState && !testMode;
   /* The slice being looked at (hovered, tapped or focused). */
   const [peek, setPeek] = useState(null);
   /* Which slice holds the single tab stop (arrow keys move it). */
@@ -168,8 +173,8 @@ export default function PrizePage() {
   );
   const explain = useCallback((id) => t(`prize.items.${id}.explain`, { defaultValue: "" }), [t]);
 
-  const onSpin = async () => {
-    if (busy || !canSpin) return;
+  const onSpin = async (test = false) => {
+    if (busy || (!test && !canSpin)) return;
     setError("");
     setWon(null);
     setPeek(null);
@@ -179,7 +184,7 @@ export default function PrizePage() {
       // Asked for FIRST, so the wheel never starts a spin it cannot finish:
       // a wheel that turns and then apologises is worse than a button that
       // waits half a second.
-      result = await requestSpin(selected.id);
+      result = await requestSpin(selected?.id, { test });
     } catch (err) {
       if (err?.code === "wheel-ended") setEnded(true);
       // Each cause gets its own plain-language message (see spinErrorKey);
@@ -219,6 +224,11 @@ export default function PrizePage() {
 
     setPhase("idle");
     setWon(result);
+
+    // A test spin is shown and nothing more: not added to the customer's prizes,
+    // not written to Firestore, no follow-up forms.
+    if (result.test) return;
+
     setRewards((r) => ({
       ...r,
       prizes: [
@@ -228,17 +238,13 @@ export default function PrizePage() {
           label: result.prize.label,
           tier: result.prize.tier,
           code: result.code,
-          issuedAt: result.issuedAt,
           validUntil: result.validUntil,
           orderId: result.orderId,
-          signature: result.signature,
+          redeemed: null,
+          extra: null,
         },
       ],
     }));
-
-    // Saved after it is shown: the client has won either way, and a slow write
-    // must not hold up the moment they are waiting for.
-    recordPrize(user.uid, result).catch((e) => console.warn("Prize not saved:", e?.code || e));
   };
 
   /* Arrow keys move between slices (one tab stop for the whole wheel, not
@@ -439,7 +445,7 @@ export default function PrizePage() {
             <div className="prize-action">
               {canSpin ? (
                 <>
-                  <button type="button" className="prize-btn prize-btn-solid" onClick={onSpin} disabled={busy}>
+                  <button type="button" className="prize-btn prize-btn-solid" onClick={() => onSpin(false)} disabled={busy}>
                     {busy ? t("prize.spinning") : t("prize.spin")}
                   </button>
                   <p className="prize-count">{t("prize.orderReady", { order: selected.label || dateOf(selected.submittedAt) })}</p>
@@ -476,6 +482,14 @@ export default function PrizePage() {
                   )}
                 </>
               )}
+              {testMode && (
+                <div className="prize-test">
+                  <button type="button" className="prize-btn prize-btn-small" onClick={() => onSpin(true)} disabled={busy}>
+                    {busy ? t("prize.spinning") : t("prize.test.button")}
+                  </button>
+                  <p className="prize-count">{t("prize.test.hint")}</p>
+                </div>
+              )}
               <p className="prize-until">{t("prize.until", { date: dmy(PRIZE_WHEEL_UNTIL) })}</p>
             </div>
           </>
@@ -497,8 +511,14 @@ export default function PrizePage() {
               <p className="prize-fine">
                 {t("prize.validUntil", { date: dmy(shown.validUntil || PRIZE_VALID_UNTIL) })}
               </p>
-              <p className="prize-fine">{t("prize.redeemNote")}</p>
-              <p className="prize-fine">{t("prize.codeNote")}</p>
+              {shown.test ? (
+                <p className="prize-fine">{t("prize.test.note")}</p>
+              ) : (
+                <>
+                  <p className="prize-fine">{t("prize.redeemNote")}</p>
+                  <p className="prize-fine">{t("prize.codeNote")}</p>
+                </>
+              )}
               <p className="prize-fine"><Link className="prize-link" to="/prize-terms">{t("prize.rulesLink")}</Link></p>
             </div>
           )}
@@ -527,7 +547,6 @@ export default function PrizePage() {
         <ExtraForm
           key={p.code}
           prize={p}
-          uid={user.uid}
           onDone={(extra) =>
             setRewards((r) => ({ ...r, extras: { ...r.extras, [p.code]: extra } }))
           }
@@ -584,15 +603,15 @@ export default function PrizePage() {
 
 /* ── Follow-ups for the two prizes that need the winner to choose ─────────── */
 
-function ExtraForm({ prize, uid, onDone }) {
+function ExtraForm({ prize, onDone }) {
   const kind = prizeById(prize.prizeId)?.special;
   return (
     <section className="prize-card prize-form-card">
       <p className="prize-eyebrow">{prize.code}</p>
       {kind === "team" ? (
-        <TeamForm code={prize.code} uid={uid} onDone={onDone} />
+        <TeamForm orderId={prize.orderId} onDone={onDone} />
       ) : (
-        <JackpotForm code={prize.code} uid={uid} onDone={onDone} />
+        <JackpotForm orderId={prize.orderId} onDone={onDone} />
       )}
     </section>
   );
@@ -600,7 +619,7 @@ function ExtraForm({ prize, uid, onDone }) {
 
 const ERR_KEYS = { consent: "errConsent", count: "errIncomplete", incomplete: "errIncomplete", contact: "errContact", duplicate: "errDuplicate", same: "errSame" };
 
-function TeamForm({ code, uid, onDone }) {
+function TeamForm({ orderId, onDone }) {
   const { t } = useTranslation();
   const [friends, setFriends] = useState(() => Array.from({ length: 5 }, () => ({ name: "", contact: "" })));
   const [consent, setConsent] = useState(false);
@@ -622,10 +641,15 @@ function TeamForm({ code, uid, onDone }) {
         friends: friends.map((f) => ({ name: f.name.trim(), contact: f.contact.trim() })),
         consent: true,
       };
-      await submitPrizeExtra(uid, code, extra);
+      // The server validates it again and accepts it once; its answer is the last word.
+      await saveExtra(orderId, extra);
       onDone(extra);
     } catch (e2) {
-      setErr(e2?.message === "already-submitted" ? t("prize.team.errAlready") : t("prize.errorGeneric"));
+      setErr(
+        e2?.code === "already-submitted" ? t("prize.team.errAlready")
+          : ERR_KEYS[e2?.code] ? t(`prize.team.${ERR_KEYS[e2.code]}`)
+          : t("prize.errorGeneric")
+      );
     } finally {
       setSaving(false);
     }
@@ -660,7 +684,7 @@ function TeamForm({ code, uid, onDone }) {
   );
 }
 
-function JackpotForm({ code, uid, onDone }) {
+function JackpotForm({ orderId, onDone }) {
   const { t } = useTranslation();
   const [comps, setComps] = useState(null);
   const [video, setVideo] = useState("");
@@ -687,10 +711,15 @@ function JackpotForm({ code, uid, onDone }) {
     try {
       const pick = (id) => ({ id, label: competitionLabel(byId(id)) });
       const extra = { type: "jackpot", video: pick(video), pack: pick(pack) };
-      await submitPrizeExtra(uid, code, extra);
+      await saveExtra(orderId, extra);
       onDone(extra);
     } catch (e2) {
-      setErr(e2?.message === "already-submitted" ? t("prize.jackpot.errAlready") : t("prize.errorGeneric"));
+      setErr(
+        e2?.code === "already-submitted" ? t("prize.jackpot.errAlready")
+          : e2?.code === "same" ? t("prize.jackpot.errSame")
+          : e2?.code === "incomplete" ? t("prize.jackpot.errIncomplete")
+          : t("prize.errorGeneric")
+      );
     } finally {
       setSaving(false);
     }

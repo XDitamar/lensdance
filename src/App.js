@@ -57,7 +57,7 @@ export default function App() {
   }, []);
 
   return (
-    // Shows the "under construction" screen instead of the site when
+    // Shows the "under " screen instead of the site when
     // REACT_APP_MAINTENANCE=1 — never on localhost, never for the admin.
     // See src/components/MaintenanceGate.jsx.
     <MaintenanceGate>

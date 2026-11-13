@@ -41,7 +41,8 @@ Node 22.x is required (`engines` in package.json). Deployment is Vercel (`vercel
 - `api/image.js` — image proxy: fetches a Firebase download URL, resizes with sharp to WebP (`?url=&w=&q=`), heavy CDN caching. Gallery grid performance depends on it.
 - `api/media.js` — lists Storage `public/` files with 1-hour signed URLs (firebase-admin).
 - `api/admin-sync-auth-users.js` — POST, syncs all Firebase Auth users into the Firestore `users` collection; authorized by `x-admin-email` header matching the admin email.
-- `api/send-roster.js` + `api/_lib/roster.js` — the competition roster as an .xlsx (one row per rider per day; written with jszip, no spreadsheet library) sent to Alina's Telegram. Cron (`0 5 * * *`, CRON_SECRET bearer) sends it the day before a competition's `startDate`; the "send me the roster" button on `/admin/registrations` sends it on demand, reading `registrations` with the admin's own ID token (no server credentials needed). The cron needs working firebase-admin credentials; when they fail it sends Alina a "could not build the roster, use the button" message instead of staying silent. Test the cron with `GET /api/send-roster?for=YYYY-MM-DD` and the CRON_SECRET bearer.
+- `api/send-roster.js` + `api/_lib/roster.js` — the competition roster as an .xlsx (one row per rider per day; written with jszip, no spreadsheet library) sent to Alina's Telegram. Cron (`0 5 * * *`, CRON_SECRET bearer) sends it the day before a competition's `startDate`; the "send me the roster" button on `/admin/registrations` sends it on demand, reading `registrations` with the admin's own ID token (no server credentials needed). The cron needs working firebase-admin credentials; when they fail it sends Alina a "could not build the roster, use the button" message instead of staying silent. Test the cron with `GET /api/send-roster?for=YYYY-MM-DD` and the CRON_SECRET bearer. The workbook has one sheet per day (riders in riding order: entry number, then class; the entry number is parsed best-effort out of the free-text `classEntry` box, which also holds the class, and the raw text is always kept). Shared code is in `api/_lib/rosterData.js`.
+- `api/telegram-webhook.js` — Alina's `/sum` (files for competitions not yet finished) and `/sum all` in the Telegram bot. Needs `TELEGRAM_WEBHOOK_SECRET` (16+ chars `A-Za-z0-9_-`) in Vercel, then ONE call to `GET /api/telegram-webhook?setup=1` with the CRON_SECRET bearer, which registers the webhook and the `/` menu. Two locks: Telegram's secret header, and the chat must be in `TELEGRAM_CHAT_ID`. It reads sign-ups through firebase-admin (no signed-in user exists inside Telegram), so it depends on fixing the broken `FIREBASE_*` credentials; until then it answers with a link to the admin-page button. Registering a webhook switches off `getUpdates` for the bot.
 - Server-side env vars: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_SERVICE_ACCOUNT`, `ADMIN_EMAIL` (see `.env` / `.env.local`, not committed).
 
 ### Firestore collections (rules in `firestore.rules`)
@@ -100,49 +101,61 @@ Node 22.x is required (`engines` in package.json). Deployment is Vercel (`vercel
   is the tag, so listings carry it for free. Admin listing must therefore be
   recursive (it is).
 - **The prize wheel is ON** (`PRIZE_WHEEL = true`, `/prize` live, public rules at
-  `/prize-terms`). It ends 31.12.2026 (`PRIZE_WHEEL_UNTIL`, enforced server-side
-  in `api/spin.js`). The odds live in ONE place, `api/_prizes.js`;
-  `src/config/prizes.js` is a generated copy (`node scripts/sync-prizes.js`) and
-  `src/config/prizes.test.js` fails if they differ.
-  - **Flow: one spin per ORDER (a registration), no deposit needed to spin.**
-    The thank-you screen (`submitted` in `CompetitionPage.jsx`) links to
-    `/prize?order=<registrationId>`; `/prize` alone lists the customer's orders
-    that have not been spun. Spins are NOT stored or counted any more: an order
-    with no prize IS an unspun order. Spins are no longer credited when a
-    deposit is marked paid (`addSpins` and the admin "grant spins" field are
-    gone; an old `spins` field on `retention/{uid}` is simply ignored).
-  - **The draw is deterministic per order**: `drawForOrder` in `api/_verify.js`
-    maps HMAC(`SPIN_SECRET`, uid + orderId) onto the weights, so asking again
-    for the same order returns the same prize (nothing to reroll, no "used"
-    flag to store). It ignores everything the client sends except the order id.
-  - **`api/spin.js` checks the order**: it reads `registrations/{orderId}`
-    through the Firestore REST API using the CALLER'S OWN ID token, so the
-    rules decide who may see it. This relies on the existing owner-read rule on
-    `registrations` (`resource.data.userId == request.auth.uid`, already
-    published: `/my-competitions` needs it too), so no rules change is needed.
-    Orders are `registrations` only; `sessionBookings` are admin-read only and
-    do not earn spins. The order must be the caller's and placed (`submittedAt`)
-    on or before 31.12.2026.
-  - **Redeeming**: a prize can only be spent on a LATER order of the same
-    customer whose deposit is marked paid, never on the order it was won on
-    (`canRedeemOn`, enforced by `api/verify-prize.js` reading the order with the
-    admin's token), and only if it is verified, unexpired and, for the six
-    capped prizes (#6 to #11), the customer's earliest one (`evaluatePrizes`).
-    Alina redeems from the admin registrations page (`PrizeAdminPanel`), which
-    records `{ at, orderId }` on `retention/{uid}`.
-  - **Prizes are forgeable client-side.** Winners write their own record to
-    `users/{uid}.prizes`. Each prize is HMAC-signed
-    (`uid|prizeId|code|issuedAt|validUntil|orderId`; prizes drawn before orders
-    existed have no `orderId` and keep verifying against the 5-field payload).
-    The real fix is working `FIREBASE_*` credentials on Vercel so the server can
-    write results somewhere clients cannot; until then redemption-time
-    verification is the enforcement. A customer who deletes an earlier prize from
-    their own record can hide it from the capped-prize check.
-  - **Errors**: the page shows a distinct message per cause (not signed in,
-    wheel ended, order not found / not yours / too late, server not configured,
-    service unavailable, no connection). Under plain `npm start` there is no
-    `/api`, so `/api/spin` answers 404 HTML and the page says the service is
-    unavailable: use `npm run vercel-dev` to test the wheel.
+  `/prize-terms`) and its server side lives in **Firebase, not Vercel**: Cloud
+  Functions 2nd gen in `functions/` (`spin`, `redeemPrize`, `savePrizeExtra`,
+  callable, region `europe-west1`, `maxInstances` 5). It needs the Blaze plan.
+  - **Data**: `users/{uid}/prizes/{orderId}`, ONE document per order; its
+    existence IS "this order has been spun" (no spin counter anywhere). Fields:
+    `prizeId, label, tier, code, orderId, issuedAt` (the ORDER's submittedAt),
+    `createdAt, validUntil, redeemed` (null or `{at, orderId, by}`), `extra`
+    (null, or the team / jackpot details). Nothing about the wheel is stored on
+    `users/{uid}` itself (its owner can write it).
+  - **Why there is no signature**: `firestore.rules` lets clients only READ
+    `users/{uid}/prizes`; only the functions (Admin SDK, built-in credentials)
+    write it. A record that cannot be forged needs no checksum, and a customer
+    cannot delete an old prize to hide it from the one-capped-prize rule. The
+    broken `FIREBASE_*` variables on Vercel no longer matter for the wheel.
+  - **Flow**: one spin per ORDER (a registration), no deposit needed to spin. The
+    thank-you screen links to `/prize?order=<registrationId>`. `spin` runs in a
+    transaction: it returns the stored prize if there is one (retries and double
+    clicks cannot reroll), otherwise checks the order (the caller's own, placed
+    by 31.12.2026) and draws with `crypto.randomInt(1000)` over the weights.
+  - **Redeeming**: only the admin, via `redeemPrize`, on a LATER order of the
+    same customer whose deposit is paid, never the order it was won on, not
+    expired, not already redeemed, and for the six capped prizes (#6 to #11)
+    only the customer's EARLIEST one (a redeemed capped prize still counts).
+    `savePrizeExtra` takes the team / jackpot details once, validated again on
+    the server. The reasons the admin screen shows (`src/lib/prizeRules.js`) are
+    a display copy of `functions/lib/wheel.js`, parity-tested.
+  - **Entering a code on the sign-up form** (`PrizeCodeApply`, phone-first): a
+    returning customer can attach a prize they already have to a NEW order.
+    `checkPrizeCode` (callable) looks up `{ code }` among the CALLER'S OWN
+    prizes only (`users/{uid}/prizes`, `code` field) and answers `ok` or a
+    reason (`not-found` also covers someone else's code and `TEST`,
+    `redeemed`, `expired`, `capped-limit`). The code goes on the registration as
+    `prizeCode`, which is a HINT only: it shows a gift tag and a pre-selection
+    for Alina, who still redeems through `redeemPrize` once the deposit is paid;
+    nothing trusts the field. Prizes with a multi-competition wording (#4 and
+    #9) stay single-redemption in the system; Alina handles the extra
+    competitions by hand. `checkPrizeCode` is live only after
+    `firebase deploy --only functions` (rules are unchanged).
+  - **The prizes table has ONE source**, `api/_prizes.js` (weights, labels, end
+    dates, the functions region). `node scripts/sync-prizes.js` writes
+    `src/config/prizes.js` and `functions/prizes.js`; `src/config/prizes.test.js`
+    fails on any drift. Changing weights or `PRIZE_VALID_UNTIL` means: edit
+    `api/_prizes.js` (and `src/config/features.js` for the dates), run the sync,
+    redeploy the functions.
+  - **Test spins**: `/prize?test=1` adds a "test spin" button. `spin` accepts
+    `{ test: true }` (the exact value only) from the admin and from emails in
+    the `WHEEL_TEST_EMAILS` function parameter (`functions/.env`, see
+    `functions/env.example`; unset = admin only). It writes nothing.
+  - **Deploy**: `firebase deploy --only functions` and
+    `firebase deploy --only firestore:rules` (rules and functions together).
+    Vercel needs no environment variable for the wheel.
+  - **Local testing needs no Vercel**: `REACT_APP_USE_EMULATORS=1 npm start`
+    (development builds only) talks to the Firebase emulators (Auth, Firestore,
+    Functions: `firebase emulators:start`; needs Java). Function logic tests:
+    `cd functions && npm test`. Rules tests: `scripts/firestore-rules.test.js`.
   - **`PRIZE_VALID_UNTIL` (`src/config/features.js` and `api/_prizes.js`) is a
     PLACEHOLDER** (`2027-06-30`). Itamar to set the real end of season.
   - **Odds are intentionally NOT on the wheel page**: no percentages and no
@@ -163,5 +176,5 @@ Node 22.x is required (`engines` in package.json). Deployment is Vercel (`vercel
   `components/InstagramFeed.jsx`.
 - Accessibility: alt text, keyboard focus, contrast, button labels.
 - No account-deletion flow, which Amendment 13 now makes a legal matter.
-- No rate limiting on `/api/file`, `/api/image` or `/api/spin`, and no spend
+- No rate limiting on `/api/file` or `/api/image`, and no spend
   cap on Vercel or GCP. The owner has already had one billing incident.

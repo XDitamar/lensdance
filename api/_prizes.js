@@ -4,10 +4,11 @@
 //
 // The underscore keeps Vercel from exposing this file as a route.
 //
-// The browser needs the same table (slice order, tiers, end date) but CRA
-// cannot import from outside src/, so src/config/prizes.js carries an ESM copy.
-// src/config/prizes.test.js fails if the two ever drift, so a changed weight
-// cannot ship half-updated.
+// The browser (CRA cannot import from outside src/) and the Cloud Functions (the
+// functions/ folder is deployed on its own) need the same table, so
+// scripts/sync-prizes.js copies it to src/config/prizes.js and functions/prizes.js.
+// src/config/prizes.test.js fails if either copy ever drifts, so a changed
+// weight cannot ship half-updated.
 
 /** Weights are out of TOTAL_WEIGHT. The draw is crypto.randomInt(TOTAL_WEIGHT). */
 const TOTAL_WEIGHT = 1000;
@@ -17,7 +18,7 @@ const TOTAL_WEIGHT = 1000;
  * purpose (readability); probability comes from `weight` alone.
  * `label` is the final Hebrew copy and is what Alina sees on the admin page.
  * `capped` prizes (the six biggest) are honoured ONCE per customer in total:
- * see evaluatePrizes() in ./_verify.js: the rule is enforced at redemption.
+ * see checkRedeem() in functions/lib/wheel.js: the rule is enforced at redemption.
  * `special` names a follow-up the winner has to complete (see PrizePage).
  */
 const PRIZES = [
@@ -48,60 +49,31 @@ const PRIZES = [
   },
 ];
 
+/**
+ * The Cloud Functions region (the prize wheel's server side lives in Firebase,
+ * see functions/). ONE constant: scripts/sync-prizes.js copies it to
+ * functions/prizes.js and src/config/prizes.js.
+ * europe-west1, not me-west1 (Tel Aviv): firebase-functions 6.6 does not list
+ * me-west1 as supported and its availability could not be confirmed without a
+ * Firebase login. Change it here if Itamar confirms me-west1.
+ */
+const FUNCTIONS_REGION = "europe-west1";
+
 /** Last day the wheel can be spun, end of day Asia/Jerusalem. */
 const PRIZE_WHEEL_UNTIL = "2026-12-31";
 
 /**
- * Every prize is valid until the end of this day (Asia/Jerusalem). Signed into
- * each prize at draw time.
+ * Every prize is valid until the end of this day (Asia/Jerusalem). Stored on
+ * each prize document at draw time.
  * PLACEHOLDER: Itamar to set the real end of season. Mirrored in
  * src/config/features.js; prizes.test.js fails if the two differ.
  */
 const PRIZE_VALID_UNTIL = "2027-06-30";
-
-/** The calendar date in Israel, "YYYY-MM-DD". */
-function israelDay(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jerusalem",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
-
-/** Is the wheel still open at `now`? */
-function wheelOpen(now = new Date()) {
-  return israelDay(now) <= PRIZE_WHEEL_UNTIL;
-}
-
-/** Has a prize that was valid until `validUntil` ("YYYY-MM-DD") run out? */
-function isExpired(validUntil, now = new Date()) {
-  return !validUntil || israelDay(now) > validUntil;
-}
-
-const isCapped = (id) => !!PRIZES.find((p) => p.id === id)?.capped;
-
-/**
- * Pure weighted pick. `roll` is an integer in [0, TOTAL_WEIGHT). The weights
- * table is the only place the odds live.
- */
-function pickPrize(roll) {
-  let r = roll;
-  for (const prize of PRIZES) {
-    if (r < prize.weight) return prize;
-    r -= prize.weight;
-  }
-  return PRIZES[PRIZES.length - 1];
-}
 
 module.exports = {
   PRIZES,
   TOTAL_WEIGHT,
   PRIZE_WHEEL_UNTIL,
   PRIZE_VALID_UNTIL,
-  israelDay,
-  wheelOpen,
-  isExpired,
-  isCapped,
-  pickPrize,
+  FUNCTIONS_REGION,
 };
